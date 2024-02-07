@@ -97,10 +97,10 @@ state:
 states:
 | state { $1 }
 | state states { $1 @ $2 }
-// | state COMMA states { $1 @ $3 }
 
 
 c_state:
+| STATE ACTIONS { with_loc (fun loc -> {states=[]; loc}) $loc }
 | STATE states ACTIONS { 
   List.iter (
     fun (NamedParameter{name=Ident{name}; typ}) -> 

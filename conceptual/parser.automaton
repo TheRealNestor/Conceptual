@@ -188,20 +188,22 @@ State 17:
 concept -> c_signature c_purpose . c_state [ EOF CONCEPT ]
 ## Transitions:
 -- On STATE shift to state 18
--- On c_state shift to state 35
+-- On c_state shift to state 36
 ## Reductions:
 
 State 18:
 ## Known stack suffix:
 ## STATE
 ## LR(1) items:
+c_state -> STATE . ACTIONS [ EOF CONCEPT ]
 c_state -> STATE . states ACTIONS [ EOF CONCEPT ]
 ## Transitions:
 -- On IDENT shift to state 19
--- On states shift to state 22
--- On state shift to state 24
--- On named_parameters shift to state 26
--- On ident_list shift to state 27
+-- On ACTIONS shift to state 22
+-- On states shift to state 23
+-- On state shift to state 25
+-- On named_parameters shift to state 27
+-- On ident_list shift to state 28
 ## Reductions:
 
 State 19:
@@ -238,14 +240,24 @@ ident_list -> IDENT COMMA ident_list . [ COLON ]
 
 State 22:
 ## Known stack suffix:
+## STATE ACTIONS
+## LR(1) items:
+c_state -> STATE ACTIONS . [ EOF CONCEPT ]
+## Transitions:
+## Reductions:
+-- On EOF CONCEPT
+--   reduce production c_state -> STATE ACTIONS
+
+State 23:
+## Known stack suffix:
 ## STATE states
 ## LR(1) items:
 c_state -> STATE states . ACTIONS [ EOF CONCEPT ]
 ## Transitions:
--- On ACTIONS shift to state 23
+-- On ACTIONS shift to state 24
 ## Reductions:
 
-State 23:
+State 24:
 ## Known stack suffix:
 ## STATE states ACTIONS
 ## LR(1) items:
@@ -255,7 +267,7 @@ c_state -> STATE states ACTIONS . [ EOF CONCEPT ]
 -- On EOF CONCEPT
 --   reduce production c_state -> STATE states ACTIONS
 
-State 24:
+State 25:
 ## Known stack suffix:
 ## state
 ## LR(1) items:
@@ -263,15 +275,15 @@ states -> state . [ ACTIONS ]
 states -> state . states [ ACTIONS ]
 ## Transitions:
 -- On IDENT shift to state 19
--- On states shift to state 25
--- On state shift to state 24
--- On named_parameters shift to state 26
--- On ident_list shift to state 27
+-- On states shift to state 26
+-- On state shift to state 25
+-- On named_parameters shift to state 27
+-- On ident_list shift to state 28
 ## Reductions:
 -- On ACTIONS
 --   reduce production states -> state
 
-State 25:
+State 26:
 ## Known stack suffix:
 ## state states
 ## LR(1) items:
@@ -281,7 +293,7 @@ states -> state states . [ ACTIONS ]
 -- On ACTIONS
 --   reduce production states -> state states
 
-State 26:
+State 27:
 ## Known stack suffix:
 ## named_parameters
 ## LR(1) items:
@@ -291,38 +303,38 @@ state -> named_parameters . [ IDENT ACTIONS ]
 -- On IDENT ACTIONS
 --   reduce production state -> named_parameters
 
-State 27:
+State 28:
 ## Known stack suffix:
 ## ident_list
 ## LR(1) items:
 named_parameters -> ident_list . COLON typ [ IDENT ACTIONS ]
 ## Transitions:
--- On COLON shift to state 28
+-- On COLON shift to state 29
 ## Reductions:
 
-State 28:
+State 29:
 ## Known stack suffix:
 ## ident_list COLON
 ## LR(1) items:
 named_parameters -> ident_list COLON . typ [ IDENT ACTIONS ]
 ## Transitions:
--- On SET shift to state 29
--- On IDENT shift to state 30
--- On typ shift to state 34
+-- On SET shift to state 30
+-- On IDENT shift to state 31
+-- On typ shift to state 35
 ## Reductions:
 
-State 29:
+State 30:
 ## Known stack suffix:
 ## SET
 ## LR(1) items:
 typ -> SET . typ [ IDENT ARROW ACTIONS ]
 ## Transitions:
--- On SET shift to state 29
--- On IDENT shift to state 30
--- On typ shift to state 31
+-- On SET shift to state 30
+-- On IDENT shift to state 31
+-- On typ shift to state 32
 ## Reductions:
 
-State 30:
+State 31:
 ## Known stack suffix:
 ## IDENT
 ## LR(1) items:
@@ -332,54 +344,54 @@ typ -> IDENT . [ IDENT ARROW ACTIONS ]
 -- On IDENT ARROW ACTIONS
 --   reduce production typ -> IDENT
 
-State 31:
+State 32:
 ## Known stack suffix:
 ## SET typ
 ## LR(1) items:
 typ -> SET typ . [ IDENT ARROW ACTIONS ]
 typ -> typ . ARROW typ [ IDENT ARROW ACTIONS ]
 ## Transitions:
--- On ARROW shift to state 32
+-- On ARROW shift to state 33
 ## Reductions:
 -- On IDENT ACTIONS
 --   reduce production typ -> SET typ
 
-State 32:
+State 33:
 ## Known stack suffix:
 ## typ ARROW
 ## LR(1) items:
 typ -> typ ARROW . typ [ IDENT ARROW ACTIONS ]
 ## Transitions:
--- On SET shift to state 29
--- On IDENT shift to state 30
--- On typ shift to state 33
+-- On SET shift to state 30
+-- On IDENT shift to state 31
+-- On typ shift to state 34
 ## Reductions:
 
-State 33:
+State 34:
 ## Known stack suffix:
 ## typ ARROW typ
 ## LR(1) items:
 typ -> typ . ARROW typ [ IDENT ARROW ACTIONS ]
 typ -> typ ARROW typ . [ IDENT ARROW ACTIONS ]
 ## Transitions:
--- On ARROW shift to state 32
+-- On ARROW shift to state 33
 ## Reductions:
 -- On IDENT ACTIONS
 --   reduce production typ -> typ ARROW typ
 
-State 34:
+State 35:
 ## Known stack suffix:
 ## ident_list COLON typ
 ## LR(1) items:
 named_parameters -> ident_list COLON typ . [ IDENT ACTIONS ]
 typ -> typ . ARROW typ [ IDENT ARROW ACTIONS ]
 ## Transitions:
--- On ARROW shift to state 32
+-- On ARROW shift to state 33
 ## Reductions:
 -- On IDENT ACTIONS
 --   reduce production named_parameters -> ident_list COLON typ
 
-State 35:
+State 36:
 ## Known stack suffix:
 ## c_signature c_purpose c_state
 ## LR(1) items:
