@@ -1,0 +1,14 @@
+Should make the DSL more robust: 
+---> have error codes that are more specific than just lexer error or parser error...
+
+Check operator precedence and associativity in alloy manual !!!!!
+---> prolly a good idea if they at least somewhat align 
+
+
+
+
+
+FOR THESIS: --------------------------
+
+See DNJ response here:
+https://forum.essenceofsoftware.com/t/conceptual-design-as-part-of-development-process/193/5

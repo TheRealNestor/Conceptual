@@ -1,0 +1,15 @@
+(executables
+ (names conceptual)
+ (libraries printbox printbox-text ounit2 menhirLib zarith str))
+
+(ocamllex lexer)
+
+(menhir
+ (merge_into parser)
+ (modules parser)
+ (flags --explain --inspection --table --dump))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))

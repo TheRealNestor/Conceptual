@@ -1,0 +1,391 @@
+State 0:
+## Known stack suffix:
+##
+## LR(1) items:
+program' -> . program [ # ]
+## Transitions:
+-- On CONCEPT shift to state 1
+-- On program shift to state 10
+-- On concept_list shift to state 11
+-- On concept shift to state 13
+-- On c_signature shift to state 15
+## Reductions:
+-- On EOF
+--   reduce production concept_list ->
+
+State 1:
+## Known stack suffix:
+## CONCEPT
+## LR(1) items:
+c_signature -> CONCEPT . IDENT [ PURPOSE ]
+c_signature -> CONCEPT . IDENT LBRACKET parameters RBRACKET [ PURPOSE ]
+## Transitions:
+-- On IDENT shift to state 2
+## Reductions:
+
+State 2:
+## Known stack suffix:
+## CONCEPT IDENT
+## LR(1) items:
+c_signature -> CONCEPT IDENT . [ PURPOSE ]
+c_signature -> CONCEPT IDENT . LBRACKET parameters RBRACKET [ PURPOSE ]
+## Transitions:
+-- On LBRACKET shift to state 3
+## Reductions:
+-- On PURPOSE
+--   reduce production c_signature -> CONCEPT IDENT
+
+State 3:
+## Known stack suffix:
+## CONCEPT IDENT LBRACKET
+## LR(1) items:
+c_signature -> CONCEPT IDENT LBRACKET . parameters RBRACKET [ PURPOSE ]
+## Transitions:
+-- On IDENT shift to state 4
+-- On parameters shift to state 5
+-- On parameter shift to state 7
+## Reductions:
+
+State 4:
+## Known stack suffix:
+## IDENT
+## LR(1) items:
+parameter -> IDENT . [ RBRACKET COMMA ]
+## Transitions:
+## Reductions:
+-- On RBRACKET COMMA
+--   reduce production parameter -> IDENT
+
+State 5:
+## Known stack suffix:
+## CONCEPT IDENT LBRACKET parameters
+## LR(1) items:
+c_signature -> CONCEPT IDENT LBRACKET parameters . RBRACKET [ PURPOSE ]
+## Transitions:
+-- On RBRACKET shift to state 6
+## Reductions:
+
+State 6:
+## Known stack suffix:
+## CONCEPT IDENT LBRACKET parameters RBRACKET
+## LR(1) items:
+c_signature -> CONCEPT IDENT LBRACKET parameters RBRACKET . [ PURPOSE ]
+## Transitions:
+## Reductions:
+-- On PURPOSE
+--   reduce production c_signature -> CONCEPT IDENT LBRACKET parameters RBRACKET
+
+State 7:
+## Known stack suffix:
+## parameter
+## LR(1) items:
+parameters -> parameter . [ RBRACKET ]
+parameters -> parameter . COMMA parameters [ RBRACKET ]
+## Transitions:
+-- On COMMA shift to state 8
+## Reductions:
+-- On RBRACKET
+--   reduce production parameters -> parameter
+
+State 8:
+## Known stack suffix:
+## parameter COMMA
+## LR(1) items:
+parameters -> parameter COMMA . parameters [ RBRACKET ]
+## Transitions:
+-- On IDENT shift to state 4
+-- On parameters shift to state 9
+-- On parameter shift to state 7
+## Reductions:
+
+State 9:
+## Known stack suffix:
+## parameter COMMA parameters
+## LR(1) items:
+parameters -> parameter COMMA parameters . [ RBRACKET ]
+## Transitions:
+## Reductions:
+-- On RBRACKET
+--   reduce production parameters -> parameter COMMA parameters
+
+State 10:
+## Known stack suffix:
+## program
+## LR(1) items:
+program' -> program . [ # ]
+## Transitions:
+## Reductions:
+-- On #
+--   accept program
+
+State 11:
+## Known stack suffix:
+## concept_list
+## LR(1) items:
+program -> concept_list . EOF [ # ]
+## Transitions:
+-- On EOF shift to state 12
+## Reductions:
+
+State 12:
+## Known stack suffix:
+## concept_list EOF
+## LR(1) items:
+program -> concept_list EOF . [ # ]
+## Transitions:
+## Reductions:
+-- On #
+--   reduce production program -> concept_list EOF
+
+State 13:
+## Known stack suffix:
+## concept
+## LR(1) items:
+concept_list -> concept . concept_list [ EOF ]
+## Transitions:
+-- On CONCEPT shift to state 1
+-- On concept_list shift to state 14
+-- On concept shift to state 13
+-- On c_signature shift to state 15
+## Reductions:
+-- On EOF
+--   reduce production concept_list ->
+
+State 14:
+## Known stack suffix:
+## concept concept_list
+## LR(1) items:
+concept_list -> concept concept_list . [ EOF ]
+## Transitions:
+## Reductions:
+-- On EOF
+--   reduce production concept_list -> concept concept_list
+
+State 15:
+## Known stack suffix:
+## c_signature
+## LR(1) items:
+concept -> c_signature . c_purpose c_state [ EOF CONCEPT ]
+## Transitions:
+-- On PURPOSE shift to state 16
+-- On c_purpose shift to state 17
+## Reductions:
+
+State 16:
+## Known stack suffix:
+## PURPOSE
+## LR(1) items:
+c_purpose -> PURPOSE . [ STATE ]
+## Transitions:
+## Reductions:
+-- On STATE
+--   reduce production c_purpose -> PURPOSE
+
+State 17:
+## Known stack suffix:
+## c_signature c_purpose
+## LR(1) items:
+concept -> c_signature c_purpose . c_state [ EOF CONCEPT ]
+## Transitions:
+-- On STATE shift to state 18
+-- On c_state shift to state 35
+## Reductions:
+
+State 18:
+## Known stack suffix:
+## STATE
+## LR(1) items:
+c_state -> STATE . states ACTIONS [ EOF CONCEPT ]
+## Transitions:
+-- On IDENT shift to state 19
+-- On states shift to state 22
+-- On state shift to state 24
+-- On named_parameters shift to state 26
+-- On ident_list shift to state 27
+## Reductions:
+
+State 19:
+## Known stack suffix:
+## IDENT
+## LR(1) items:
+ident_list -> IDENT . [ COLON ]
+ident_list -> IDENT . COMMA ident_list [ COLON ]
+## Transitions:
+-- On COMMA shift to state 20
+## Reductions:
+-- On COLON
+--   reduce production ident_list -> IDENT
+
+State 20:
+## Known stack suffix:
+## IDENT COMMA
+## LR(1) items:
+ident_list -> IDENT COMMA . ident_list [ COLON ]
+## Transitions:
+-- On IDENT shift to state 19
+-- On ident_list shift to state 21
+## Reductions:
+
+State 21:
+## Known stack suffix:
+## IDENT COMMA ident_list
+## LR(1) items:
+ident_list -> IDENT COMMA ident_list . [ COLON ]
+## Transitions:
+## Reductions:
+-- On COLON
+--   reduce production ident_list -> IDENT COMMA ident_list
+
+State 22:
+## Known stack suffix:
+## STATE states
+## LR(1) items:
+c_state -> STATE states . ACTIONS [ EOF CONCEPT ]
+## Transitions:
+-- On ACTIONS shift to state 23
+## Reductions:
+
+State 23:
+## Known stack suffix:
+## STATE states ACTIONS
+## LR(1) items:
+c_state -> STATE states ACTIONS . [ EOF CONCEPT ]
+## Transitions:
+## Reductions:
+-- On EOF CONCEPT
+--   reduce production c_state -> STATE states ACTIONS
+
+State 24:
+## Known stack suffix:
+## state
+## LR(1) items:
+states -> state . [ ACTIONS ]
+states -> state . states [ ACTIONS ]
+## Transitions:
+-- On IDENT shift to state 19
+-- On states shift to state 25
+-- On state shift to state 24
+-- On named_parameters shift to state 26
+-- On ident_list shift to state 27
+## Reductions:
+-- On ACTIONS
+--   reduce production states -> state
+
+State 25:
+## Known stack suffix:
+## state states
+## LR(1) items:
+states -> state states . [ ACTIONS ]
+## Transitions:
+## Reductions:
+-- On ACTIONS
+--   reduce production states -> state states
+
+State 26:
+## Known stack suffix:
+## named_parameters
+## LR(1) items:
+state -> named_parameters . [ IDENT ACTIONS ]
+## Transitions:
+## Reductions:
+-- On IDENT ACTIONS
+--   reduce production state -> named_parameters
+
+State 27:
+## Known stack suffix:
+## ident_list
+## LR(1) items:
+named_parameters -> ident_list . COLON typ [ IDENT ACTIONS ]
+## Transitions:
+-- On COLON shift to state 28
+## Reductions:
+
+State 28:
+## Known stack suffix:
+## ident_list COLON
+## LR(1) items:
+named_parameters -> ident_list COLON . typ [ IDENT ACTIONS ]
+## Transitions:
+-- On SET shift to state 29
+-- On IDENT shift to state 30
+-- On typ shift to state 34
+## Reductions:
+
+State 29:
+## Known stack suffix:
+## SET
+## LR(1) items:
+typ -> SET . typ [ IDENT ARROW ACTIONS ]
+## Transitions:
+-- On SET shift to state 29
+-- On IDENT shift to state 30
+-- On typ shift to state 31
+## Reductions:
+
+State 30:
+## Known stack suffix:
+## IDENT
+## LR(1) items:
+typ -> IDENT . [ IDENT ARROW ACTIONS ]
+## Transitions:
+## Reductions:
+-- On IDENT ARROW ACTIONS
+--   reduce production typ -> IDENT
+
+State 31:
+## Known stack suffix:
+## SET typ
+## LR(1) items:
+typ -> SET typ . [ IDENT ARROW ACTIONS ]
+typ -> typ . ARROW typ [ IDENT ARROW ACTIONS ]
+## Transitions:
+-- On ARROW shift to state 32
+## Reductions:
+-- On IDENT ACTIONS
+--   reduce production typ -> SET typ
+
+State 32:
+## Known stack suffix:
+## typ ARROW
+## LR(1) items:
+typ -> typ ARROW . typ [ IDENT ARROW ACTIONS ]
+## Transitions:
+-- On SET shift to state 29
+-- On IDENT shift to state 30
+-- On typ shift to state 33
+## Reductions:
+
+State 33:
+## Known stack suffix:
+## typ ARROW typ
+## LR(1) items:
+typ -> typ . ARROW typ [ IDENT ARROW ACTIONS ]
+typ -> typ ARROW typ . [ IDENT ARROW ACTIONS ]
+## Transitions:
+-- On ARROW shift to state 32
+## Reductions:
+-- On IDENT ACTIONS
+--   reduce production typ -> typ ARROW typ
+
+State 34:
+## Known stack suffix:
+## ident_list COLON typ
+## LR(1) items:
+named_parameters -> ident_list COLON typ . [ IDENT ACTIONS ]
+typ -> typ . ARROW typ [ IDENT ARROW ACTIONS ]
+## Transitions:
+-- On ARROW shift to state 32
+## Reductions:
+-- On IDENT ACTIONS
+--   reduce production named_parameters -> ident_list COLON typ
+
+State 35:
+## Known stack suffix:
+## c_signature c_purpose c_state
+## LR(1) items:
+concept -> c_signature c_purpose c_state . [ EOF CONCEPT ]
+## Transitions:
+## Reductions:
+-- On EOF CONCEPT
+--   reduce production concept -> c_signature c_purpose c_state
+

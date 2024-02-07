@@ -1,0 +1,11 @@
+concept authentication 
+purpose 
+  security or something idk...
+state 
+  mu,tex : lock
+   /* foo : bar
+   */
+actions
+
+
+  
