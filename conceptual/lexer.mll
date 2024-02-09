@@ -18,6 +18,17 @@
 
   let add_token_to_cache token = 
     token_cache := token :: !token_cache
+
+
+  (* Ensure that we get int 64 *)
+  let overflow_computation num min_val max_val =
+    if Z.gt_big_int num max_val then
+      Z.add_big_int min_val (Z.mod_big_int (Z.sub_big_int num max_val) (Z.add_big_int (Z.abs_big_int min_val) Z.unit_big_int))
+    else if Z.lt_big_int num min_val then
+      Z.sub_big_int max_val (Z.mod_big_int (Z.sub_big_int min_val num) (Z.add_big_int (Z.abs_big_int min_val) Z.unit_big_int))
+    else
+      num
+
 }
 
 let backslash_escapes =
@@ -32,22 +43,14 @@ let ident = ident_start ident_continue
 let whitespace = [' ' '\t' '\r']
 
 
-(* Stuff to add potentially:
-  - !=
-  - < and >
-  - <= and >=
-  - && and ||
-  - ! for not
-
- *)
-
 (* Could possibly have this be its own concept spec rule and distinguish it from a 
 concept composition rule via the keywords "concept" and "app" *)
 
+(* TODO: string type? *)
 
 rule token = parse 
 | eof { EOF }
-| '=' { EQ }
+| '=' { ASSIGN }
 | '+' { PLUS }
 | '-' { MINUS }
 | ':' { COLON }
@@ -58,36 +61,50 @@ rule token = parse
 | '[' { LBRACKET }
 | ']' { RBRACKET }
 | whitespace+ { token lexbuf } (* Skip whitespace *)
-| '\n' {Lexing.new_line lexbuf; token lexbuf} (* Increment line number *)
+| '\n' { Lexing.new_line lexbuf; token lexbuf} (* Increment line number *)
 | "//" { single_comment lexbuf } 
 | "/*" { multi_comment 0 lexbuf } 
-| ":=" { ASSIGN }
+| '<' { LT }
+| '>' { GT }
+| "<=" { LTE }
+| ">=" { GTE }
+| "==" { EQ }
+| "&&" { LAND }
+| "||" { LOR }
 | "+=" { ADDEQ }
 | "-=" { MINUSEQ }
 | "->" { ARROW }
 | "!=" { NEQ }
-| "if" { IF } (*TODO: Should I include else? Should I use the keyword when instead? *) 
+| "if" { IF }
+| "else" { ELSE } (*TODO: Do we really need this?*)
 | "in" { IN }
 | "NOT" | '!' { NOT }
 | "set" { SET }
+| "bool" { BOOL }
+| "int" { INT }
+| "true" { BOOL_LIT(true) }
+| "false" { BOOL_LIT(false) }
 | "concept" { CONCEPT }
 | "purpose" { Buffer.clear string_buf; purpose_str lexbuf; PURPOSE (Buffer.contents string_buf) } (* Embed the string into the token *)
 (* | "state" { STATE } This is never actually run *)
-| "actions" { ACTIONS }
+| "actions" { add_token_to_cache ACTIONS; ACTIONS }
 | "operational principle" { OP }
 | ident as i { IDENT i }
-(* | digits as d { INT (Z.of_string d) } *)
-
-
-
-
+| digits as i_lit { 
+  (* Wrap in big int to do arithmetic/overflow computation *)
+  let num = Z.big_int_of_string i_lit in 
+  let max_val = Z.big_int_of_int64 Int64.max_int in 
+  let min_val = Z.big_int_of_int64 Int64.min_int in
+  let i64_val = Z.int64_of_big_int @@ overflow_computation num min_val max_val in
+  INT_LIT(i64_val)  
+ }
 
 (* TODO: I want to stop this rule when I see the "state" clause. However, this approach
 will stop me from ever writing "state" inside the string. How to go about this... 
 I could do something with \n but that seems kind of dicey... *)
 (* TODO: This is the only place that allows generic strings, correct? *)
 and purpose_str = parse 
-| "state" { add_token_to_cache STATE; () }
+| "state" { add_token_to_cache STATE; () } (*TODO: Could possibly end this with a period instead if we want to use the state word...*)
 | '\\' (backslash_escapes as c) { Buffer.add_char string_buf @@ char_for_backslash c; purpose_str lexbuf } (* special escape characters *)
 | '\\' (_ as c) { 
   let startp = Lexing.lexeme_start_p lexbuf in

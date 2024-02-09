@@ -1,6 +1,7 @@
 open Parser
 
 let token_to_string = function
+
   | EOF -> "EOF"
   | EQ -> "EQ"
   | NEQ -> "NEQ"
@@ -27,6 +28,16 @@ let token_to_string = function
   | OP -> "OP"
   | PURPOSE s -> Printf.sprintf "PURPOSE(%s)" s
   | IDENT s -> Printf.sprintf "IDENT(%s)" s
+  | LTE -> "LTE"
+  | GTE -> "GTE"
+  | LT -> "LT"
+  | GT -> "GT"
+  | LOR -> "LOR"
+  | LAND -> "LAND"
+  | INT -> "INT"
+  | INT_LIT i -> Printf.sprintf "INT_LIT(%Ld)" i
+  | BOOL -> "BOOL"
+  | BOOL_LIT b -> Printf.sprintf "BOOL_LIT(%b)" b
 
 
 let lex_and_print_tokens tokenizer lexbuf =

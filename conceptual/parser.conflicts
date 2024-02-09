@@ -1,0 +1,36 @@
+
+** Conflict (shift/reduce) in state 88.
+** Tokens involved: IF IDENT
+** The following explanations concentrate on token IF.
+** This state is reached from program after reading:
+
+c_sig c_purpose c_state ACTIONS action_sig IF expr stmt
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+concept_list EOF 
+concept concept_list 
+c_sig c_purpose c_state c_actions 
+                        ACTIONS action 
+                                action_sig action_body 
+                                           stmts 
+                                           (?)
+
+** In state 88, looking ahead at IF, shifting is permitted
+** because of the following sub-derivation:
+
+stmt 
+IF expr stmts 
+        stmt stmts 
+             stmt 
+             . IF expr stmts 
+
+** In state 88, looking ahead at IF, reducing production
+** stmts -> stmt
+** is permitted because of the following sub-derivation:
+
+stmt stmts // lookahead token appears because stmts can begin with IF
+IF expr stmts // lookahead token is inherited
+        stmt . 

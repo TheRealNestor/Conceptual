@@ -10,9 +10,8 @@ let compile_program (filepath : string) : int =
   try
     let tokenizer = Token_cache.next_token Lexer.token in 
     
-    (* Print all tokens  *)
-    
-    (* Utility.lex_and_print tokenizer lex_buf;  *)
+    (* Print all tokens. This will consume them so parser will not run also  *)
+    (* Utility.lex_and_print_tokens tokenizer lex_buf;  *)
 
     let prog = Parser.program tokenizer lex_buf in 
     

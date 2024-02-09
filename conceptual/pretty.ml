@@ -16,7 +16,7 @@ let make_keyword_line name = PBox.line_with_style keyword_style name
 
 let make_info_node_line info = PBox.line_with_style info_node_style info
 
-let ident_to_tree (Ident {name;}) = make_ident_line name
+let ident_to_tree (Ident {name;_}) = make_ident_line name
 
 let ident_from_signature = function 
 | Signature {name; _} | ParameterizedSignature {name; _} -> name
@@ -24,24 +24,40 @@ let ident_from_signature = function
 
 let rec typ_to_tree tp =
   match tp with
-  | TCustom(Ident{name;_}) -> make_typ_line name
-  | TSet t -> PBox.tree (make_typ_line "Set") [typ_to_tree t]
-  | TMap {src; dst} -> PBox.tree (make_typ_line "Map") [typ_to_tree src; typ_to_tree dst]
+  | TBool _ -> make_typ_line "Bool"
+  | TInt _ -> make_typ_line "Int" 
+  | TCustom{tp = Ident{name; _}} -> make_typ_line name
+  | TSet{tp = t; _} -> PBox.tree (make_typ_line "Set") [typ_to_tree t]
+  | TMap {src; dst; _} -> PBox.tree (make_typ_line "Map") [typ_to_tree src; typ_to_tree dst]
   
 let binop_to_tree op =
     match op with
-    | Plus  -> make_keyword_line "PLUS"
-    | Minus -> make_keyword_line "Minus"
+    | Plus _ -> make_keyword_line "Plus"
+    | Minus _ -> make_keyword_line "Minus"
+    | Land _ -> make_keyword_line "Land"
+    | Lor _ -> make_keyword_line "Lor"
+    | Eq _ -> make_keyword_line "Eq"
+    | Neq _ -> make_keyword_line "Neq"
+    | Lt _ -> make_keyword_line "Lt"
+    | Lte _ -> make_keyword_line "Lte"
+    | Gt _ -> make_keyword_line "Gt"
+    | Gte _ -> make_keyword_line "Gte"
+
+
   
 let unop_to_tree op =
   match op with
-  | Not -> make_keyword_line "Not"
+  | Not _ -> make_keyword_line "Not"
+  | Neg _ -> make_keyword_line "Neg"
   
   let rec expr_to_tree e =
     match e with
-    | BinOp {left; op; right; _} -> PBox.tree (make_info_node_line "BinOp") [expr_to_tree left; binop_to_tree op; expr_to_tree right]
-    | UnOp {op; operand; _} -> PBox.tree (make_info_node_line "UnOp") [unop_to_tree op; expr_to_tree operand]
+    | Integer {int; _} -> PBox.hlist ~bars:false [make_info_node_line "IntLit("; PBox.line (Int64.to_string int); make_info_node_line ")"]
+    | Boolean {bool; _} -> PBox.hlist ~bars:false [make_info_node_line "BooleanLit("; make_keyword_line (if bool then "true" else "false"); make_info_node_line ")"]
+    | Binop {left; op; right; _} -> PBox.tree (make_info_node_line "BinOp") [expr_to_tree left; binop_to_tree op; expr_to_tree right]
+    | Unop {op; operand; _} -> PBox.tree (make_info_node_line "UnOp") [unop_to_tree op; expr_to_tree operand]
     | Lval l -> PBox.tree (make_info_node_line "Lval") [lval_to_tree l]
+    | Assignment{lval;rhs;_} -> PBox.tree (make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs]
      
 and lval_to_tree l =
     match l with
@@ -50,8 +66,7 @@ and lval_to_tree l =
 
 let rec statement_to_tree c =
   match c with
-  | Assign {lhs;rhs;_ } -> PBox.tree (make_keyword_line "Assign") [lval_to_tree lhs; expr_to_tree rhs]
- 
+  | ExprStmt{expr; _} -> PBox.tree (make_info_node_line "ExprStmt") [expr_to_tree expr]
 and statement_seq_to_forest stms = List.map statement_to_tree stms
 
 let rec parameter_list_to_tree parameters = 

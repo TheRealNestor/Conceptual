@@ -1,2 +1,4 @@
 /Phase5/
 /conceptual/_build/
+/conceptual/*.automaton
+/conceptual/*.conflicts
