@@ -19,20 +19,22 @@ let mk_loc loc = Location.make_location loc
 
 %token EOF (*End of file*)
 %token EQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ here? *)
-%token PLUS MINUS (*Binary operators*)
-%token ASSIGN ADDEQ MINUSEQ (* Mutators*)
+%token PLUS MINUS AMP (*Binary operators*)
+%token ASSIGN ADDEQ MINUSEQ AMPEQ (* Mutators*)
 %token NOT  (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
 %token LPAREN RPAREN LBRACKET RBRACKET (*Brackets and stuff*)
-%token IF ELSE
+%token WHEN
+%token OUT (*Output*)
 
-%token INT BOOL (*Primitive types*)
+%token INT BOOL STRING (*Primitive types*)
 
 %token ARROW SET IN (* Set-related tokens *)
 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 
-%token <string> PURPOSE IDENT
+(*ACTION_START: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
+%token <string> PURPOSE IDENT ACTION_START STR_LIT
 %token <int64> INT_LIT
 %token <bool> BOOL_LIT
 
@@ -44,19 +46,27 @@ let mk_loc loc = Location.make_location loc
 %type <Ast.ident list> ident_list
 %type <Ast.named_parameter list> named_parameters
 %type <Ast.typ> typ
-%type <Ast.concept_sig> c_sig
-%type <Ast.concept> concept
-%type <Ast.concept_purpose> c_purpose
 
 %type <Ast.state list> state
 %type <Ast.state list> states
 %type <Ast.expr> expr
-%type <Ast.named_parameter list> named_params_action_sig
-%type <Ast.action_sig> action_sig
-%type <Ast.action> action
+%type <Ast.named_parameter list * Ast.named_parameter list> named_params_action_sig
+%type <Ast.lval * Ast.binop * Ast.expr> compound_assign
 %type <Ast.lval> lval
 %type <Ast.stmt> stmt
 %type <Ast.stmt list> stmts
+%type <Ast.action> action
+%type <Ast.action list> actions
+%type <Ast.action_sig> action_sig
+%type <Ast.firing_cond option> action_firing_cond
+%type <Ast.stmt list> action_body
+%type <Ast.concept list> concept_list
+%type <Ast.concept> concept
+%type <Ast.concept_sig> c_sig
+%type <Ast.concept_purpose> c_purpose
+%type <Ast.concept_states> c_state
+%type <Ast.concept_actions> c_actions
+%type <Ast.operational_principle> c_op
 // __________________
 
 // Associativity and precedence
@@ -73,12 +83,11 @@ let mk_loc loc = Location.make_location loc
 %nonassoc SET
 %left PLUS MINUS 
 
-%left DOT 
+%left AMP
 %right ARROW (*TODO: Should this be left?*)
+%left DOT 
 
-// Below are just to handle dangling-else problem (with %prec as opposed to rewriting grammar)
-%nonassoc IF
-%nonassoc ELSE
+
 
 %start <Ast.program> program 
 
@@ -86,6 +95,7 @@ let mk_loc loc = Location.make_location loc
 
 
 typ: 
+| STRING { TString{loc = mk_loc $loc} }
 | INT { TInt{loc = mk_loc $loc} }
 | BOOL { TBool{loc = mk_loc $loc} }
 | IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}} }
@@ -96,6 +106,7 @@ lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 
 expr:
+| STR_LIT { String{str = $1; loc = mk_loc $loc} }
 | INT_LIT { Integer{int = $1; loc = mk_loc $loc} }
 | BOOL_LIT { Boolean{bool = $1; loc = mk_loc $loc} }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
@@ -107,6 +118,7 @@ expr:
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
 | MINUS { Minus{loc = mk_loc $loc} }
+| AMP { Intersection{loc = mk_loc $loc} }
 | LAND { Land{loc = mk_loc $loc} }
 | LOR { Lor{loc = mk_loc $loc} }
 | EQ { Eq{loc = mk_loc $loc} }
@@ -116,7 +128,8 @@ expr:
 | LTE { Lte{loc = mk_loc $loc} }
 | GTE { Gte{loc = mk_loc $loc} }
 | IN { In{loc = mk_loc $loc} }
-// Need join (.) here too ? Prolly also < > <= >=
+| NOT IN { NotIn{loc = mk_loc $loc} }
+| DOT { Join{loc = mk_loc $loc} }
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
@@ -137,13 +150,14 @@ ident_list:
 named_parameters:
 | ident_list COLON typ { List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) $1 }
 
+
 c_sig:
 | CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
 | CONCEPT IDENT LBRACKET parameters RBRACKET 
   { ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params = $4; loc = mk_loc $loc} }
 
 c_purpose: 
-| PURPOSE { {doc_str = $1; loc = mk_loc $loc} }
+| PURPOSE { Purpose{doc_str = $1; loc = mk_loc $loc} }
 
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
@@ -165,70 +179,84 @@ states:
 
 
 c_state:
-| STATE ACTIONS { { states = []; loc = mk_loc $loc } }
-| STATE states ACTIONS { 
-  List.iter (
-    fun (State{param=NamedParameter{name=Ident{name; _}; typ; _};_}) -> 
-      Printf.printf "STATE: Name: %s, Type: %s\n" name (str_of_typ typ)
-  ) $2;
-  { states = $2; loc = mk_loc $loc } }
-
-named_params_action_sig:
-| named_parameters { $1 }
-| named_parameters COMMA named_params_action_sig { $1 @ $3 } 
-
-action_sig:
-| IDENT LPAREN RPAREN 
-  { {name = Ident{name = $1; loc = mk_loc $loc}; params = []; loc = mk_loc $loc} }
-| IDENT LPAREN named_params_action_sig RPAREN
-  { 
-    List.iter (
-      fun (NamedParameter{name=Ident{name;_}; typ; _}) -> 
-        Printf.printf "ACTION: Name: %s, Type: %s\n" name (str_of_typ typ)
-    ) $3;
-
-    {name = Ident{name = $1; loc = mk_loc $loc}; params = $3; loc = mk_loc $loc} }
+| STATE ACTIONS { States{ states = []; loc = mk_loc $loc } }
+| STATE states ACTIONS { States{ states = $2; loc = mk_loc $loc } }
 
 
-// if if else 
-// in above case else should bind to the closest if?
+
+// TODO: Return type, return statement, function call (this might be a bit tricky)
+
+compound_assign:
+| lval ADDEQ expr { $1, Plus{loc = mk_loc $loc}, $3 }
+| lval MINUSEQ expr { $1, Minus{loc = mk_loc $loc}, $3 }
+| lval AMPEQ expr { $1, Intersection{loc = mk_loc $loc}, $3 }
+
 stmt:
-| lval ASSIGN expr { ExprStmt{expr = $3; loc = mk_loc $loc} }
-
-/*
-  If statement rules below. Rather than polluting the parser by rewriting the grammar 
-  to handle the dangling-else problem, I will just use assign an explicit precedence 
-  in this case to associate the else with the closest if.
-*/
-| IF expr stmts %prec IF 
-  { IfElseStmt{cond = $2; thbr = $3; elbr = []; loc = mk_loc $loc} }
-| IF expr stmts ELSE stmts 
-  { IfElseStmt{cond = $2; thbr = $3; elbr = $5; loc = mk_loc $loc} }
-
+| lval ASSIGN expr { ExprStmt{expr = Assignment{lval = $1; rhs = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
+| compound_assign {
+  let (lval, op, rhs) = $1 in
+  let loc = mk_loc $loc in
+  ExprStmt{expr = Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc}; loc}
+}
 
 stmts:
 | stmt { [$1] }
 | stmt stmts { $1 :: $2 }
 
+
+named_params_action_sig:
+| named_parameters { $1, [] }
+| named_parameters OUT { $1 , $1}
+| named_parameters COMMA named_params_action_sig { $1 @ (fst $3), [] @ (snd $3) } 
+| named_parameters OUT COMMA named_params_action_sig { $1 @ (fst $4), $1 @ (snd $4) }
+
+
+action_sig:
+| ACTION_START LPAREN RPAREN 
+  { ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params = []; out = []; loc = mk_loc $loc} }
+| ACTION_START LPAREN named_params_action_sig RPAREN
+  { let (params, out) = $3 in
+    ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params; out; loc = mk_loc $loc} }
+
+
 action_body:
-| { [] } (*TODO: I don't see why this would ever be useful. But easier to parse with this here?*)
+// I don't think we want to allow an empty body
 | stmts { $1 }
 
+action_firing_cond:
+| { None }
+| WHEN expr { Some (When{cond = $2; loc = mk_loc $loc }) }
+
 action:
-| action_sig action_body {  failwith "got to action"; {signature = $1; body = $2; loc = mk_loc $loc } } 
+| action_sig action_firing_cond action_body 
+  { Action{signature = $1; cond = $2; body = $3; loc = mk_loc $loc } } 
 
-
-
+actions:
+| action { [$1] }
+| action actions { $1 :: $2 }
 
 
 c_actions:
-| ACTIONS action {
-  raise TODO;
+| ACTIONS actions { Actions{actions = $2; loc = mk_loc $loc} } (*TODO: Temporary untill OP is actually implemented*)
+| ACTIONS actions OP { Actions{actions = $2; loc = mk_loc $loc} }
+
+
+// After some sequence of actions a condition holds...
+// Optional a temporal operator, comma separated list of action calls, seems to allow expressions (only booleans?)
+// "in set x of y" ? 
+// op: 
+// | 
+
+c_op: 
+| OP {
+  failwith "got to op"
 }
 
 concept: 
-| c_sig c_purpose c_state c_actions 
-  { raise TODO }
+| c_sig c_purpose c_state c_actions  (*TODO: Temporary until OP is implemented*)
+  { {signature = $1; purpose = $2; states = $3; actions = $4; loc = mk_loc $loc} }
+// | c_sig c_purpose c_state c_actions c_op
+//   { raise TODO }
 
 concept_list: 
 | { [] }

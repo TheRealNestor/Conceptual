@@ -8,7 +8,7 @@ let compile_program (filepath : string) : int =
   let _ = Lexing.set_filename lex_buf filepath in
 
   try
-    let tokenizer = Token_cache.next_token Lexer.token in 
+    let tokenizer = TokenCache.next_token Lexer.token in 
     
     (* Print all tokens. This will consume them so parser will not run also  *)
     (* Utility.lex_and_print_tokens tokenizer lex_buf;  *)

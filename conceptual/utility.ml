@@ -18,7 +18,7 @@ let token_to_string = function
   | RPAREN -> "RPAREN"
   | LBRACKET -> "LBRACKET"
   | RBRACKET -> "RBRACKET"
-  | IF -> "IF"
+  | WHEN -> "WHEN"
   | ARROW -> "ARROW"
   | SET -> "SET"
   | IN -> "IN"
@@ -38,6 +38,9 @@ let token_to_string = function
   | INT_LIT i -> Printf.sprintf "INT_LIT(%Ld)" i
   | BOOL -> "BOOL"
   | BOOL_LIT b -> Printf.sprintf "BOOL_LIT(%b)" b
+  | ACTION_START s -> Printf.sprintf "ACTION_START(%s)" s
+  | AMPEQ -> "AMPEQ"
+  | AMP -> "AMP"
 
 
 let lex_and_print_tokens tokenizer lexbuf =

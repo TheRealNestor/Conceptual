@@ -1,8 +1,18 @@
 (executables
  (names conceptual)
- (libraries printbox printbox-text ounit2 menhirLib zarith str))
+ (libraries printbox printbox-text ounit2 menhirLib zarith str)
+ (modes byte exe)
+)
 
-(ocamllex lexer)
+; Below is for building lexer with -ml flag. 
+(rule
+ (target lexer.ml)
+ (deps   lexer.mll)
+ (action (chdir %{workspace_root}
+          (run %{bin:ocamllex} -q -ml -o %{target} %{deps}))))
+
+; Or simply use if the bytecode compiler is used. This uses the automata-intepreter.
+; (ocamllex lexer)
 
 (menhir
  (merge_into parser)

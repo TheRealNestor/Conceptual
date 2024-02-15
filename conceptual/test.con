@@ -4,11 +4,19 @@ purpose
 state 
   mu,tex : lock
   foo : bar = 2 + 5 
+  question : meaning_of_life -> INT // 42
 /*
   Should we allow string data type? If so, then it might be harder to use keywords such as state,actions as delimiter
   Unless I explicitly use " " to denote strings. That is probably the way. 
 */
 actions
-  test(some,thing : stuff, MOAR_STUFF : too_much_stuff)
-    a = b
-    b = c
+  test(some,thing : stuff out, MOAR_STUFF : too_much_stuff) 
+    when stuff in MOAR_STUFF or too_much_stuff
+      a = b
+      b += c
+      c -= d
+  test2   (hello : world) // Support newline too? 
+    a = a + b - c
+// operational principle
+
+    

@@ -2,7 +2,7 @@
   open Parser
   open Errors
   open Location
-  open Token_cache
+  open TokenCache
   module Z = Big_int_Z (*TODO: Honestly may not even need this*)
 
   exception LexerError
@@ -18,7 +18,6 @@
 
   let add_token_to_cache token = 
     token_cache := token :: !token_cache
-
 
   (* Ensure that we get int 64 *)
   let overflow_computation num min_val max_val =
@@ -37,7 +36,7 @@ let backslash_escapes =
 
 let digit = ['0'-'9']
 let digits = digit+
-let ident_start =  ['a'-'z''A'-'Z''_']
+let ident_start =  ['a'-'z''A'-'Z']
 let ident_continue = ['a'-'z''A'-'Z''_''0'-'9']*
 let ident = ident_start ident_continue
 let whitespace = [' ' '\t' '\r']
@@ -60,6 +59,7 @@ rule token = parse
 | ')' { RPAREN }
 | '[' { LBRACKET }
 | ']' { RBRACKET }
+| '"' { Buffer.clear string_buf; string lexbuf; STR_LIT (Buffer.contents string_buf)}  (*Clear current buffer, do the string rule, return contents of buffer afterwards as a STRING token *)
 | whitespace+ { token lexbuf } (* Skip whitespace *)
 | '\n' { Lexing.new_line lexbuf; token lexbuf} (* Increment line number *)
 | "//" { single_comment lexbuf } 
@@ -69,27 +69,41 @@ rule token = parse
 | "<=" { LTE }
 | ">=" { GTE }
 | "==" { EQ }
-| "&&" { LAND }
-| "||" { LOR }
+| '&' { AMP} (* Set intersection *)
+| "&&" | "and" { LAND }
+| "||" | "or" { LOR }
 | "+=" { ADDEQ }
 | "-=" { MINUSEQ }
+| "&=" { AMPEQ }
 | "->" { ARROW }
 | "!=" { NEQ }
-| "if" { IF }
-| "else" { ELSE } (*TODO: Do we really need this?*)
+| "out" { OUT }
+| "when" { WHEN }
 | "in" { IN }
-| "NOT" | '!' { NOT }
+| "not" | '!' { NOT }
 | "set" { SET }
+| "string" { STRING }
 | "bool" { BOOL }
 | "int" { INT }
 | "true" { BOOL_LIT(true) }
 | "false" { BOOL_LIT(false) }
+(* Now operators for operational principles *)
+(* | "if" { IF } 
+| "can" { CAN }
+| "after" { AFTER }
+| "until" { UNTIL }
+| "of" { OF } (*TODO: not sure about this one*)
+| "has" { HAS } (*Not sure about this either *)
+| "then" { THEN } *)
+(* ---------------------------------------- *)
+
 | "concept" { CONCEPT }
 | "purpose" { Buffer.clear string_buf; purpose_str lexbuf; PURPOSE (Buffer.contents string_buf) } (* Embed the string into the token *)
 (* | "state" { STATE } This is never actually run *)
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
-| "operational principle" { OP }
+| "operational principle" { add_token_to_cache OP; OP }
 | ident as i { IDENT i }
+| ident as i whitespace* '(' { add_token_to_cache LPAREN; ACTION_START i } (*TODO: Add newline here too? To more easily distinguish idents for action_signature vs idents used in statements*)
 | digits as i_lit { 
   (* Wrap in big int to do arithmetic/overflow computation *)
   let num = Z.big_int_of_string i_lit in 
@@ -103,6 +117,8 @@ rule token = parse
 will stop me from ever writing "state" inside the string. How to go about this... 
 I could do something with \n but that seems kind of dicey... *)
 (* TODO: This is the only place that allows generic strings, correct? *)
+
+
 and purpose_str = parse 
 | "state" { add_token_to_cache STATE; () } (*TODO: Could possibly end this with a period instead if we want to use the state word...*)
 | '\\' (backslash_escapes as c) { Buffer.add_char string_buf @@ char_for_backslash c; purpose_str lexbuf } (* special escape characters *)
@@ -115,6 +131,18 @@ and purpose_str = parse
   } (* invalid escape character *)
 | eof { print_error @@ NoState; raise LexerError }
 | _ as c {Buffer.add_char string_buf c; purpose_str lexbuf } (* keep reading string, this will also read newline characters *)
+
+and string = parse   
+| '"' { ()  } (* end of string *)
+| '\\' (backslash_escapes as c) { Buffer.add_char string_buf @@ char_for_backslash c; string lexbuf } (* special escape characters *)
+| '\\' (_ as c) { 
+  let startp = Lexing.lexeme_start_p lexbuf in
+  let endp = Lexing.lexeme_end_p lexbuf in
+  let loc = make_location (startp, endp) in
+  print_error @@ InvalidEscapeCharacter{loc; input = String.make 1 c};
+  raise LexerError 
+  } (* invalid escape character *)
+| _ as c { Buffer.add_char string_buf c; string lexbuf } (* keep reading string, this will also read newline characters *)
 
 
 (* Nesting not applicable for single-line comments*)

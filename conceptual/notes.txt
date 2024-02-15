@@ -1,9 +1,16 @@
-Check operator precedence and associativity in alloy manual !!!!!
----> prolly a good idea if they at least somewhat align 
+TODO: 
+- return type removed in parser from, s op relat
 
 
-TODO: Shift/reduce conflict, dangling-else problem .........
 
+PARSER: 
+TODO:  function call (this might be a bit tricky)
+
+SEMANT:
+- when encountering a return statement, check that the action is indeed returning something...
+    type should also be correct. 
+- need a lot of type inference.
+- environment to remember the states, and match types/idents/lvals with environment
 
 
 
@@ -13,3 +20,20 @@ See DNJ response here:
 https://forum.essenceofsoftware.com/t/conceptual-design-as-part-of-development-process/193/5
 
 Use menhir manual as citation (same with ocamllex or Lexing module...)
+
+relatere concepts til design patterns med reference til "Gang of four" bogen.
+
+
+Metode afsnit med figur ligesom MikkelMorten, de starter hvert kapitel med billede fra figuren...
+
+TODO: List of abbrevations in thesis?
+
+TL;DR Most (or even all) concepts could be represented as features. But most features are not concepts, and it is the special properties of concepts, and the new way they give you to think about software, that bring benefits.
+
+Are there any constraints for state that they only allow binary relations or also n-ary?
+
+Future work: automate implementation of these conepts? Mapping to react components? GraphQL?
+
+Daniel jackson deliberately choose industry-grade examples and how they still get stuff wrong
+
+Perhaps discuss the makefile in appendix??? 

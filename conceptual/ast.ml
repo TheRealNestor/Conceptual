@@ -6,6 +6,7 @@ type ident = Ident of {name: string; loc : Loc.location }
 
 (* TODO: strings? *)
 type typ =
+  | TString of { loc : Loc.location }
   | TBool of { loc : Loc.location }
   | TInt of { loc : Loc.location }
   | TCustom of { tp : ident; } (* custom type *)
@@ -29,13 +30,23 @@ type binop =
 | Gt of { loc : Loc.location }
 | Gte of { loc : Loc.location }
 | In of { loc : Loc.location }
-(* | Dot / Join   *)
+| NotIn of { loc : Loc.location }
+| Intersection of { loc : Loc.location } 
+| Join of { loc : Loc.location }
 
 type unop = 
 | Not of { loc : Loc.location }
 | Neg of { loc : Loc.location }
 
+(* This is opeators for operational principle *)
+(* Could possibly include all of Alloy6's temporal operators? *)
+(* type opop =
+| After of { loc : Loc.location }
+| Then of { loc : Loc.location }
+| Until of { loc : Loc.location } *)
+
 type expr = 
+| String of {str : string; loc : Loc.location }
 | Integer of {int : int64; loc : Loc.location }
 | Boolean of {bool : bool; loc : Loc.location }
 | Assignment of {lval : lval; rhs : expr; loc : Loc.location }
@@ -49,66 +60,62 @@ and lval =
 
 type stmt = 
 | ExprStmt of {expr : expr; loc : Loc.location } (*Assignment, function/action call, possibly more?*)
-| IfElseStmt of {cond : expr; thbr : stmt list ; elbr : stmt list ; loc : Loc.location }
 
+                                          
 type state = State of {
   param : named_parameter;
   expr : expr option; 
   loc : Loc.location;
 }
 
-(* TODO: Could possibly add variant types, e.g.:
-    type concept_sig = ConceptSignature of {...}   
-  This adds quite a bit of verbosity to the code, would definitely need helper functions to make it more readable
-  Best approach might to go without it for now, and add it later if it becomes necessary (adding more variants to the type)
-*)
 type concept_sig = 
 | Signature of {name : ident; loc : Loc.location}
 | ParameterizedSignature of {name : ident; params : parameter list; loc : Loc.location}
 
+type firing_cond = When of {cond : expr; loc : Loc.location}
 
-type concept_purpose = {
+type concept_purpose = Purpose of {
   doc_str : string; 
   loc : Loc.location;
 }
 
-type concept_states = {
+type concept_states = States of {
   states : state list;
   loc : Loc.location;
 }
 
-type action_sig = {
+type action_sig = ActionSignature of {
   name : ident; 
+  out : named_parameter list ; (* Subset of params of values to be returned *)
   params : named_parameter list;
   loc : Loc.location;
 }
 
-type action = {
+type action = Action of {
   signature : action_sig; 
+  cond : firing_cond option;
   body : stmt list;
   loc : Loc.location;
-(*add body to this
-   compound statement, statement or something*)
 }
 
-type concept_actions = {
+type concept_actions = Actions of {
   actions : action list;
   loc : Loc.location;
 }
 
-type operational_principle = {
+type operational_principle = OP of {
+  (* #TODO: This should also be a list of statements of some sort instead of a string...  *)
   doc_str : string; 
   loc : Loc.location;
-  (* #TODO: This should also be a list of statements of some sort instead of a string...  *)
 }
 
 
 type concept = {
   signature : concept_sig;
   purpose : concept_purpose; 
-  states: concept_states;
+  states : concept_states;
   actions: concept_actions;
-  op : operational_principle;
+  (* op : operational_principle; *)
   loc : Loc.location;
 }
 
