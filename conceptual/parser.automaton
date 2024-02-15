@@ -6,12 +6,12 @@ program' -> . program [ # ]
 ## Transitions:
 -- On CONCEPT shift to state 1
 -- On program shift to state 10
--- On concept_list shift to state 11
+-- On list(concept) shift to state 11
 -- On concept shift to state 13
 -- On c_sig shift to state 15
 ## Reductions:
 -- On EOF
---   reduce production concept_list ->
+--   reduce production list(concept) ->
 
 State 1:
 ## Known stack suffix:
@@ -120,46 +120,46 @@ program' -> program . [ # ]
 
 State 11:
 ## Known stack suffix:
-## concept_list
+## list(concept)
 ## LR(1) items:
-program -> concept_list . EOF [ # ]
+program -> list(concept) . EOF [ # ]
 ## Transitions:
 -- On EOF shift to state 12
 ## Reductions:
 
 State 12:
 ## Known stack suffix:
-## concept_list EOF
+## list(concept) EOF
 ## LR(1) items:
-program -> concept_list EOF . [ # ]
+program -> list(concept) EOF . [ # ]
 ## Transitions:
 ## Reductions:
 -- On #
---   reduce production program -> concept_list EOF
+--   reduce production program -> list(concept) EOF
 
 State 13:
 ## Known stack suffix:
 ## concept
 ## LR(1) items:
-concept_list -> concept . concept_list [ EOF ]
+list(concept) -> concept . list(concept) [ EOF ]
 ## Transitions:
 -- On CONCEPT shift to state 1
--- On concept_list shift to state 14
+-- On list(concept) shift to state 14
 -- On concept shift to state 13
 -- On c_sig shift to state 15
 ## Reductions:
 -- On EOF
---   reduce production concept_list ->
+--   reduce production list(concept) ->
 
 State 14:
 ## Known stack suffix:
-## concept concept_list
+## concept list(concept)
 ## LR(1) items:
-concept_list -> concept concept_list . [ EOF ]
+list(concept) -> concept list(concept) . [ EOF ]
 ## Transitions:
 ## Reductions:
 -- On EOF
---   reduce production concept_list -> concept concept_list
+--   reduce production list(concept) -> concept list(concept)
 
 State 15:
 ## Known stack suffix:
@@ -188,23 +188,23 @@ State 17:
 concept -> c_sig c_purpose . c_state c_actions [ EOF CONCEPT ]
 ## Transitions:
 -- On STATE shift to state 18
--- On c_state shift to state 81
+-- On c_state shift to state 80
 ## Reductions:
 
 State 18:
 ## Known stack suffix:
 ## STATE
 ## LR(1) items:
-c_state -> STATE . ACTIONS [ ACTIONS ]
-c_state -> STATE . states ACTIONS [ ACTIONS ]
+c_state -> STATE . list(state) ACTIONS [ ACTIONS ]
 ## Transitions:
 -- On IDENT shift to state 19
--- On ACTIONS shift to state 22
--- On states shift to state 23
--- On state shift to state 25
--- On named_parameters shift to state 27
--- On ident_list shift to state 70
+-- On state shift to state 22
+-- On named_parameters shift to state 23
+-- On list(state) shift to state 78
+-- On ident_list shift to state 67
 ## Reductions:
+-- On ACTIONS
+--   reduce production list(state) ->
 
 State 19:
 ## Known stack suffix:
@@ -240,88 +240,48 @@ ident_list -> IDENT COMMA ident_list . [ COLON ]
 
 State 22:
 ## Known stack suffix:
-## STATE ACTIONS
-## LR(1) items:
-c_state -> STATE ACTIONS . [ ACTIONS ]
-## Transitions:
-## Reductions:
--- On ACTIONS
---   reduce production c_state -> STATE ACTIONS
-
-State 23:
-## Known stack suffix:
-## STATE states
-## LR(1) items:
-c_state -> STATE states . ACTIONS [ ACTIONS ]
-## Transitions:
--- On ACTIONS shift to state 24
-## Reductions:
-
-State 24:
-## Known stack suffix:
-## STATE states ACTIONS
-## LR(1) items:
-c_state -> STATE states ACTIONS . [ ACTIONS ]
-## Transitions:
-## Reductions:
--- On ACTIONS
---   reduce production c_state -> STATE states ACTIONS
-
-State 25:
-## Known stack suffix:
 ## state
 ## LR(1) items:
-states -> state . [ ACTIONS ]
-states -> state . states [ ACTIONS ]
+list(state) -> state . list(state) [ ACTIONS ]
 ## Transitions:
 -- On IDENT shift to state 19
--- On states shift to state 26
--- On state shift to state 25
--- On named_parameters shift to state 27
--- On ident_list shift to state 70
+-- On state shift to state 22
+-- On named_parameters shift to state 23
+-- On list(state) shift to state 66
+-- On ident_list shift to state 67
 ## Reductions:
 -- On ACTIONS
---   reduce production states -> state
+--   reduce production list(state) ->
 
-State 26:
-## Known stack suffix:
-## state states
-## LR(1) items:
-states -> state states . [ ACTIONS ]
-## Transitions:
-## Reductions:
--- On ACTIONS
---   reduce production states -> state states
-
-State 27:
+State 23:
 ## Known stack suffix:
 ## named_parameters
 ## LR(1) items:
 state -> named_parameters . [ IDENT ACTIONS ]
 state -> named_parameters . ASSIGN expr [ IDENT ACTIONS ]
 ## Transitions:
--- On ASSIGN shift to state 28
+-- On ASSIGN shift to state 24
 ## Reductions:
 -- On IDENT ACTIONS
 --   reduce production state -> named_parameters
 
-State 28:
+State 24:
 ## Known stack suffix:
 ## named_parameters ASSIGN
 ## LR(1) items:
 state -> named_parameters ASSIGN . expr [ IDENT ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 69
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 65
 ## Reductions:
 
-State 29:
+State 25:
 ## Known stack suffix:
 ## STR_LIT
 ## LR(1) items:
@@ -331,39 +291,39 @@ expr -> STR_LIT . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS
 --   reduce production expr -> STR_LIT
 
-State 30:
+State 26:
 ## Known stack suffix:
 ## NOT
 ## LR(1) items:
 expr -> NOT . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 68
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 64
 ## Reductions:
 
-State 31:
+State 27:
 ## Known stack suffix:
 ## MINUS
 ## LR(1) items:
 expr -> MINUS . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 67
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 63
 ## Reductions:
 
-State 32:
+State 28:
 ## Known stack suffix:
 ## INT_LIT
 ## LR(1) items:
@@ -373,7 +333,7 @@ expr -> INT_LIT . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS
 --   reduce production expr -> INT_LIT
 
-State 33:
+State 29:
 ## Known stack suffix:
 ## IDENT
 ## LR(1) items:
@@ -383,7 +343,7 @@ lval -> IDENT . [ PLUS OP NOT NEQ MINUSEQ MINUS LTE LT LOR LAND IN IDENT GTE GT 
 -- On PLUS OP NOT NEQ MINUSEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT ASSIGN AMPEQ AMP ADDEQ ACTION_START ACTIONS
 --   reduce production lval -> IDENT
 
-State 34:
+State 30:
 ## Known stack suffix:
 ## BOOL_LIT
 ## LR(1) items:
@@ -393,35 +353,36 @@ expr -> BOOL_LIT . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EO
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS
 --   reduce production expr -> BOOL_LIT
 
-State 35:
+State 31:
 ## Known stack suffix:
 ## lval
 ## LR(1) items:
 expr -> lval . ASSIGN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> lval . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
+lval -> lval . DOT lval [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT ASSIGN AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On ASSIGN shift to state 36
+-- On ASSIGN shift to state 32
 ## Reductions:
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS
 --   reduce production expr -> lval
 
-State 36:
+State 32:
 ## Known stack suffix:
 ## lval ASSIGN
 ## LR(1) items:
 expr -> lval ASSIGN . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 37
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 33
 ## Reductions:
 
-State 37:
+State 33:
 ## Known stack suffix:
 ## lval ASSIGN expr
 ## LR(1) items:
@@ -441,41 +402,41 @@ expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE 
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> lval ASSIGN expr . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LOR shift to state 55
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LOR shift to state 51
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP IDENT EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> lval ASSIGN expr
 
-State 38:
+State 34:
 ## Known stack suffix:
 ## expr PLUS
 ## LR(1) items:
 expr -> expr PLUS . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 39
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 35
 ## Reductions:
 
-State 39:
+State 35:
 ## Known stack suffix:
 ## expr PLUS expr
 ## LR(1) items:
@@ -495,29 +456,29 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr PLUS expr
 
-State 40:
+State 36:
 ## Known stack suffix:
 ## expr DOT
 ## LR(1) items:
 expr -> expr DOT . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 41
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 37
 ## Reductions:
 
-State 41:
+State 37:
 ## Known stack suffix:
 ## expr DOT expr
 ## LR(1) items:
@@ -541,23 +502,23 @@ expr -> expr DOT expr . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT 
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS
 --   reduce production expr -> expr DOT expr
 
-State 42:
+State 38:
 ## Known stack suffix:
 ## expr AMP
 ## LR(1) items:
 expr -> expr AMP . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 43
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 39
 ## Reductions:
 
-State 43:
+State 39:
 ## Known stack suffix:
 ## expr AMP expr
 ## LR(1) items:
@@ -577,37 +538,37 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On DOT shift to state 40
+-- On DOT shift to state 36
 ## Reductions:
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT AMP ACTION_START ACTIONS
 --   reduce production expr -> expr AMP expr
 
-State 44:
+State 40:
 ## Known stack suffix:
 ## expr NOT
 ## LR(1) items:
 expr -> expr NOT . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On IN shift to state 45
+-- On IN shift to state 41
 ## Reductions:
 
-State 45:
+State 41:
 ## Known stack suffix:
 ## expr NOT IN
 ## LR(1) items:
 expr -> expr NOT IN . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 46
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 42
 ## Reductions:
 
-State 46:
+State 42:
 ## Known stack suffix:
 ## expr NOT IN expr
 ## LR(1) items:
@@ -627,31 +588,31 @@ expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE 
 expr -> expr NOT IN expr . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr NOT IN expr
 
-State 47:
+State 43:
 ## Known stack suffix:
 ## expr MINUS
 ## LR(1) items:
 expr -> expr MINUS . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 48
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 44
 ## Reductions:
 
-State 48:
+State 44:
 ## Known stack suffix:
 ## expr MINUS expr
 ## LR(1) items:
@@ -671,29 +632,29 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr MINUS expr
 
-State 49:
+State 45:
 ## Known stack suffix:
 ## expr NEQ
 ## LR(1) items:
 expr -> expr NEQ . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 50
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 46
 ## Reductions:
 
-State 50:
+State 46:
 ## Known stack suffix:
 ## expr NEQ expr
 ## LR(1) items:
@@ -713,31 +674,31 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr NEQ expr
 
-State 51:
+State 47:
 ## Known stack suffix:
 ## expr LTE
 ## LR(1) items:
 expr -> expr LTE . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 52
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 48
 ## Reductions:
 
-State 52:
+State 48:
 ## Known stack suffix:
 ## expr LTE expr
 ## LR(1) items:
@@ -757,31 +718,31 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr LTE expr
 
-State 53:
+State 49:
 ## Known stack suffix:
 ## expr LT
 ## LR(1) items:
 expr -> expr LT . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 54
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 50
 ## Reductions:
 
-State 54:
+State 50:
 ## Known stack suffix:
 ## expr LT expr
 ## LR(1) items:
@@ -801,31 +762,31 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr LT expr
 
-State 55:
+State 51:
 ## Known stack suffix:
 ## expr LOR
 ## LR(1) items:
 expr -> expr LOR . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 56
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 52
 ## Reductions:
 
-State 56:
+State 52:
 ## Known stack suffix:
 ## expr LOR expr
 ## LR(1) items:
@@ -845,40 +806,40 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP LOR IDENT EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr LOR expr
 
-State 57:
+State 53:
 ## Known stack suffix:
 ## expr LAND
 ## LR(1) items:
 expr -> expr LAND . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 58
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 54
 ## Reductions:
 
-State 58:
+State 54:
 ## Known stack suffix:
 ## expr LAND expr
 ## LR(1) items:
@@ -898,39 +859,39 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP LOR LAND IDENT EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr LAND expr
 
-State 59:
+State 55:
 ## Known stack suffix:
 ## expr IN
 ## LR(1) items:
 expr -> expr IN . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 60
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 56
 ## Reductions:
 
-State 60:
+State 56:
 ## Known stack suffix:
 ## expr IN expr
 ## LR(1) items:
@@ -950,31 +911,31 @@ expr -> expr IN expr . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr IN expr
 
-State 61:
+State 57:
 ## Known stack suffix:
 ## expr GTE
 ## LR(1) items:
 expr -> expr GTE . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 62
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 58
 ## Reductions:
 
-State 62:
+State 58:
 ## Known stack suffix:
 ## expr GTE expr
 ## LR(1) items:
@@ -994,31 +955,31 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr GTE expr
 
-State 63:
+State 59:
 ## Known stack suffix:
 ## expr GT
 ## LR(1) items:
 expr -> expr GT . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 64
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 60
 ## Reductions:
 
-State 64:
+State 60:
 ## Known stack suffix:
 ## expr GT expr
 ## LR(1) items:
@@ -1038,31 +999,31 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr GT expr
 
-State 65:
+State 61:
 ## Known stack suffix:
 ## expr EQ
 ## LR(1) items:
 expr -> expr EQ . expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 66
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 62
 ## Reductions:
 
-State 66:
+State 62:
 ## Known stack suffix:
 ## expr EQ expr
 ## LR(1) items:
@@ -1082,15 +1043,15 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On MINUS shift to state 47
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On MINUS shift to state 43
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT NEQ LTE LT LOR LAND IN IDENT GTE GT EQ EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> expr EQ expr
 
-State 67:
+State 63:
 ## Known stack suffix:
 ## MINUS expr
 ## LR(1) items:
@@ -1110,22 +1071,22 @@ expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE 
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> MINUS expr . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP NOT LOR LAND IDENT EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> MINUS expr
 
-State 68:
+State 64:
 ## Known stack suffix:
 ## NOT expr
 ## LR(1) items:
@@ -1145,22 +1106,22 @@ expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE 
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 expr -> NOT expr . [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP LOR LAND IDENT EOF CONCEPT ACTION_START ACTIONS
 --   reduce production expr -> NOT expr
 
-State 69:
+State 65:
 ## Known stack suffix:
 ## named_parameters ASSIGN expr
 ## LR(1) items:
@@ -1180,48 +1141,58 @@ expr -> expr . NOT IN expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT 
 expr -> expr . DOT expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ACTIONS ]
 state -> named_parameters ASSIGN expr . [ IDENT ACTIONS ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LOR shift to state 55
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LOR shift to state 51
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On IDENT ACTIONS
 --   reduce production state -> named_parameters ASSIGN expr
 
-State 70:
+State 66:
+## Known stack suffix:
+## state list(state)
+## LR(1) items:
+list(state) -> state list(state) . [ ACTIONS ]
+## Transitions:
+## Reductions:
+-- On ACTIONS
+--   reduce production list(state) -> state list(state)
+
+State 67:
 ## Known stack suffix:
 ## ident_list
 ## LR(1) items:
 named_parameters -> ident_list . COLON typ [ RPAREN OUT IDENT COMMA ASSIGN ACTIONS ]
 ## Transitions:
--- On COLON shift to state 71
+-- On COLON shift to state 68
 ## Reductions:
 
-State 71:
+State 68:
 ## Known stack suffix:
 ## ident_list COLON
 ## LR(1) items:
 named_parameters -> ident_list COLON . typ [ RPAREN OUT IDENT COMMA ASSIGN ACTIONS ]
 ## Transitions:
--- On STRING shift to state 72
--- On SET shift to state 73
--- On INT shift to state 74
--- On IDENT shift to state 75
--- On BOOL shift to state 76
--- On typ shift to state 80
+-- On STRING shift to state 69
+-- On SET shift to state 70
+-- On INT shift to state 71
+-- On IDENT shift to state 72
+-- On BOOL shift to state 73
+-- On typ shift to state 77
 ## Reductions:
 
-State 72:
+State 69:
 ## Known stack suffix:
 ## STRING
 ## LR(1) items:
@@ -1231,21 +1202,21 @@ typ -> STRING . [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 -- On RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS
 --   reduce production typ -> STRING
 
-State 73:
+State 70:
 ## Known stack suffix:
 ## SET
 ## LR(1) items:
 typ -> SET . typ [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 ## Transitions:
--- On STRING shift to state 72
--- On SET shift to state 73
--- On INT shift to state 74
--- On IDENT shift to state 75
--- On BOOL shift to state 76
--- On typ shift to state 77
+-- On STRING shift to state 69
+-- On SET shift to state 70
+-- On INT shift to state 71
+-- On IDENT shift to state 72
+-- On BOOL shift to state 73
+-- On typ shift to state 74
 ## Reductions:
 
-State 74:
+State 71:
 ## Known stack suffix:
 ## INT
 ## LR(1) items:
@@ -1255,7 +1226,7 @@ typ -> INT . [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 -- On RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS
 --   reduce production typ -> INT
 
-State 75:
+State 72:
 ## Known stack suffix:
 ## IDENT
 ## LR(1) items:
@@ -1265,7 +1236,7 @@ typ -> IDENT . [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 -- On RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS
 --   reduce production typ -> IDENT
 
-State 76:
+State 73:
 ## Known stack suffix:
 ## BOOL
 ## LR(1) items:
@@ -1275,373 +1246,376 @@ typ -> BOOL . [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 -- On RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS
 --   reduce production typ -> BOOL
 
-State 77:
+State 74:
 ## Known stack suffix:
 ## SET typ
 ## LR(1) items:
 typ -> SET typ . [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 typ -> typ . ARROW typ [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 ## Transitions:
--- On ARROW shift to state 78
+-- On ARROW shift to state 75
 ## Reductions:
 -- On RPAREN OUT IDENT COMMA ASSIGN ACTIONS
 --   reduce production typ -> SET typ
 
-State 78:
+State 75:
 ## Known stack suffix:
 ## typ ARROW
 ## LR(1) items:
 typ -> typ ARROW . typ [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 ## Transitions:
--- On STRING shift to state 72
--- On SET shift to state 73
--- On INT shift to state 74
--- On IDENT shift to state 75
--- On BOOL shift to state 76
--- On typ shift to state 79
+-- On STRING shift to state 69
+-- On SET shift to state 70
+-- On INT shift to state 71
+-- On IDENT shift to state 72
+-- On BOOL shift to state 73
+-- On typ shift to state 76
 ## Reductions:
 
-State 79:
+State 76:
 ## Known stack suffix:
 ## typ ARROW typ
 ## LR(1) items:
 typ -> typ . ARROW typ [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 typ -> typ ARROW typ . [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 ## Transitions:
--- On ARROW shift to state 78
+-- On ARROW shift to state 75
 ## Reductions:
 -- On RPAREN OUT IDENT COMMA ASSIGN ACTIONS
 --   reduce production typ -> typ ARROW typ
 
-State 80:
+State 77:
 ## Known stack suffix:
 ## ident_list COLON typ
 ## LR(1) items:
 named_parameters -> ident_list COLON typ . [ RPAREN OUT IDENT COMMA ASSIGN ACTIONS ]
 typ -> typ . ARROW typ [ RPAREN OUT IDENT COMMA ASSIGN ARROW ACTIONS ]
 ## Transitions:
--- On ARROW shift to state 78
+-- On ARROW shift to state 75
 ## Reductions:
 -- On RPAREN OUT IDENT COMMA ASSIGN ACTIONS
 --   reduce production named_parameters -> ident_list COLON typ
 
-State 81:
+State 78:
+## Known stack suffix:
+## STATE list(state)
+## LR(1) items:
+c_state -> STATE list(state) . ACTIONS [ ACTIONS ]
+## Transitions:
+-- On ACTIONS shift to state 79
+## Reductions:
+
+State 79:
+## Known stack suffix:
+## STATE list(state) ACTIONS
+## LR(1) items:
+c_state -> STATE list(state) ACTIONS . [ ACTIONS ]
+## Transitions:
+## Reductions:
+-- On ACTIONS
+--   reduce production c_state -> STATE list(state) ACTIONS
+
+State 80:
 ## Known stack suffix:
 ## c_sig c_purpose c_state
 ## LR(1) items:
 concept -> c_sig c_purpose c_state . c_actions [ EOF CONCEPT ]
 ## Transitions:
--- On ACTIONS shift to state 82
--- On c_actions shift to state 116
+-- On ACTIONS shift to state 81
+-- On c_actions shift to state 117
+## Reductions:
+
+State 81:
+## Known stack suffix:
+## ACTIONS
+## LR(1) items:
+c_actions -> ACTIONS . nonempty_list(action) [ EOF CONCEPT ]
+c_actions -> ACTIONS . nonempty_list(action) OP [ EOF CONCEPT ]
+## Transitions:
+-- On ACTION_START shift to state 82
+-- On nonempty_list(action) shift to state 93
+-- On action_sig shift to state 95
+-- On action shift to state 115
 ## Reductions:
 
 State 82:
 ## Known stack suffix:
-## ACTIONS
+## ACTION_START
 ## LR(1) items:
-c_actions -> ACTIONS . actions [ EOF CONCEPT ]
-c_actions -> ACTIONS . actions OP [ EOF CONCEPT ]
+action_sig -> ACTION_START . LPAREN list(action_sig_param) RPAREN [ WHEN OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On ACTION_START shift to state 83
--- On actions shift to state 94
--- On action_sig shift to state 96
--- On action shift to state 114
+-- On LPAREN shift to state 83
 ## Reductions:
 
 State 83:
 ## Known stack suffix:
-## ACTION_START
+## ACTION_START LPAREN
 ## LR(1) items:
-action_sig -> ACTION_START . LPAREN RPAREN [ WHEN IDENT ]
-action_sig -> ACTION_START . LPAREN named_params_action_sig RPAREN [ WHEN IDENT ]
+action_sig -> ACTION_START LPAREN . list(action_sig_param) RPAREN [ WHEN OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On LPAREN shift to state 84
+-- On IDENT shift to state 19
+-- On named_parameters shift to state 84
+-- On list(action_sig_param) shift to state 89
+-- On ident_list shift to state 67
+-- On action_sig_param shift to state 91
 ## Reductions:
+-- On RPAREN
+--   reduce production list(action_sig_param) ->
 
 State 84:
 ## Known stack suffix:
-## ACTION_START LPAREN
+## named_parameters
 ## LR(1) items:
-action_sig -> ACTION_START LPAREN . RPAREN [ WHEN IDENT ]
-action_sig -> ACTION_START LPAREN . named_params_action_sig RPAREN [ WHEN IDENT ]
+action_sig_param -> named_parameters . option(OUT) [ RPAREN IDENT ]
+action_sig_param -> named_parameters . option(OUT) COMMA action_sig_param [ RPAREN IDENT ]
 ## Transitions:
--- On RPAREN shift to state 85
--- On IDENT shift to state 19
--- On named_params_action_sig shift to state 86
--- On named_parameters shift to state 88
--- On ident_list shift to state 70
+-- On OUT shift to state 85
+-- On option(OUT) shift to state 86
 ## Reductions:
+-- On RPAREN IDENT COMMA
+--   reduce production option(OUT) ->
 
 State 85:
 ## Known stack suffix:
-## ACTION_START LPAREN RPAREN
+## OUT
 ## LR(1) items:
-action_sig -> ACTION_START LPAREN RPAREN . [ WHEN IDENT ]
+option(OUT) -> OUT . [ RPAREN IDENT COMMA ]
 ## Transitions:
 ## Reductions:
--- On WHEN IDENT
---   reduce production action_sig -> ACTION_START LPAREN RPAREN
+-- On RPAREN IDENT COMMA
+--   reduce production option(OUT) -> OUT
 
 State 86:
 ## Known stack suffix:
-## ACTION_START LPAREN named_params_action_sig
+## named_parameters option(OUT)
 ## LR(1) items:
-action_sig -> ACTION_START LPAREN named_params_action_sig . RPAREN [ WHEN IDENT ]
+action_sig_param -> named_parameters option(OUT) . [ RPAREN IDENT ]
+action_sig_param -> named_parameters option(OUT) . COMMA action_sig_param [ RPAREN IDENT ]
 ## Transitions:
--- On RPAREN shift to state 87
+-- On COMMA shift to state 87
 ## Reductions:
+-- On RPAREN IDENT
+--   reduce production action_sig_param -> named_parameters option(OUT)
 
 State 87:
 ## Known stack suffix:
-## ACTION_START LPAREN named_params_action_sig RPAREN
+## named_parameters option(OUT) COMMA
 ## LR(1) items:
-action_sig -> ACTION_START LPAREN named_params_action_sig RPAREN . [ WHEN IDENT ]
+action_sig_param -> named_parameters option(OUT) COMMA . action_sig_param [ RPAREN IDENT ]
 ## Transitions:
+-- On IDENT shift to state 19
+-- On named_parameters shift to state 84
+-- On ident_list shift to state 67
+-- On action_sig_param shift to state 88
 ## Reductions:
--- On WHEN IDENT
---   reduce production action_sig -> ACTION_START LPAREN named_params_action_sig RPAREN
 
 State 88:
 ## Known stack suffix:
-## named_parameters
+## named_parameters option(OUT) COMMA action_sig_param
 ## LR(1) items:
-named_params_action_sig -> named_parameters . [ RPAREN ]
-named_params_action_sig -> named_parameters . OUT [ RPAREN ]
-named_params_action_sig -> named_parameters . COMMA named_params_action_sig [ RPAREN ]
-named_params_action_sig -> named_parameters . OUT COMMA named_params_action_sig [ RPAREN ]
+action_sig_param -> named_parameters option(OUT) COMMA action_sig_param . [ RPAREN IDENT ]
 ## Transitions:
--- On OUT shift to state 89
--- On COMMA shift to state 92
 ## Reductions:
--- On RPAREN
---   reduce production named_params_action_sig -> named_parameters
+-- On RPAREN IDENT
+--   reduce production action_sig_param -> named_parameters option(OUT) COMMA action_sig_param
 
 State 89:
 ## Known stack suffix:
-## named_parameters OUT
+## ACTION_START LPAREN list(action_sig_param)
 ## LR(1) items:
-named_params_action_sig -> named_parameters OUT . [ RPAREN ]
-named_params_action_sig -> named_parameters OUT . COMMA named_params_action_sig [ RPAREN ]
+action_sig -> ACTION_START LPAREN list(action_sig_param) . RPAREN [ WHEN OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On COMMA shift to state 90
+-- On RPAREN shift to state 90
 ## Reductions:
--- On RPAREN
---   reduce production named_params_action_sig -> named_parameters OUT
 
 State 90:
 ## Known stack suffix:
-## named_parameters OUT COMMA
+## ACTION_START LPAREN list(action_sig_param) RPAREN
 ## LR(1) items:
-named_params_action_sig -> named_parameters OUT COMMA . named_params_action_sig [ RPAREN ]
+action_sig -> ACTION_START LPAREN list(action_sig_param) RPAREN . [ WHEN OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On IDENT shift to state 19
--- On named_params_action_sig shift to state 91
--- On named_parameters shift to state 88
--- On ident_list shift to state 70
 ## Reductions:
+-- On WHEN OP IDENT EOF CONCEPT ACTION_START
+--   reduce production action_sig -> ACTION_START LPAREN list(action_sig_param) RPAREN
 
 State 91:
 ## Known stack suffix:
-## named_parameters OUT COMMA named_params_action_sig
+## action_sig_param
 ## LR(1) items:
-named_params_action_sig -> named_parameters OUT COMMA named_params_action_sig . [ RPAREN ]
+list(action_sig_param) -> action_sig_param . list(action_sig_param) [ RPAREN ]
 ## Transitions:
+-- On IDENT shift to state 19
+-- On named_parameters shift to state 84
+-- On list(action_sig_param) shift to state 92
+-- On ident_list shift to state 67
+-- On action_sig_param shift to state 91
 ## Reductions:
 -- On RPAREN
---   reduce production named_params_action_sig -> named_parameters OUT COMMA named_params_action_sig
+--   reduce production list(action_sig_param) ->
 
 State 92:
 ## Known stack suffix:
-## named_parameters COMMA
+## action_sig_param list(action_sig_param)
 ## LR(1) items:
-named_params_action_sig -> named_parameters COMMA . named_params_action_sig [ RPAREN ]
-## Transitions:
--- On IDENT shift to state 19
--- On named_params_action_sig shift to state 93
--- On named_parameters shift to state 88
--- On ident_list shift to state 70
-## Reductions:
-
-State 93:
-## Known stack suffix:
-## named_parameters COMMA named_params_action_sig
-## LR(1) items:
-named_params_action_sig -> named_parameters COMMA named_params_action_sig . [ RPAREN ]
+list(action_sig_param) -> action_sig_param list(action_sig_param) . [ RPAREN ]
 ## Transitions:
 ## Reductions:
 -- On RPAREN
---   reduce production named_params_action_sig -> named_parameters COMMA named_params_action_sig
+--   reduce production list(action_sig_param) -> action_sig_param list(action_sig_param)
+
+State 93:
+## Known stack suffix:
+## ACTIONS nonempty_list(action)
+## LR(1) items:
+c_actions -> ACTIONS nonempty_list(action) . [ EOF CONCEPT ]
+c_actions -> ACTIONS nonempty_list(action) . OP [ EOF CONCEPT ]
+## Transitions:
+-- On OP shift to state 94
+## Reductions:
+-- On EOF CONCEPT
+--   reduce production c_actions -> ACTIONS nonempty_list(action)
 
 State 94:
 ## Known stack suffix:
-## ACTIONS actions
+## ACTIONS nonempty_list(action) OP
 ## LR(1) items:
-c_actions -> ACTIONS actions . [ EOF CONCEPT ]
-c_actions -> ACTIONS actions . OP [ EOF CONCEPT ]
+c_actions -> ACTIONS nonempty_list(action) OP . [ EOF CONCEPT ]
 ## Transitions:
--- On OP shift to state 95
 ## Reductions:
 -- On EOF CONCEPT
---   reduce production c_actions -> ACTIONS actions
+--   reduce production c_actions -> ACTIONS nonempty_list(action) OP
 
 State 95:
-## Known stack suffix:
-## ACTIONS actions OP
-## LR(1) items:
-c_actions -> ACTIONS actions OP . [ EOF CONCEPT ]
-## Transitions:
-## Reductions:
--- On EOF CONCEPT
---   reduce production c_actions -> ACTIONS actions OP
-
-State 96:
 ## Known stack suffix:
 ## action_sig
 ## LR(1) items:
 action -> action_sig . action_firing_cond action_body [ OP EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On WHEN shift to state 97
--- On action_firing_cond shift to state 99
+-- On WHEN shift to state 96
+-- On action_firing_cond shift to state 98
 ## Reductions:
--- On IDENT
+-- On OP IDENT EOF CONCEPT ACTION_START
 --   reduce production action_firing_cond ->
 
-State 97:
+State 96:
 ## Known stack suffix:
 ## WHEN
 ## LR(1) items:
-action_firing_cond -> WHEN . expr [ IDENT ]
+action_firing_cond -> WHEN . expr [ OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 98
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 97
 ## Reductions:
 
-State 98:
+State 97:
 ## Known stack suffix:
 ## WHEN expr
 ## LR(1) items:
-action_firing_cond -> WHEN expr . [ IDENT ]
-expr -> expr . PLUS expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . MINUS expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . AMP expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . LAND expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . LOR expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . EQ expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . NEQ expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . LT expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . GT expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . LTE expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . GTE expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . IN expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . NOT IN expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
-expr -> expr . DOT expr [ PLUS NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ DOT AMP ]
+action_firing_cond -> WHEN expr . [ OP IDENT EOF CONCEPT ACTION_START ]
+expr -> expr . PLUS expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . MINUS expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . AMP expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . LAND expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . LOR expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . EQ expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . NEQ expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . LT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . GT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . LTE expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . GTE expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
+expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LOR shift to state 55
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LOR shift to state 51
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
--- On IDENT
+-- On OP IDENT EOF CONCEPT ACTION_START
 --   reduce production action_firing_cond -> WHEN expr
 
-State 99:
+State 98:
 ## Known stack suffix:
 ## action_sig action_firing_cond
 ## LR(1) items:
 action -> action_sig action_firing_cond . action_body [ OP EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On IDENT shift to state 33
--- On stmts shift to state 100
--- On stmt shift to state 101
--- On lval shift to state 103
+-- On IDENT shift to state 29
+-- On stmt shift to state 99
+-- On lval shift to state 100
+-- On list(stmt) shift to state 113
 -- On compound_assign shift to state 112
--- On action_body shift to state 113
-## Reductions:
-
-State 100:
-## Known stack suffix:
-## stmts
-## LR(1) items:
-action_body -> stmts . [ OP EOF CONCEPT ACTION_START ]
-## Transitions:
+-- On action_body shift to state 114
 ## Reductions:
 -- On OP EOF CONCEPT ACTION_START
---   reduce production action_body -> stmts
+--   reduce production list(stmt) ->
 
-State 101:
+State 99:
 ## Known stack suffix:
 ## stmt
 ## LR(1) items:
-stmts -> stmt . [ OP EOF CONCEPT ACTION_START ]
-stmts -> stmt . stmts [ OP EOF CONCEPT ACTION_START ]
+list(stmt) -> stmt . list(stmt) [ OP EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On IDENT shift to state 33
--- On stmts shift to state 102
--- On stmt shift to state 101
--- On lval shift to state 103
+-- On IDENT shift to state 29
+-- On stmt shift to state 99
+-- On lval shift to state 100
+-- On list(stmt) shift to state 111
 -- On compound_assign shift to state 112
 ## Reductions:
 -- On OP EOF CONCEPT ACTION_START
---   reduce production stmts -> stmt
+--   reduce production list(stmt) ->
 
-State 102:
-## Known stack suffix:
-## stmt stmts
-## LR(1) items:
-stmts -> stmt stmts . [ OP EOF CONCEPT ACTION_START ]
-## Transitions:
-## Reductions:
--- On OP EOF CONCEPT ACTION_START
---   reduce production stmts -> stmt stmts
-
-State 103:
+State 100:
 ## Known stack suffix:
 ## lval
 ## LR(1) items:
 compound_assign -> lval . ADDEQ expr [ OP IDENT EOF CONCEPT ACTION_START ]
 compound_assign -> lval . MINUSEQ expr [ OP IDENT EOF CONCEPT ACTION_START ]
 compound_assign -> lval . AMPEQ expr [ OP IDENT EOF CONCEPT ACTION_START ]
+lval -> lval . DOT lval [ MINUSEQ DOT ASSIGN AMPEQ ADDEQ ]
 stmt -> lval . ASSIGN expr [ OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On MINUSEQ shift to state 104
--- On ASSIGN shift to state 106
--- On AMPEQ shift to state 108
--- On ADDEQ shift to state 110
+-- On MINUSEQ shift to state 101
+-- On DOT shift to state 103
+-- On ASSIGN shift to state 105
+-- On AMPEQ shift to state 107
+-- On ADDEQ shift to state 109
 ## Reductions:
 
-State 104:
+State 101:
 ## Known stack suffix:
 ## lval MINUSEQ
 ## LR(1) items:
 compound_assign -> lval MINUSEQ . expr [ OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 105
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 102
 ## Reductions:
 
-State 105:
+State 102:
 ## Known stack suffix:
 ## lval MINUSEQ expr
 ## LR(1) items:
@@ -1661,41 +1635,62 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LOR shift to state 55
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LOR shift to state 51
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP IDENT EOF CONCEPT ACTION_START
 --   reduce production compound_assign -> lval MINUSEQ expr
 
-State 106:
+State 103:
+## Known stack suffix:
+## lval DOT
+## LR(1) items:
+lval -> lval DOT . lval [ PLUS OP NOT NEQ MINUSEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT ASSIGN AMPEQ AMP ADDEQ ACTION_START ACTIONS ]
+## Transitions:
+-- On IDENT shift to state 29
+-- On lval shift to state 104
+## Reductions:
+
+State 104:
+## Known stack suffix:
+## lval DOT lval
+## LR(1) items:
+lval -> lval . DOT lval [ PLUS OP NOT NEQ MINUSEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT ASSIGN AMPEQ AMP ADDEQ ACTION_START ACTIONS ]
+lval -> lval DOT lval . [ PLUS OP NOT NEQ MINUSEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT ASSIGN AMPEQ AMP ADDEQ ACTION_START ACTIONS ]
+## Transitions:
+## Reductions:
+-- On PLUS OP NOT NEQ MINUSEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT ASSIGN AMPEQ AMP ADDEQ ACTION_START ACTIONS
+--   reduce production lval -> lval DOT lval
+
+State 105:
 ## Known stack suffix:
 ## lval ASSIGN
 ## LR(1) items:
 stmt -> lval ASSIGN . expr [ OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 107
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 106
 ## Reductions:
 
-State 107:
+State 106:
 ## Known stack suffix:
 ## lval ASSIGN expr
 ## LR(1) items:
@@ -1715,41 +1710,41 @@ expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE 
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 stmt -> lval ASSIGN expr . [ OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LOR shift to state 55
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LOR shift to state 51
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP IDENT EOF CONCEPT ACTION_START
 --   reduce production stmt -> lval ASSIGN expr
 
-State 108:
+State 107:
 ## Known stack suffix:
 ## lval AMPEQ
 ## LR(1) items:
 compound_assign -> lval AMPEQ . expr [ OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 109
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 108
 ## Reductions:
 
-State 109:
+State 108:
 ## Known stack suffix:
 ## lval AMPEQ expr
 ## LR(1) items:
@@ -1769,41 +1764,41 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LOR shift to state 55
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LOR shift to state 51
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP IDENT EOF CONCEPT ACTION_START
 --   reduce production compound_assign -> lval AMPEQ expr
 
-State 110:
+State 109:
 ## Known stack suffix:
 ## lval ADDEQ
 ## LR(1) items:
 compound_assign -> lval ADDEQ . expr [ OP IDENT EOF CONCEPT ACTION_START ]
 ## Transitions:
--- On STR_LIT shift to state 29
--- On NOT shift to state 30
--- On MINUS shift to state 31
--- On INT_LIT shift to state 32
--- On IDENT shift to state 33
--- On BOOL_LIT shift to state 34
--- On lval shift to state 35
--- On expr shift to state 111
+-- On STR_LIT shift to state 25
+-- On NOT shift to state 26
+-- On MINUS shift to state 27
+-- On INT_LIT shift to state 28
+-- On IDENT shift to state 29
+-- On BOOL_LIT shift to state 30
+-- On lval shift to state 31
+-- On expr shift to state 110
 ## Reductions:
 
-State 111:
+State 110:
 ## Known stack suffix:
 ## lval ADDEQ expr
 ## LR(1) items:
@@ -1823,23 +1818,33 @@ expr -> expr . IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT E
 expr -> expr . NOT IN expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 expr -> expr . DOT expr [ PLUS OP NOT NEQ MINUS LTE LT LOR LAND IN IDENT GTE GT EQ EOF DOT CONCEPT AMP ACTION_START ]
 ## Transitions:
--- On PLUS shift to state 38
--- On NOT shift to state 44
--- On NEQ shift to state 49
--- On MINUS shift to state 47
--- On LTE shift to state 51
--- On LT shift to state 53
--- On LOR shift to state 55
--- On LAND shift to state 57
--- On IN shift to state 59
--- On GTE shift to state 61
--- On GT shift to state 63
--- On EQ shift to state 65
--- On DOT shift to state 40
--- On AMP shift to state 42
+-- On PLUS shift to state 34
+-- On NOT shift to state 40
+-- On NEQ shift to state 45
+-- On MINUS shift to state 43
+-- On LTE shift to state 47
+-- On LT shift to state 49
+-- On LOR shift to state 51
+-- On LAND shift to state 53
+-- On IN shift to state 55
+-- On GTE shift to state 57
+-- On GT shift to state 59
+-- On EQ shift to state 61
+-- On DOT shift to state 36
+-- On AMP shift to state 38
 ## Reductions:
 -- On OP IDENT EOF CONCEPT ACTION_START
 --   reduce production compound_assign -> lval ADDEQ expr
+
+State 111:
+## Known stack suffix:
+## stmt list(stmt)
+## LR(1) items:
+list(stmt) -> stmt list(stmt) . [ OP EOF CONCEPT ACTION_START ]
+## Transitions:
+## Reductions:
+-- On OP EOF CONCEPT ACTION_START
+--   reduce production list(stmt) -> stmt list(stmt)
 
 State 112:
 ## Known stack suffix:
@@ -1853,6 +1858,16 @@ stmt -> compound_assign . [ OP IDENT EOF CONCEPT ACTION_START ]
 
 State 113:
 ## Known stack suffix:
+## list(stmt)
+## LR(1) items:
+action_body -> list(stmt) . [ OP EOF CONCEPT ACTION_START ]
+## Transitions:
+## Reductions:
+-- On OP EOF CONCEPT ACTION_START
+--   reduce production action_body -> list(stmt)
+
+State 114:
+## Known stack suffix:
 ## action_sig action_firing_cond action_body
 ## LR(1) items:
 action -> action_sig action_firing_cond action_body . [ OP EOF CONCEPT ACTION_START ]
@@ -1861,32 +1876,32 @@ action -> action_sig action_firing_cond action_body . [ OP EOF CONCEPT ACTION_ST
 -- On OP EOF CONCEPT ACTION_START
 --   reduce production action -> action_sig action_firing_cond action_body
 
-State 114:
+State 115:
 ## Known stack suffix:
 ## action
 ## LR(1) items:
-actions -> action . [ OP EOF CONCEPT ]
-actions -> action . actions [ OP EOF CONCEPT ]
+nonempty_list(action) -> action . [ OP EOF CONCEPT ]
+nonempty_list(action) -> action . nonempty_list(action) [ OP EOF CONCEPT ]
 ## Transitions:
--- On ACTION_START shift to state 83
--- On actions shift to state 115
--- On action_sig shift to state 96
--- On action shift to state 114
+-- On ACTION_START shift to state 82
+-- On nonempty_list(action) shift to state 116
+-- On action_sig shift to state 95
+-- On action shift to state 115
 ## Reductions:
 -- On OP EOF CONCEPT
---   reduce production actions -> action
-
-State 115:
-## Known stack suffix:
-## action actions
-## LR(1) items:
-actions -> action actions . [ OP EOF CONCEPT ]
-## Transitions:
-## Reductions:
--- On OP EOF CONCEPT
---   reduce production actions -> action actions
+--   reduce production nonempty_list(action) -> action
 
 State 116:
+## Known stack suffix:
+## action nonempty_list(action)
+## LR(1) items:
+nonempty_list(action) -> action nonempty_list(action) . [ OP EOF CONCEPT ]
+## Transitions:
+## Reductions:
+-- On OP EOF CONCEPT
+--   reduce production nonempty_list(action) -> action nonempty_list(action)
+
+State 117:
 ## Known stack suffix:
 ## c_sig c_purpose c_state c_actions
 ## LR(1) items:

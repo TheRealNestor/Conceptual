@@ -48,19 +48,15 @@ let mk_loc loc = Location.make_location loc
 %type <Ast.typ> typ
 
 %type <Ast.state list> state
-%type <Ast.state list> states
 %type <Ast.expr> expr
-%type <Ast.named_parameter list * Ast.named_parameter list> named_params_action_sig
+%type <Ast.named_parameter list * Ast.named_parameter list> action_sig_param
 %type <Ast.lval * Ast.binop * Ast.expr> compound_assign
 %type <Ast.lval> lval
 %type <Ast.stmt> stmt
-%type <Ast.stmt list> stmts
 %type <Ast.action> action
-%type <Ast.action list> actions
 %type <Ast.action_sig> action_sig
 %type <Ast.firing_cond option> action_firing_cond
 %type <Ast.stmt list> action_body
-%type <Ast.concept list> concept_list
 %type <Ast.concept> concept
 %type <Ast.concept_sig> c_sig
 %type <Ast.concept_purpose> c_purpose
@@ -104,6 +100,8 @@ typ:
 
 lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
+| lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work*)
+
 
 expr:
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
@@ -113,7 +111,7 @@ expr:
 | NOT expr %prec NOT { Unop{op = Not{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} } (*TODO: Not sure if this precedence annotation is necessary*)
 | MINUS expr %prec NEG { Unop{op = Neg{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} }
 | lval ASSIGN expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
-| lval { Lval($1) }
+| lval %prec DOT { Lval($1) }
 
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
@@ -129,7 +127,7 @@ expr:
 | GTE { Gte{loc = mk_loc $loc} }
 | IN { In{loc = mk_loc $loc} }
 | NOT IN { NotIn{loc = mk_loc $loc} }
-| DOT { Join{loc = mk_loc $loc} }
+| DOT { Join{loc = mk_loc $loc} } 
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
@@ -146,14 +144,13 @@ ident_list:
 | IDENT { [Ident{name = $1; loc = mk_loc $loc}] }
 | IDENT COMMA ident_list { Ident{name = $1; loc = mk_loc $loc} :: $3 }
 
-
 named_parameters:
 | ident_list COLON typ { List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) $1 }
 
 
 c_sig:
 | CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
-| CONCEPT IDENT LBRACKET parameters RBRACKET 
+| CONCEPT IDENT LBRACKET parameters RBRACKET (*Probably do not want to allow empty [] here*)
   { ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params = $4; loc = mk_loc $loc} }
 
 c_purpose: 
@@ -164,24 +161,15 @@ c_purpose:
 state: 
 | named_parameters { 
   List.map (
-    fun param -> 
-      State{param; expr = None; loc = mk_loc $loc }
+    fun param -> State{param; expr = None; loc = mk_loc $loc }
   ) $1 }
 | named_parameters ASSIGN expr {
   List.map ( 
-    fun param -> 
-      State{param; expr = Some $3; loc = mk_loc $loc}
+    fun param -> State{param; expr = Some $3; loc = mk_loc $loc }
   ) $1 }
 
-states:
-| state { $1 }
-| state states { $1 @ $2 }
-
-
 c_state:
-| STATE ACTIONS { States{ states = []; loc = mk_loc $loc } }
-| STATE states ACTIONS { States{ states = $2; loc = mk_loc $loc } }
-
+| STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
 
 
 // TODO: Return type, return statement, function call (this might be a bit tricky)
@@ -199,29 +187,28 @@ stmt:
   ExprStmt{expr = Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc}; loc}
 }
 
-stmts:
-| stmt { [$1] }
-| stmt stmts { $1 :: $2 }
 
-
-named_params_action_sig:
-| named_parameters { $1, [] }
-| named_parameters OUT { $1 , $1}
-| named_parameters COMMA named_params_action_sig { $1 @ (fst $3), [] @ (snd $3) } 
-| named_parameters OUT COMMA named_params_action_sig { $1 @ (fst $4), $1 @ (snd $4) }
-
+action_sig_param:
+| named_parameters OUT? {
+  match $1, $2 with
+  | params, None -> params, []
+  | params, Some _ -> params, params
+}
+| named_parameters OUT? COMMA action_sig_param {
+  match $1, $2, $4 with
+  | params, None, (params', out) -> params @ params', out
+  | params, Some _, (params', out) -> params @ params', params @ out
+}
 
 action_sig:
-| ACTION_START LPAREN RPAREN 
-  { ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params = []; out = []; loc = mk_loc $loc} }
-| ACTION_START LPAREN named_params_action_sig RPAREN
-  { let (params, out) = $3 in
-    ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params; out; loc = mk_loc $loc} }
-
+| ACTION_START LPAREN action_sig_param* RPAREN {
+  let (params, out) = List.fold_left (fun (acc_params, acc_out) (params, out) -> (acc_params @ params, acc_out @ out)) ([], []) $3 in
+  ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params; out; loc = mk_loc $loc} 
+}
 
 action_body:
-// I don't think we want to allow an empty body
-| stmts { $1 }
+// TODO: Do we want to allow empty action bodies? 
+| stmt* { $1 }
 
 action_firing_cond:
 | { None }
@@ -231,21 +218,10 @@ action:
 | action_sig action_firing_cond action_body 
   { Action{signature = $1; cond = $2; body = $3; loc = mk_loc $loc } } 
 
-actions:
-| action { [$1] }
-| action actions { $1 :: $2 }
-
-
 c_actions:
-| ACTIONS actions { Actions{actions = $2; loc = mk_loc $loc} } (*TODO: Temporary untill OP is actually implemented*)
-| ACTIONS actions OP { Actions{actions = $2; loc = mk_loc $loc} }
+| ACTIONS action+ { Actions{actions = $2; loc = mk_loc $loc} } (*TODO: Temporary untill OP is actually implemented*)
+| ACTIONS action+ OP { Actions{actions = $2; loc = mk_loc $loc} }
 
-
-// After some sequence of actions a condition holds...
-// Optional a temporal operator, comma separated list of action calls, seems to allow expressions (only booleans?)
-// "in set x of y" ? 
-// op: 
-// | 
 
 c_op: 
 | OP {
@@ -258,10 +234,6 @@ concept:
 // | c_sig c_purpose c_state c_actions c_op
 //   { raise TODO }
 
-concept_list: 
-| { [] }
-| concept concept_list { $1 :: $2 }
-
 program: 
-| concept_list EOF { $1 }
+| concept* EOF { $1 }
 

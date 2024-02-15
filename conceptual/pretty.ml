@@ -68,7 +68,7 @@ let unop_to_tree op =
 and lval_to_tree l =
     match l with
     | Var ident -> PBox.hlist ~bars:false [make_info_node_line "Var("; ident_to_tree ident; make_info_node_line ")"]
-
+    | Relation{left;right;_} -> PBox.tree (make_info_node_line "Relation") [lval_to_tree left; lval_to_tree right]
 
 
 let rec statement_to_tree c =
@@ -119,6 +119,7 @@ let action_to_tree (a : action) =
     PBox.tree (make_info_node_line "Statements") (statement_seq_to_forest body)
     ]
 
+  
 let actions_to_tree (actions : action list) =
   if List.length actions = 0 then PBox.tree (make_info_node_line "Actions") [make_info_node_line "Empty"]
   else PBox.tree (make_info_node_line "Actions") (List.map action_to_tree actions)

@@ -45,8 +45,6 @@ let whitespace = [' ' '\t' '\r']
 (* Could possibly have this be its own concept spec rule and distinguish it from a 
 concept composition rule via the keywords "concept" and "app" *)
 
-(* TODO: string type? *)
-
 rule token = parse 
 | eof { EOF }
 | '=' { ASSIGN }

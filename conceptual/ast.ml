@@ -54,8 +54,8 @@ type expr =
 | Unop of {op : unop; operand : expr; loc : Loc.location;}
 | Binop of {left : expr; op : binop; right : expr; loc : Loc.location}
 and lval = 
-  | Var of ident
-  (* Probably need member/field or something depending on how the '.' operation works #TODO:  *)
+| Var of ident
+| Relation of {left : lval; right : lval; loc : Loc.location}
 
 
 type stmt = 

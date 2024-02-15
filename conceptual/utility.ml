@@ -41,6 +41,9 @@ let token_to_string = function
   | ACTION_START s -> Printf.sprintf "ACTION_START(%s)" s
   | AMPEQ -> "AMPEQ"
   | AMP -> "AMP"
+  | OUT -> "OUT"
+  | STRING -> "STRING"
+  | STR_LIT s -> Printf.sprintf "STR_LIT(%s)" s
 
 
 let lex_and_print_tokens tokenizer lexbuf =

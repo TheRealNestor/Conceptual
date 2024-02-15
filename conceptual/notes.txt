@@ -1,5 +1,11 @@
 TODO: 
-- return type removed in parser from, s op relat
+-  s op relat?
+- function call!!!
+
+
+-goof.c : 1 : parse error before ’}’ token 
+
+
 
 
 

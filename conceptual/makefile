@@ -1,4 +1,5 @@
 # Could optionally add --inspection flag here
+# insepection flag can only be used when table flag is used. 
 make:
 	rm -f parser.ml parser.mli
 	dune build
