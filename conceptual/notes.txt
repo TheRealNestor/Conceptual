@@ -7,6 +7,10 @@ TODO:
 
 
 
+lateral thinking
+scrutiny:
+
+
 
 
 PARSER: 
@@ -43,3 +47,5 @@ Future work: automate implementation of these conepts? Mapping to react componen
 Daniel jackson deliberately choose industry-grade examples and how they still get stuff wrong
 
 Perhaps discuss the makefile in appendix??? 
+
+Something about lexing strings --> in particular for purpose if we dont enclose in "" or have delimiter. Disallow the word state. 

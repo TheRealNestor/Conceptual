@@ -2,3 +2,4 @@
 /conceptual/_build/
 /conceptual/*.automaton
 /conceptual/*.conflicts
+/conceptual/notes.txt

@@ -42,8 +42,6 @@ let mk_loc loc = Location.make_location loc
 // __________________
 // Rule types (except the starting rule) go here  
 %type <Ast.parameter> parameter
-%type <Ast.parameter list> parameters
-%type <Ast.ident list> ident_list
 %type <Ast.named_parameter list> named_parameters
 %type <Ast.typ> typ
 
@@ -62,7 +60,13 @@ let mk_loc loc = Location.make_location loc
 %type <Ast.concept_purpose> c_purpose
 %type <Ast.concept_states> c_state
 %type <Ast.concept_actions> c_actions
-%type <Ast.operational_principle> c_op
+
+
+
+// create type for option(OUT) nonterminal
+// %type <Ast.named_parameter list option> option(OUT)
+
+// %type <Ast.operational_principle> c_op
 // __________________
 
 // Associativity and precedence
@@ -135,22 +139,16 @@ expr:
 parameter:
 | IDENT { Parameter{typ = TCustom{tp = Ident{name = $1; loc = mk_loc $loc}}; loc = mk_loc $loc} } (*Parameterized concept in signature*)
 
-parameters: 
-| parameter { [$1] }
-| parameter COMMA parameters { $1 :: $3 }
-
-
-ident_list:
-| IDENT { [Ident{name = $1; loc = mk_loc $loc}] }
-| IDENT COMMA ident_list { Ident{name = $1; loc = mk_loc $loc} :: $3 }
-
 named_parameters:
-| ident_list COLON typ { List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) $1 }
+| separated_list(COMMA, IDENT) COLON typ {
+  let idents = List.map (fun id -> Ident{name = id; loc = mk_loc $loc}) $1 in
+  List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) idents
+}
 
 
 c_sig:
-| CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
-| CONCEPT IDENT LBRACKET parameters RBRACKET (*Probably do not want to allow empty [] here*)
+// | CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
+| CONCEPT IDENT LBRACKET separated_list(COMMA, parameter) RBRACKET (*Probably do not want to allow empty [] here*)
   { ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params = $4; loc = mk_loc $loc} }
 
 c_purpose: 
@@ -159,20 +157,15 @@ c_purpose:
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 
-| named_parameters { 
-  List.map (
-    fun param -> State{param; expr = None; loc = mk_loc $loc }
-  ) $1 }
-| named_parameters ASSIGN expr {
-  List.map ( 
-    fun param -> State{param; expr = Some $3; loc = mk_loc $loc }
-  ) $1 }
+| named_parameters 
+  { List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc } ) $1 }
+| named_parameters ASSIGN expr 
+  { List.map ( fun param -> State{param; expr = Some $3; loc = mk_loc $loc }  ) $1 }
 
 c_state:
 | STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
 
-
-// TODO: Return type, return statement, function call (this might be a bit tricky)
+// TODO: function call (this might be a bit tricky)
 
 compound_assign:
 | lval ADDEQ expr { $1, Plus{loc = mk_loc $loc}, $3 }
@@ -219,14 +212,15 @@ action:
   { Action{signature = $1; cond = $2; body = $3; loc = mk_loc $loc } } 
 
 c_actions:
-| ACTIONS action+ { Actions{actions = $2; loc = mk_loc $loc} } (*TODO: Temporary untill OP is actually implemented*)
 | ACTIONS action+ OP { Actions{actions = $2; loc = mk_loc $loc} }
 
+| ACTIONS action+ { Actions{actions = $2; loc = mk_loc $loc} } (*TODO: Temporary untill OP is actually implemented*)
 
-c_op: 
-| OP {
-  failwith "got to op"
-}
+
+// c_op: 
+// | OP {
+//   failwith "got to op"
+// }
 
 concept: 
 | c_sig c_purpose c_state c_actions  (*TODO: Temporary until OP is implemented*)
