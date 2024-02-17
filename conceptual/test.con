@@ -6,10 +6,6 @@ state
   foo : bar = 2 + 5 
   question : meaning_of_life -> INT // 42
   pass : string = "word"
-/*
-  Should we allow string data type? If so, then it might be harder to use keywords such as state,actions as delimiter
-  Unless I explicitly use " " to denote strings. That is probably the way. 
-*/
 actions
   test(some,thing : stuff out, MOAR_STUFF : too_much_stuff) 
     when stuff in MOAR_STUFF or too_much_stuff
@@ -18,9 +14,9 @@ actions
       c -= d
   test2   (hello : world) // Support newline too? 
     a = a + b - c
-    a.b.c = b.c
+    a.b.c.d = b.c + c.d.e.f
   test3()
-  
+
 // operational principle
 
     

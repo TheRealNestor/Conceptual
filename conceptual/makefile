@@ -5,6 +5,10 @@ make:
 	dune build
 	menhir --explain --inspection --table --dump parser.mly
 
+clean:
+	rm -f parser.ml parser.mli
+	dune clean
+
 # Use the second word in the MAKECMDGOALS as the RUN_ARG (first word is run)
 # This tells make not to complain about the RUN_ARG not being a real target
 ifeq (run,$(firstword $(MAKECMDGOALS)))

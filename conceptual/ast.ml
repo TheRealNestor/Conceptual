@@ -11,7 +11,7 @@ type typ =
   | TInt of { loc : Loc.location }
   | TCustom of { tp : ident; } (* custom type *)
   | TSet of { tp : typ ; loc : Loc.location } (* set of types *)
-  | TMap of { src : typ; dst : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
+  | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 
 (* set, mappings, custom types --> probably the ones i should have first??? *)
 
@@ -53,6 +53,7 @@ type expr =
 | Lval of lval 
 | Unop of {op : unop; operand : expr; loc : Loc.location;}
 | Binop of {left : expr; op : binop; right : expr; loc : Loc.location}
+| Call of {action : ident; args : expr list; loc : Loc.location }
 and lval = 
 | Var of ident
 | Relation of {left : lval; right : lval; loc : Loc.location}

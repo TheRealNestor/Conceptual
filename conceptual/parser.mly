@@ -2,13 +2,13 @@
 open Ast
 
 exception TODO
-
 let rec str_of_typ = function 
   | TInt _ -> "Int"
   | TBool _ -> "Bool"
   | TCustom{tp = Ident{name;_}} -> name
   | TSet{tp; _} -> "Set<" ^ (str_of_typ tp) ^ ">"
-  | TMap{src; dst;_} -> (str_of_typ src) ^ " -> " ^ (str_of_typ dst)
+  | TMap{left; right;_} -> (str_of_typ left) ^ " -> " ^ (str_of_typ right)
+  | TString _ -> "String"
 
 let mk_loc loc = Location.make_location loc
   
@@ -40,7 +40,7 @@ let mk_loc loc = Location.make_location loc
 
 
 // __________________
-// Rule types (except the starting rule) go here  
+// Explicit rule types go here, in case we want to use -ml as opposed to table-driven
 %type <Ast.parameter> parameter
 %type <Ast.named_parameter list> named_parameters
 %type <Ast.typ> typ
@@ -61,10 +61,16 @@ let mk_loc loc = Location.make_location loc
 %type <Ast.concept_states> c_state
 %type <Ast.concept_actions> c_actions
 
+%type <Ast.parameter list> separated_nonempty_list(COMMA, parameter) loption(separated_nonempty_list(COMMA, parameter))
+%type <string list>  separated_nonempty_list(COMMA, IDENT) loption(separated_nonempty_list(COMMA, IDENT))
+%type <Ast.concept list> concept*
+%type <Ast.stmt list> stmt* 
+%type <Ast.state list list> state*
+%type <Ast.action list> action+
+%type <unit option> OUT?
+%type <(Ast.named_parameter list * Ast.named_parameter list) list> action_sig_param*
+%type <Ast.expr list> separated_nonempty_list(COMMA, expr) loption(separated_nonempty_list(COMMA, expr))
 
-
-// create type for option(OUT) nonterminal
-// %type <Ast.named_parameter list option> option(OUT)
 
 // %type <Ast.operational_principle> c_op
 // __________________
@@ -100,12 +106,11 @@ typ:
 | BOOL { TBool{loc = mk_loc $loc} }
 | IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}} }
 | SET typ { TSet{tp = $2; loc = mk_loc $loc} }
-| typ ARROW typ { TMap{src = $1; dst = $3; loc = mk_loc $loc} }
+| typ ARROW typ { TMap{left = $1; right = $3; loc = mk_loc $loc} }
 
 lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
-| lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work*)
-
+| lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
 expr:
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
@@ -116,6 +121,8 @@ expr:
 | MINUS expr %prec NEG { Unop{op = Neg{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} }
 | lval ASSIGN expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
+| IDENT LPAREN separated_list(COMMA, expr) RPAREN 
+  { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
 
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
@@ -147,7 +154,7 @@ named_parameters:
 
 
 c_sig:
-// | CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
+| CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
 | CONCEPT IDENT LBRACKET separated_list(COMMA, parameter) RBRACKET (*Probably do not want to allow empty [] here*)
   { ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params = $4; loc = mk_loc $loc} }
 
@@ -165,7 +172,6 @@ state:
 c_state:
 | STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
 
-// TODO: function call (this might be a bit tricky)
 
 compound_assign:
 | lval ADDEQ expr { $1, Plus{loc = mk_loc $loc}, $3 }
@@ -174,11 +180,12 @@ compound_assign:
 
 stmt:
 | lval ASSIGN expr { ExprStmt{expr = Assignment{lval = $1; rhs = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
-| compound_assign {
-  let (lval, op, rhs) = $1 in
-  let loc = mk_loc $loc in
-  ExprStmt{expr = Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc}; loc}
-}
+| compound_assign 
+  { let (lval, op, rhs) = $1 in
+    let loc = mk_loc $loc in
+    ExprStmt{expr = Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc}; loc} }
+| IDENT LPAREN separated_list(COMMA, expr) RPAREN 
+  { ExprStmt{expr = Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
 
 
 action_sig_param:
@@ -200,7 +207,7 @@ action_sig:
 }
 
 action_body:
-// TODO: Do we want to allow empty action bodies? 
+// TODO: Do we want to allow empty action bodies? Could potentially be useful?
 | stmt* { $1 }
 
 action_firing_cond:

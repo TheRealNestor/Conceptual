@@ -1,3 +1,5 @@
+module TAst = TypedAst
+
 let pretty_print_program prog = 
   PrintBox_text.output stdout (Pretty.program_to_tree prog); output_string stdout "\n"
 
@@ -7,6 +9,7 @@ let compile_program (filepath : string) : int =
   let lex_buf = Lexing.from_channel ~with_positions:true file_in in 
   let _ = Lexing.set_filename lex_buf filepath in
 
+
   try
     let tokenizer = TokenCache.next_token Lexer.token in 
     
@@ -14,13 +17,19 @@ let compile_program (filepath : string) : int =
     (* Utility.lex_and_print_tokens tokenizer lex_buf;  *)
 
     let prog = Parser.program tokenizer lex_buf in 
+
+    let typed_prog = Semant.typecheck_prog prog in
     
     pretty_print_program prog;
     print_endline "";
     0;
   with
   (* TODO: should probably implement better parser errors.... *)
-  | Parser.Error as e -> Printf.printf "Parser error occurred in program %s\n" filepath; print_endline @@ Printexc.to_string e; 1
+  | Parser.Error as e -> 
+    Printf.printf "Parser error in program %s\n" filepath; print_endline @@ Printexc.to_string e; 
+    let pos = Lexing.lexeme_start_p lex_buf in
+    Printf.printf "Syntax error occurred somewhere after line %d, character %d\n" pos.pos_lnum (pos.pos_cnum - pos.pos_bol);
+    1
   | _ as e -> print_endline @@ Printexc.to_string e; 1
 
 

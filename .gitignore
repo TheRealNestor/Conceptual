@@ -3,3 +3,6 @@
 /conceptual/*.automaton
 /conceptual/*.conflicts
 /conceptual/notes.txt
+/conceptual/parser.ml
+/conceptual/parser.mli
+/conceptual/bug.con
