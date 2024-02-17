@@ -1,8 +1,8 @@
 /Phase5/
-/conceptual/_build/
-/conceptual/*.automaton
-/conceptual/*.conflicts
-/conceptual/notes.txt
-/conceptual/parser.ml
-/conceptual/parser.mli
-/conceptual/bug.con
+/_build/
+/*.automaton
+/*.conflicts
+/notes.txt
+/parser.ml
+/parser.mli
+/bug.con
