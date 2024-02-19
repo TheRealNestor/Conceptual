@@ -28,6 +28,11 @@
     else
       num
 
+    let create_location lexbuf = 
+      let startp = Lexing.lexeme_start_p lexbuf in
+      let endp = Lexing.lexeme_end_p lexbuf in
+      make_location (startp, endp)
+
 }
 
 let backslash_escapes =
@@ -53,6 +58,9 @@ rule token = parse
 | ':' { COLON }
 | '.' { DOT } 
 | ',' { COMMA }
+| '~' { TILDE }
+| '^' { CARET }
+| '*' { STAR }
 | '(' { LPAREN }
 | ')' { RPAREN }
 | '[' { LBRACKET }
@@ -119,27 +127,18 @@ I could do something with \n but that seems kind of dicey... *)
 
 and purpose_str = parse 
 | "state" { add_token_to_cache STATE; () } (*TODO: Could possibly end this with a period instead if we want to use the state word...*)
+| '\n' {Lexing.new_line lexbuf; purpose_str lexbuf} (* increment l_num when incountering newline in *)
 | '\\' (backslash_escapes as c) { Buffer.add_char string_buf @@ char_for_backslash c; purpose_str lexbuf } (* special escape characters *)
-| '\\' (_ as c) { 
-  let startp = Lexing.lexeme_start_p lexbuf in
-  let endp = Lexing.lexeme_end_p lexbuf in
-  let loc = make_location (startp, endp) in
-  print_error @@ InvalidEscapeCharacter{loc; input = String.make 1 c};
-  raise LexerError 
-  } (* invalid escape character *)
+| '\\' (_ as c) { print_error @@ InvalidEscapeCharacter{loc = create_location lexbuf; input = String.make 1 c}; raise LexerError } (* invalid escape character *)
 | eof { print_error @@ NoState; raise LexerError }
 | _ as c {Buffer.add_char string_buf c; purpose_str lexbuf } (* keep reading string, this will also read newline characters *)
 
 and string = parse   
-| '"' { ()  } (* end of string *)
+| '"' { () } (* end of string *)
+| '\n' {Lexing.new_line lexbuf; string lexbuf} 
 | '\\' (backslash_escapes as c) { Buffer.add_char string_buf @@ char_for_backslash c; string lexbuf } (* special escape characters *)
-| '\\' (_ as c) { 
-  let startp = Lexing.lexeme_start_p lexbuf in
-  let endp = Lexing.lexeme_end_p lexbuf in
-  let loc = make_location (startp, endp) in
-  print_error @@ InvalidEscapeCharacter{loc; input = String.make 1 c};
-  raise LexerError 
-  } (* invalid escape character *)
+| '\\' (_ as c) { print_error @@ InvalidEscapeCharacter{loc = create_location lexbuf; input = String.make 1 c}; raise LexerError } (* invalid escape character *)
+| eof { print_error @@ UnterminatedString{loc = create_location lexbuf}; raise LexerError }
 | _ as c { Buffer.add_char string_buf c; string lexbuf } (* keep reading string, this will also read newline characters *)
 
 

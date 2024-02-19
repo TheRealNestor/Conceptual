@@ -2,15 +2,14 @@ open TypedAst
 module Sym = Symbol
 module PBox = PrintBox
 
-
-
 let rec typ_to_string = function 
 | TInt -> "int"
 | TBool -> "bool"
 | TString -> "unit"
+| TVoid -> "void"
 | TCustom {tp = Ident{sym}} -> Sym.name sym
 | TSet {tp} -> "set of " ^ (typ_to_string tp)
-| TMap{left;right} -> "map from " ^ (typ_to_string left) ^ " to " ^ (typ_to_string right)
+| TMap{left;right} -> "Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">"
 | ErrorType -> "error"
 
 let ident_to_tree (Ident{sym}) = Pretty.make_ident_line (Sym.name sym)
@@ -21,10 +20,11 @@ let ident_from_signature = function
 let typ_to_tree = function 
 | TInt -> Pretty.make_typ_line "Int"
 | TBool -> Pretty.make_typ_line "Bool"
+| TVoid -> Pretty.make_typ_line "Void"
 | TString -> Pretty.make_typ_line "String"
 | TCustom {tp = Ident{sym}} -> Pretty.make_typ_line (Sym.name sym)
 | TSet {tp} -> Pretty.make_typ_line ("Set of " ^ (typ_to_string tp))
-| TMap{left;right} -> Pretty.make_typ_line ("Map from " ^ (typ_to_string left) ^ " to " ^ (typ_to_string right))
+| TMap{left;right} -> Pretty.make_typ_line ("Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">") 
 | ErrorType -> Pretty.make_typ_line "Error"
 
 let binop_to_tree  = function
@@ -46,6 +46,9 @@ let binop_to_tree  = function
 let unop_to_tree = function
 | Neg -> Pretty.make_keyword_line "Neg"
 | Not -> Pretty.make_keyword_line "Not"
+| Tilde -> Pretty.make_keyword_line "Tilde"
+| Caret -> Pretty.make_keyword_line "Caret"
+| Star -> Pretty.make_keyword_line "Star"
 
 let rec lval_to_tree = function
 | Var {name;tp} -> PBox.tree ( Pretty.make_info_node_line "Var:";) [ident_to_tree name; typ_to_tree tp]
@@ -118,9 +121,9 @@ let actions_to_tree (actions : action list) =
   else PBox.tree (Pretty.make_info_node_line "Actions") (List.map action_to_tree actions)
 
 let concept_to_tree (c : concept ) =
-  let {signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; _} = c in
+  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; _} = c in
   PBox.tree (Pretty.make_info_node_line "Concept") [
-    PBox.tree (Pretty.make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty c.signature];
+    PBox.tree (Pretty.make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty signature];
     PBox.tree (Pretty.make_info_node_line "Purpose") [PBox.text doc_str];
     PBox.tree (Pretty.make_info_node_line "States") [states_to_tree states];
     PBox.tree (Pretty.make_info_node_line "Actions") [actions_to_tree actions];

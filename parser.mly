@@ -21,11 +21,12 @@ let mk_loc loc = Location.make_location loc
 %token EQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ here? *)
 %token PLUS MINUS AMP (*Binary operators*)
 %token ASSIGN ADDEQ MINUSEQ AMPEQ (* Mutators*)
-%token NOT  (*Unaries*)
+%token NOT TILDE CARET STAR (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
 %token LPAREN RPAREN LBRACKET RBRACKET (*Brackets and stuff*)
 %token WHEN
 %token OUT (*Output*)
+
 
 %token INT BOOL STRING (*Primitive types*)
 
@@ -77,26 +78,24 @@ let mk_loc loc = Location.make_location loc
 
 // Associativity and precedence
 
+// TODO: Test that the precedence is reasonable with pretty printer....
 // Logical operators are lowest precedence
 %right ASSIGN 
 %left LOR
 %left LAND
 %nonassoc NOT (*TODO: Should this be higher*)
-%nonassoc NEG (*THis is not even a token, this is just to force precedence of unary negation of integers*)
 
-// TODO: Test that this order is correct with pretty printer....
 %left EQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
-%nonassoc SET
 %left PLUS MINUS 
 
 %left AMP
 %right ARROW (*TODO: Should this be left?*)
+%nonassoc SET
 %left DOT 
-
+%nonassoc TILDE CARET STAR (*Set and relation unary operators*)
 
 
 %start <Ast.program> program 
-
 %%
 
 
@@ -112,17 +111,25 @@ lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
+
 expr:
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
 | INT_LIT { Integer{int = $1; loc = mk_loc $loc} }
 | BOOL_LIT { Boolean{bool = $1; loc = mk_loc $loc} }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
-| NOT expr %prec NOT { Unop{op = Not{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} } (*TODO: Not sure if this precedence annotation is necessary*)
-| MINUS expr %prec NEG { Unop{op = Neg{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} }
+| unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
 | lval ASSIGN expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
 | IDENT LPAREN separated_list(COMMA, expr) RPAREN 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
+
+// TODO: might have to check for precedence of MINUS in particular, as that symbol is used elsewhere too 
+%inline unary:
+| NOT { Not{loc = mk_loc $loc} }
+| MINUS { Neg{loc = mk_loc $loc} }
+| TILDE { Tilde{loc = mk_loc $loc} }
+| CARET { Caret{loc = mk_loc $loc} }
+| STAR { Star{loc = mk_loc $loc} }
 
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
@@ -172,7 +179,6 @@ state:
 c_state:
 | STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
 
-
 compound_assign:
 | lval ADDEQ expr { $1, Plus{loc = mk_loc $loc}, $3 }
 | lval MINUSEQ expr { $1, Minus{loc = mk_loc $loc}, $3 }
@@ -186,7 +192,6 @@ stmt:
     ExprStmt{expr = Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc}; loc} }
 | IDENT LPAREN separated_list(COMMA, expr) RPAREN 
   { ExprStmt{expr = Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
-
 
 action_sig_param:
 | named_parameters OUT? {
@@ -231,7 +236,7 @@ c_actions:
 
 concept: 
 | c_sig c_purpose c_state c_actions  (*TODO: Temporary until OP is implemented*)
-  { {signature = $1; purpose = $2; states = $3; actions = $4; loc = mk_loc $loc} }
+  { Concept{signature = $1; purpose = $2; states = $3; actions = $4; loc = mk_loc $loc} }
 // | c_sig c_purpose c_state c_actions c_op
 //   { raise TODO }
 

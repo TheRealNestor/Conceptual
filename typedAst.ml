@@ -6,11 +6,12 @@ type ident = Ident of { sym : Sym.symbol }
 type typ =
 | TString 
 | TBool 
-| TInt 
+| TInt
+| TVoid
 | TCustom of { tp : ident } (* custom type *)
 | TSet of { tp : typ  } (* set of types *)
 | TMap of { left : typ; right : typ } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
-| ErrorType
+| ErrorType 
 
 (* set, mappings, custom types --> probably the ones i should have first??? *)
 
@@ -36,6 +37,9 @@ type binop =
 type unop = 
 | Not 
 | Neg 
+| Tilde 
+| Caret
+| Star
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)
@@ -103,7 +107,7 @@ type operational_principle = OP of {
 }
 
 
-type concept = {
+type concept = Concept of {
   signature : concept_sig;
   purpose : concept_purpose; 
   states : concept_states;

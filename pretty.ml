@@ -50,6 +50,9 @@ let binop_to_tree = function
 let unop_to_tree = function
 | Not _ -> make_keyword_line "Not"
 | Neg _ -> make_keyword_line "Neg"
+| Star _ -> make_keyword_line "Star"
+| Tilde _ -> make_keyword_line "Tilde"
+| Caret _ -> make_keyword_line "Caret"
   
 let rec expr_to_tree = function
 | String {str; _} -> PBox.hlist ~bars:false [make_info_node_line "StringLit("; PBox.line str; make_info_node_line ")"]
@@ -119,9 +122,9 @@ let actions_to_tree (actions : action list) =
   else PBox.tree (make_info_node_line "Actions") (List.map action_to_tree actions)
 
 let concept_to_tree (c : concept ) =
-  let {signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; _} = c in
+  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; _} = c in
   PBox.tree (make_info_node_line "Concept") [
-    PBox.tree (make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty c.signature];
+    PBox.tree (make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty signature];
     PBox.tree (make_info_node_line "Purpose") [PBox.text doc_str];
     PBox.tree (make_info_node_line "States") [states_to_tree states];
     PBox.tree (make_info_node_line "Actions") [actions_to_tree actions];

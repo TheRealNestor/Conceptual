@@ -4,7 +4,6 @@ exception TODO
 
 type ident = Ident of {name: string; loc : Loc.location }
 
-(* TODO: strings? *)
 type typ =
   | TString of { loc : Loc.location }
   | TBool of { loc : Loc.location }
@@ -13,7 +12,6 @@ type typ =
   | TSet of { tp : typ ; loc : Loc.location } (* set of types *)
   | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 
-(* set, mappings, custom types --> probably the ones i should have first??? *)
 
 type parameter = Parameter of {typ : typ; loc : Loc.location } (*This is for the concept signature *)
 type named_parameter = NamedParameter of {name : ident; typ : typ; loc : Loc.location } (*State declarations, action signatures*)
@@ -37,6 +35,10 @@ type binop =
 type unop = 
 | Not of { loc : Loc.location }
 | Neg of { loc : Loc.location }
+| Tilde of { loc : Loc.location }
+| Caret of { loc : Loc.location }
+| Star of { loc : Loc.location }
+
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)
@@ -111,7 +113,7 @@ type operational_principle = OP of {
 }
 
 
-type concept = {
+type concept = Concept of {
   signature : concept_sig;
   purpose : concept_purpose; 
   states : concept_states;

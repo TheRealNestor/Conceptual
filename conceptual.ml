@@ -1,10 +1,14 @@
 module TAst = TypedAst
+module TPretty = TypedPretty
 
 let pretty_print_program prog = 
   PrintBox_text.output stdout (Pretty.program_to_tree prog); output_string stdout "\n"
+let pretty_print_t_program prog = 
+  PrintBox_text.output stdout (TPretty.program_to_tree prog); output_string stdout "\n"
 
 
-let compile_program (filepath : string) : int = 
+
+let compile_program (filepath : string) = 
   let file_in = open_in filepath in
   let lex_buf = Lexing.from_channel ~with_positions:true file_in in 
   let _ = Lexing.set_filename lex_buf filepath in
@@ -18,21 +22,32 @@ let compile_program (filepath : string) : int =
 
     let prog = Parser.program tokenizer lex_buf in 
 
-    let typed_prog = Semant.typecheck_prog prog in
-    
+    (* print AST *)
     pretty_print_program prog;
     print_endline "";
-    0;
+
+    let env, typed_prog = Semant.typecheck_prog prog in
+
+    let semant_errors = !(env.errors) in 
+    if semant_errors <> [] then 
+      begin
+        print_endline "Semantic errors:";
+        Errors.print_errors semant_errors;
+      end
+    else 
+      begin
+        print_endline "No semantic errors";
+        pretty_print_t_program typed_prog;
+      end;
   with
   (* TODO: should probably implement better parser errors.... *)
   | Parser.Error as e -> 
     Printf.printf "Parser error in program %s\n" filepath; print_endline @@ Printexc.to_string e; 
     let pos = Lexing.lexeme_start_p lex_buf in
     Printf.printf "Syntax error occurred somewhere after line %d, character %d\n" pos.pos_lnum (pos.pos_cnum - pos.pos_bol);
-    1
-  | _ as e -> print_endline @@ Printexc.to_string e; 1
-
+  | _ as e -> print_endline @@ Printexc.to_string e;
+  ;;
 
 let _ = 
   let filename = Sys.argv.(1) in
-  let ret = compile_program filename in ret 
+  compile_program filename
