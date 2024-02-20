@@ -38,6 +38,8 @@ let compile_program (filepath : string) =
       begin
         print_endline "No semantic errors";
         pretty_print_t_program typed_prog;
+        let code = CodeGen.translate_program typed_prog in 
+        raise (Failure "Code generation not implemented yet")
       end;
   with
   (* TODO: should probably implement better parser errors.... *)

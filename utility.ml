@@ -168,6 +168,8 @@ let construct_join_type env expr left_tp right_tp =
   )
 
 (* As we are using typed ast, we must explicitly provide location in case errors happen *)
+
+(* TODO: This should be updated? Maps can be used with other maps for instance, distinguish between map and set complex types. *)
 let is_first_order_type env tp loc =
   let complex_type_encountered = ref false in
   let rec dfs = function

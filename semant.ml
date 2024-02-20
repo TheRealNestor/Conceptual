@@ -245,3 +245,4 @@ let typecheck_concepts env concepts =
 let typecheck_prog (prg : Ast.program) : Env.environment * TAst.program =
   let env = Env.make_env in 
   typecheck_concepts env prg
+
