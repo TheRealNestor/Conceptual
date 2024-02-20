@@ -9,6 +9,7 @@ module TPretty = TypedPretty
 
 type error = 
 | InvalidEscapeCharacter of {loc : Loc.location; input : string}
+| UnrecognizedCharacter of {loc : Loc.location; input : string}
 | NoState 
 | DuplicateDeclaration of {loc : Loc.location; name : TAst.ident}
 | TypeMismatch of {expected : TAst.typ; actual : TAst.typ; loc : Loc.location}
@@ -34,6 +35,7 @@ let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
 let print_error err =
   match err with
   | InvalidEscapeCharacter {loc; input} -> Printf.printf "InvalidEscapeCharacter. Illegal escape character %s \t" input; Loc.print_location loc;
+  | UnrecognizedCharacter {loc; input} -> Printf.printf "UnrecognizedCharacter. Unrecognized character %s \t" input; Loc.print_location loc;
   | NoState -> Printf.printf "NoState. A concept is missing state information.\n"
   | DuplicateDeclaration {loc; name} -> Printf.printf "DuplicateDeclaration. The name %s is already declared \t" (string_of_t_ident name); Loc.print_location loc;
   | TypeMismatch {expected; actual; loc} -> Printf.printf "TypeMismatch. Expected %s but got %s \t" (TPretty.typ_to_string expected) (TPretty.typ_to_string actual); Loc.print_location loc;
@@ -51,6 +53,7 @@ let print_error err =
   | NotAPrimitiveType {loc; tp} -> Printf.printf "NotAPrimitiveType. The type %s is not a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | PrimitiveType {loc; tp} -> Printf.printf "PrimitiveType. The type %s is a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | UndeclaredType {loc; tp} -> Printf.printf "UndeclaredType. The type %s is not declared \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

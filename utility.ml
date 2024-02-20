@@ -137,6 +137,7 @@ let type_to_array_of_types tp =
   in dfs_map_search [] tp
 
 (* Passing expression only to get its location information, not needed otherwise... *)
+(* TODO: Not sure if this is 100% bulletproof *)
 let construct_join_type env expr left_tp right_tp =
     (*For maps we want a list of all tapes, makes it easier to construct resulting type
        Not the most efficient approach but relation should rarely but relations should rarely be long*)
@@ -150,9 +151,7 @@ let construct_join_type env expr left_tp right_tp =
   ) else (
     (* Construct the resulting type of the join  *)
     (* This includes everything in left_history except its last element, everything in right_history except for head *)
-    let left_history_altered = List.rev @@ List.tl @@ List.rev left_history in
-
-    
+    let left_history_altered = List.rev @@ List.tl @@ List.rev left_history in    
     let right_history_altered = List.tl right_history in
     let resulting_type = left_history_altered @ right_history_altered in
     (* Convert from an array of types to a type *)

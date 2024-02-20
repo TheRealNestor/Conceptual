@@ -30,7 +30,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     let t_left, left_tp = infertype_expr env left in
     let t_right, right_tp = infertype_expr env right in
     let typed_op = Utility.ast_binop_to_tast op in 
-
     let need_to_wrap_in_set = ref false in
     let operators_with_special_type_comparisons = [TAst.Join; TAst.In; TAst.NotIn; TAst.Plus; TAst.Minus; TAst.Intersection] in
     let is_same_valid_type = 
