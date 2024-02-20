@@ -183,9 +183,7 @@ let is_first_order_type env tp loc =
         complex_type_encountered := true;
         dfs tp
       )
-    | TAst.TCustom _ as t -> Env.type_is_defined env t
-    | TAst.TInt | TAst.TBool | TAst.TString | TAst.TVoid -> true
-    | TAst.ErrorType -> false
+    | _ -> true
   in
   let is_first_order = dfs tp in
   if not is_first_order then

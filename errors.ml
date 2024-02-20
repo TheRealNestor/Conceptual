@@ -25,6 +25,7 @@ type error =
 | InvalidInExpression of {loc : Loc.location; left : TAst.typ; right : TAst.typ}
 | NotAPrimitiveType of {loc : Loc.location; tp : TAst.typ}
 | PrimitiveType of {loc : Loc.location; tp : TAst.typ}
+| UndeclaredType of {loc : Loc.location; tp : TAst.typ}
 (* Pretty print errors *)
 
 let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
@@ -49,6 +50,7 @@ let print_error err =
   | InvalidInExpression {loc; left; right} -> Printf.printf "InvalidInExpression. The types %s and %s are not compatible \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;
   | NotAPrimitiveType {loc; tp} -> Printf.printf "NotAPrimitiveType. The type %s is not a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | PrimitiveType {loc; tp} -> Printf.printf "PrimitiveType. The type %s is a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+  | UndeclaredType {loc; tp} -> Printf.printf "UndeclaredType. The type %s is not declared \t" (TPretty.typ_to_string tp); Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

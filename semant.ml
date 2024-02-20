@@ -49,8 +49,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
       | Ast.In _ | Ast.NotIn _ -> 
-        (* if types are equal do nothing special,
-           if rhs is a map and lhs is a primitive type that is in this map, it is also fine *)
+
         if not (Utility.is_primitive_type left_tp) then (
           Env.insert_error env (Errors.NotAPrimitiveType{tp=left_tp;loc});
         ) else if Utility.is_primitive_type right_tp then (
@@ -58,13 +57,13 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         ) else if (Utility.is_set right_tp) && (Utility.primitive_type_of_set right_tp <> left_tp) then (
           Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TSet{tp=left_tp}; loc});
         ) 
-      else if (Utility.is_relation right_tp) && not (Utility.type_is_in_relation left_tp right_tp) then (
+        else if (Utility.is_relation right_tp) && not (Utility.type_is_in_relation left_tp right_tp) then (
           Env.insert_error env (Errors.InvalidInExpression{left = left_tp; right = right_tp; loc});
         );
         TAst.TBool
       | Ast.Plus _ | Ast.Minus _ | Ast.Intersection _  -> 
         need_to_wrap_in_set := true;
-        left_tp (*This is temporary*)
+        left_tp (*This is temporary, will be changed immediately following this...*)
       | _ -> left_tp
       end
     ) else TAst.ErrorType in
@@ -180,8 +179,10 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) =
 let typecheck_action_signature env signature = 
   let Ast.ActionSignature{name;out;params;_} = signature in
   let env, t_params = List.fold_left (
-    fun (env_so_far, t_params_so_far) param -> 
+    fun (env_so_far, t_params_so_far) (Ast.NamedParameter{loc;_} as param) -> 
       let env, t_param = add_named_param_to_env env_so_far param in
+      let TAst.NamedParameter{typ; _} = t_param in
+      if not (Env.type_is_defined env typ) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
       env, t_param :: t_params_so_far
   ) (env, []) params in
   let t_out = List.map (fun (Ast.NamedParameter{name;typ;_}) -> 
@@ -194,7 +195,8 @@ let add_action_sig_to_env env (Ast.ActionSignature{name;loc;_} as act_sig) =
   let TAst.Ident{sym} = name in
   if Env.is_declared env sym then 
     Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
-  let env' = env in (*Create a new env to avoid duplicate errors as typecheck_action_sig called later*)
+  let env' = {env with errors = ref []} in (*Create a new env to avoid duplicate errors as typecheck_action_sig is called later, which also adds parameters to environment
+                                          Need to modify at least one field for it to not be the same entity....*)
   let _, t_sig = typecheck_action_signature env' act_sig in
   Env.insert env sym (Env.Act(t_sig))
     
