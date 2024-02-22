@@ -75,10 +75,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     
     TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
   | Ast.Lval lval -> let lval, tp = infertype_lval env lval in TAst.Lval(lval), tp
-  | Ast.Assignment {lval;rhs;_} -> 
-    let lval, tp = infertype_lval env lval in
-    let rhs = typecheck_expr env rhs tp in
-    TAst.Assignment{lval;rhs;tp}, tp
   | Ast.Call {action;args;_} ->
     let t_ident = convert_ident action in
     let act_opt = Env.lookup env (sym_from_ident t_ident) in
@@ -118,7 +114,7 @@ and infertype_lval env lval =
     let tp_opt = Env.lookup env sym in
     let tp = begin match tp_opt with 
       | None -> Env.insert_error env (Errors.Undeclared{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType
-      | Some Act(_) -> failwith "Should we allow actions as lvals?" (* TODO: Might be useful to do stuff like x.f = y *)
+      | Some Act(_) -> Env.insert_error env (Errors.ActionAsLval{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType (* TODO: Might be useful to do stuff like x.f = y *)
       | Some Var(tp) -> tp        
     end in
     TAst.Var{name = TAst.Ident{sym}; tp}, tp
@@ -137,18 +133,12 @@ and typecheck_expr env expr tp =
   texpr
 
 (* I don't think we have anything that can modify the environment, no variable declarations for example, so does not return environment *)
-let typecheck_stmt env stmt =
-  begin match stmt with 
-  | Ast.ExprStmt{expr;loc} -> 
-    begin match expr with 
-    | Assignment _ as e -> 
-      let t_expr, _ = infertype_expr env e in
-      TAst.ExprStmt{expr = Some t_expr}
-    | Call _ as e ->
-      TAst.ExprStmt{expr = Some (typecheck_expr env e TAst.TVoid)} (*TODO: only allow mutators,i.e. void? Should calls even be allowed?*)
-    | _ -> Env.insert_error env (Errors.UnsupportedExpressionStatement{loc}); TAst.ExprStmt{expr = None};
-    end
-  end
+let typecheck_stmt env = function
+| Ast.Assignment {lval;rhs;_} -> 
+  let lval, tp = infertype_lval env lval in
+  let rhs = typecheck_expr env rhs tp in
+  TAst.Assignment{lval;rhs;tp}
+
 
 let add_named_param_to_env env (Ast.NamedParameter{name;typ;loc}) =
   let name = convert_ident name in
@@ -172,7 +162,7 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) =
   begin match expr with
   | None -> env_with_type, TAst.State{param; expr = None} :: states_so_far
   | Some expr -> 
-    let t_expr, _ = infertype_expr env_with_type expr in
+    let t_expr = typecheck_expr env_with_type expr tp in
     env_with_type, TAst.State{param; expr = Some t_expr} :: states_so_far
   end
 
@@ -190,6 +180,9 @@ let typecheck_action_signature env signature =
   ) out in
   env, TAst.ActionSignature{name = convert_ident name; out = t_out; params = t_params}
 
+
+(* Actions are not mutually recursive, in fact they cannot call each other,
+   this is simply to store all the values  *)
 let add_action_sig_to_env env (Ast.ActionSignature{name;loc;_} as act_sig) =   
   let name = convert_ident name in
   let TAst.Ident{sym} = name in
@@ -230,7 +223,6 @@ let typecheck_concept env (c : Ast.concept) =
   let t_action_list = List.map (typecheck_action env_with_action_sigs) actions in
   let t_actions = TAst.Actions{actions = t_action_list} in
   env_with_action_sigs, TAst.Concept{signature = t_sig; purpose = t_purpose; states = t_states; actions = t_actions}
-
 
 
 (* Only passing the environment (instead of constructing an empty one)

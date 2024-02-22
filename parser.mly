@@ -47,7 +47,7 @@ let mk_loc loc = Location.make_location loc
 %type <Ast.typ> typ
 
 %type <Ast.state list> state
-%type <Ast.expr> expr
+%type <Ast.expr> expr op_expr
 %type <Ast.named_parameter list * Ast.named_parameter list> action_sig_param
 %type <Ast.lval * Ast.binop * Ast.expr> compound_assign
 %type <Ast.lval> lval
@@ -112,16 +112,21 @@ lval:
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
 
+// This is simply to prevent calls from happening in simple expressions (calls only allowed in lvals)
+op_expr:
+| expr { $1 }
+| IDENT LPAREN separated_list(COMMA, expr) RPAREN 
+  { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
+
+
 expr:
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
 | INT_LIT { Integer{int = $1; loc = mk_loc $loc} }
 | BOOL_LIT { Boolean{bool = $1; loc = mk_loc $loc} }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
-| lval ASSIGN expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
-| IDENT LPAREN separated_list(COMMA, expr) RPAREN 
-  { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
+
 
 // TODO: might have to check for precedence of MINUS in particular, as that symbol is used elsewhere too 
 %inline unary:
@@ -185,13 +190,11 @@ compound_assign:
 | lval AMPEQ expr { $1, Intersection{loc = mk_loc $loc}, $3 }
 
 stmt:
-| lval ASSIGN expr { ExprStmt{expr = Assignment{lval = $1; rhs = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
+| lval ASSIGN expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
 | compound_assign 
   { let (lval, op, rhs) = $1 in
     let loc = mk_loc $loc in
-    ExprStmt{expr = Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc}; loc} }
-| IDENT LPAREN separated_list(COMMA, expr) RPAREN 
-  { ExprStmt{expr = Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
+    Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc} } 
 
 action_sig_param:
 | named_parameters OUT? {

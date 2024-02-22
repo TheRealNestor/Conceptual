@@ -61,17 +61,16 @@ let rec expr_to_tree = function
 | Binop {left; op; right; _} -> PBox.tree (make_info_node_line "BinOp") [expr_to_tree left; binop_to_tree op; expr_to_tree right]
 | Unop {op; operand; _} -> PBox.tree (make_info_node_line "UnOp") [unop_to_tree op; expr_to_tree operand]
 | Lval l -> PBox.tree (make_info_node_line "Lval") [lval_to_tree l]
-| Assignment{lval;rhs;_} -> PBox.tree (make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs]
 | Call {action; args; _ } -> PBox.tree (make_info_node_line "Call") [ident_to_tree action; PBox.tree (make_info_node_line "Arguments") (List.map expr_to_tree args)]
      
 and lval_to_tree = function
 | Var ident -> PBox.hlist ~bars:false [make_info_node_line "Var("; ident_to_tree ident; make_info_node_line ")"]
 | Relation{left;right;_} -> PBox.tree (make_info_node_line "Relation") [lval_to_tree left; lval_to_tree right]
 
-  
+
 
 let rec statement_to_tree = function
-| ExprStmt{expr; _} -> PBox.tree (make_info_node_line "ExprStmt") [expr_to_tree expr]
+| Assignment{lval; rhs; _} -> PBox.tree (make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs]
 and statement_seq_to_forest stms = List.map statement_to_tree stms
 
 let rec parameter_list_to_tree parameters = 

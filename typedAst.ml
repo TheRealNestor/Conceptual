@@ -52,7 +52,6 @@ type expr =
 | String of {str : string }
 | Integer of {int : int64 }
 | Boolean of {bool : bool }
-| Assignment of {lval : lval; rhs : expr; tp : typ }
 | Lval of lval 
 | Unop of {op : unop; operand : expr; tp : typ}
 | Binop of {left : expr; op : binop; right : expr; tp : typ}
@@ -63,7 +62,7 @@ and lval =
 
 
 type stmt = 
-| ExprStmt of {expr : expr option } (*Assignment, function/action call, possibly more? Option lets us do nothing in case of error*)
+| Assignment of {lval : lval; rhs : expr ; tp : typ } 
 
                                           
 type state = State of {

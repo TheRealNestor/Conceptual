@@ -43,6 +43,7 @@ let binop_to_tree  = function
 | Intersection -> Pretty.make_keyword_line "Intersection"
 | Join -> Pretty.make_keyword_line "Join"
 
+
 let unop_to_tree = function
 | Neg -> Pretty.make_keyword_line "Neg"
 | Not -> Pretty.make_keyword_line "Not"
@@ -57,19 +58,16 @@ let rec expr_to_tree = function
 | Integer {int} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "IntLit("; PBox.line (Int64.to_string int); Pretty.make_info_node_line ")"]
 | Boolean {bool} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "BoolLit("; PBox.line (string_of_bool bool); Pretty.make_info_node_line ")"]
 | String {str} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "StringLit("; PBox.line str; Pretty.make_info_node_line ")"]
-| Assignment {lval;rhs;tp} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; typ_to_tree tp]
 | Lval l -> lval_to_tree l
 | Unop {op;operand;tp} -> PBox.tree (Pretty.make_info_node_line "Unop") [unop_to_tree op; expr_to_tree operand; typ_to_tree tp]
 | Binop {op;left;right;tp} -> PBox.tree (Pretty.make_info_node_line "Binop") [binop_to_tree op; expr_to_tree left; expr_to_tree right; typ_to_tree tp]
 | Call {action;args;tp} -> PBox.tree (Pretty.make_info_node_line "Call") [ident_to_tree action; PBox.tree (Pretty.make_info_node_line "Args") (List.map expr_to_tree args); typ_to_tree tp]
 
 let rec statement_to_tree = function
-| ExprStmt{expr; _} -> 
-  begin match expr with
-  | None -> Pretty.make_info_node_line "EmptyExprStmt"
-  | Some e -> PBox.tree (Pretty.make_info_node_line "ExprStmt") [expr_to_tree e]
-  end
-and statement_seq_to_forest stms = List.map statement_to_tree stms
+| Assignment {lval;rhs;tp} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; typ_to_tree tp]
+and statement_seq_to_forest stms = 
+  if List.length stms = 0 then [Pretty.make_info_node_line "Empty"]
+  else List.map statement_to_tree stms
 
 
 

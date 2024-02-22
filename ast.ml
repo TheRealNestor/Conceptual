@@ -51,7 +51,6 @@ type expr =
 | String of {str : string; loc : Loc.location }
 | Integer of {int : int64; loc : Loc.location }
 | Boolean of {bool : bool; loc : Loc.location }
-| Assignment of {lval : lval; rhs : expr; loc : Loc.location }
 | Lval of lval 
 | Unop of {op : unop; operand : expr; loc : Loc.location;}
 | Binop of {left : expr; op : binop; right : expr; loc : Loc.location}
@@ -62,7 +61,7 @@ and lval =
 
 
 type stmt = 
-| ExprStmt of {expr : expr; loc : Loc.location } (*Assignment, function/action call, possibly more?*)
+| Assignment of {lval : lval; rhs : expr; loc : Loc.location} (*Assignment, function/action call, possibly more?*)
 
                                           
 type state = State of {

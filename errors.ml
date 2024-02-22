@@ -26,6 +26,7 @@ type error =
 | NotAPrimitiveType of {loc : Loc.location; tp : TAst.typ}
 | PrimitiveType of {loc : Loc.location; tp : TAst.typ}
 | UndeclaredType of {loc : Loc.location; tp : TAst.typ}
+| ActionAsLval of {loc : Loc.location; name : TAst.ident}
 (* Pretty print errors *)
 
 let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
@@ -42,7 +43,7 @@ let print_error err =
   | IllFormedRelation {loc; left; right} -> Printf.printf "IllFormedRelation. The types %s and %s are not compatible. One must be a relation \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;
   | DisjointRelation {loc; left; right} -> Printf.printf "DisjointRelation. The types %s and %s are disjoint \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;
   | NotAnAction {loc; name} -> Printf.printf "NotAnAction. The name %s is not an action \t" (string_of_t_ident name); Loc.print_location loc;
-  | UnsupportedMultipleReturnTypes {loc} -> Printf.printf "UnsupportedMultipleReturnTypes. Multiple return types are not supported \t"; Loc.print_location loc;
+  | UnsupportedMultipleReturnTypes {loc} -> Printf.printf "UnsupportedMultipleReturnTypes. Multiple return types are not supported. Alloy does not support it either?. \t"; Loc.print_location loc;
   | ArgumentCountMismatch {loc; expected; actual} -> Printf.printf "ArgumentCountMismatch. Expected %d arguments but got %d \t" expected actual; Loc.print_location loc;
   | TypeNotFirstOrder {loc; tp} -> Printf.printf "TypeNotFirstOrder. The type %s is not first order \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | UnterminatedString {loc} -> Printf.printf "UnterminatedString. Unterminated string \t"; Loc.print_location loc;
@@ -51,6 +52,7 @@ let print_error err =
   | NotAPrimitiveType {loc; tp} -> Printf.printf "NotAPrimitiveType. The type %s is not a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | PrimitiveType {loc; tp} -> Printf.printf "PrimitiveType. The type %s is a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | UndeclaredType {loc; tp} -> Printf.printf "UndeclaredType. The type %s is not declared \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+  | ActionAsLval {loc; name} -> Printf.printf "ActionAsLval. The name %s is an action \t" (string_of_t_ident name); Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

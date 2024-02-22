@@ -90,7 +90,6 @@ let rec get_expr_location = function
 | Ast.String {loc;_} -> loc
 | Ast.Integer {loc;_} -> loc
 | Ast.Boolean {loc;_} -> loc
-| Ast.Assignment {loc;_} -> loc
 | Ast.Binop {loc;_} -> loc
 | Ast.Unop {loc;_} -> loc
 | Ast.Call {loc;_} -> loc
@@ -205,7 +204,6 @@ let wrap_primitive_in_set left_tp right_tp =
 
 let change_expr_type (expr : TAst.expr) typ : TAst.expr =
   match expr with 
-  | Assignment {lval;rhs;_} -> Assignment {lval;rhs;tp=typ}
   | Binop {op;left;right;_} -> Binop {op;left;right;tp=typ}
   | Unop {op;operand;_} -> Unop {op;operand;tp=typ}
   | Call {action;args;_} -> Call {action;args;tp=typ}
@@ -213,5 +211,45 @@ let change_expr_type (expr : TAst.expr) typ : TAst.expr =
   | Lval(Relation {left; right;_}) -> Lval(Relation {left; right;tp=typ})
   | e -> e
 
+let get_expr_type (expr : TAst.expr) : TAst.typ = 
+  match expr with
+  | Binop {tp;_} -> tp
+  | Unop {tp;_} -> tp
+  | Call {tp;_} -> tp
+  | Lval(Var {tp;_}) -> tp
+  | Lval(Relation {tp;_}) -> tp
+  | String _ -> TAst.TString
+  | Integer _ -> TAst.TInt
+  | Boolean _ -> TAst.TBool
 
+let is_simple_type = function
+| TAst.TInt | TAst.TBool | TAst.TString | TAst.TCustom _ -> true
+| _ -> false
+
+
+
+let rec compare_typ (a : TAst.typ) (b : TAst.typ) = match (a, b) with
+  | (TString, TString) | (TBool, TBool) | (TInt, TInt) | (TVoid, TVoid) | (ErrorType, ErrorType) -> 0
+  | (TCustom {tp = Ident{sym=a}}, TCustom {tp = Ident{sym=b}}) -> String.compare (Symbol.name a) (Symbol.name b)
+  | (TSet {tp = a}, TSet {tp = b}) -> compare_typ a b
+  | (TMap {left = a1; right = b1}, TMap {left = a2; right = b2}) ->
+      let cmp_left = compare_typ a1 a2 in
+      if cmp_left = 0 then compare_typ b1 b2 else cmp_left
+  | (a, b) -> Int.compare (tag_of_typ a) (tag_of_typ b)
+
+and tag_of_typ = function
+  | TString -> 1
+  | TBool -> 2
+  | TInt -> 3
+  | TVoid -> 4
+  | TCustom _ -> 5
+  | TSet _ -> 6
+  | TMap _ -> 7
+  | ErrorType -> 8
+
+let same_base_type tp1 tp2 =
+match tp1, tp2 with 
+| TAst.TSet {tp=a}, b -> a = b
+| a, TAst.TSet {tp=b} -> a = b
+| a, b -> a = b
 

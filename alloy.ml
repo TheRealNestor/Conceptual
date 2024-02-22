@@ -5,77 +5,91 @@ module S = Symbol
 type sigId = S.symbol (* Signatures *)
 type fieldId = S.symbol (* Fields *)
 type uid = S.symbol (* Unique identifiers *)
-
-
+type funcId = S.symbol (* Functions and predicates *)
+type predId = S.symbol (* Predicates *)
+type paramId = S.symbol (* Parameters *)
 
 (* A concept should probably be mapped to an Alloy module *)
 (* module reserved keyword in ocaml *)
-type alloyModule = {
+type aModule = {
   name : uid;
   parameters : uid list option;
 }
 
-(* type ty = 
-  | Int 
-  | Bool 
-  | Sig of sigId 
-  | Set of ty 
-  Iden / Univ *)
 
-type multiplicity = One | Lone | Some 
+type multiplicity = One | Lone | Some | None
 
 type qop = All | No | One | Some | Lone 
 
-(* Should a concept be represented within an alloy module?? *)
-(* Signature declaration *)
-(* TOOO: Can concepts even add abstract to this or exrends? *)
-(* Signatures probably encompasses states and parameters of the concept *)
-(* Extends? By definition I guess concepts are self-contained *)
-(* relations A -> B could be represented as sig A {r : one B} *)
-(* How to represent sets vs singletons?
-    one sig A { ... }
-    sig A { ... }    
-*)
-(* signature is the name of the state?  *)
+(* TODO: Add the rest of these? *)
+type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn
 
-(* type sigDecl = {
-  isAbstract : bool;
-  extends : sigId option;
-  sigId : sigId;
-  fields : (fieldId * ty * multiplicity) list;
-} *)
 
-(* 
-(* Fact declaration *)
-type fact = {
-  factId : S.symbol;
-  expr : expr list;
+type unop = Not | Neg | Tilde | Caret | Star
+
+type ty = 
+| Int 
+| Bool
+| Str 
+| Sig of sigId 
+| Set of ty 
+| Rel of ty * ty
+
+
+and fieldDecl = {
+  id : fieldId;
+  (* mul : multiplicity option; *) (* This could probably be handled entirely in the serialization based on type *)
+  ty : ty;
+  expr : expr option;
 }
 
-(* Assertion declaration *)
-type assertion = {
-  assertId : S.symbol;
-  expr : expr list;
+and sigDecl = {
+  sig_id : sigId;
+  (* sig_mul : multiplicity option; *)
+  fields : fieldDecl list;
 }
 
-(* Function or predicate *)
-type func = {
-  funcId : S.symbol;
+(* TODO: More to add here *)
+and expr =
+| This | Univ | None
+| IntLit of int64
+| BoolLit of bool
+| StrLit of string
+| Unop of {op : unop; expr : expr}
+| Binop of {left : expr; right : expr; op : bop}
+| Implication of {left : expr; right : expr; falseExpr : expr option}
+| Assignment of {left : lval ; right : expr}
+| Quantifier of {qop : qop; vars : (S.symbol * ty) list; expr : expr}
+| Call of {func : S.symbol; args : expr list}
+| Lval of lval 
+and lval = 
+| VarRef of S.symbol
+| Relation of {left : lval; right : lval; traversal_args : S.symbol list} (* Traversal args, is using action parameters on lval of assignment, should be written [arg1, arg2, ....] *)
+
+type pred = {
+  pred_id : predId;
+  cond : expr option;
   params : (S.symbol * ty) list;
-  returnType : ty option; (* None for predicates *)
+  body : expr list ;
+}
+
+type func = {
+  func_id : funcId;
+  cond : expr option;
+  params : (S.symbol * ty) list;
+  out :  ty;
   body : expr list;
 }
 
-type model = {
-  signatures : sigDecl list;
-  facts : fact list;
-  assertions : assertion list;
-  funcs : func list;
-} *)
+type func_type = 
+| Pred of pred 
+| Func of func
 
 type prog = {
-  module_header : alloyModule option; 
+  module_header : aModule option; 
   purpose : string;
+  sigs : sigDecl list;
+  preds_and_funcs : func_type list;
 }
 
 (* -------------------------- Serialization --------------------------   *)
@@ -96,10 +110,42 @@ let braces s = "{" ^ s ^ "}"
 let brackets s = "[" ^ s ^ "]"
 let wrap_in_comment s = "/* " ^ s ^ " */"
 
+let rec serializeType (t : ty) : string = 
+    match t with 
+    | Int -> "Int"
+    | Bool -> "Bool"
+    | Str -> "Str"
+    | Sig s -> S.name s
+    | Set t -> "set " ^ serializeType t
+    | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
+
+let serializeBinop = function 
+| Plus -> "+"
+| Minus -> "-"
+| Intersection -> "&"
+| And -> "and"
+| Or -> "or"
+| Lt -> "<"
+| Gt -> ">"
+| Lte -> "<="
+| Gte -> ">="
+| Eq -> "="
+| Neq -> "!="
+| Join -> "->"
+| In -> "in"
+| NotIn -> failwith "not in operation is not applied directly like this"
+
+let serializeQop = function
+| All -> "all"
+| No -> "no"
+| One -> "one"
+| Some -> "some"
+| Lone -> "lone"
+
 
 
 (* Serialization of module *)
-let serializeModule (m : alloyModule option) : string = 
+let serializeModule (m : aModule option) : string = 
   match m with 
     | None -> ""
     | Some m -> let name = S.name m.name in 
@@ -109,24 +155,108 @@ let serializeModule (m : alloyModule option) : string =
 
 let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
 
-let serializeStates (s : sigDecl list) : string = 
-  let serializeField (f : (fieldId * ty * multiplicity)) : string = 
-    let (fid, ty, m) = f in 
-    S.name fid ^ " : " ^ S.name ty ^ " " ^ match m with 
-      | One -> "one"
-      | Lone -> "lone"
-      | Some -> "some"
-  in 
-  let serializeSig (s : sigDecl) : string = 
-    let name = S.name s.sigId in 
-    let fields = mapcat ", " serializeField s.fields in 
-    "sig " ^ name ^ " { " ^ fields ^ " }"
-  in 
-  mapcat "\n" serializeSig s
 
+let serializeExpr (e : expr) : string = 
+  let rec serializeLval (l : lval) : string = 
+    match l with 
+    | VarRef s -> S.name s
+    | Relation {left; right;traversal_args} -> 
+      if List.length traversal_args = 0 then     
+        serializeLval left ^ "." ^ serializeLval right
+      else (
+        let leftStr = serializeLval left in
+        let rightStr = serializeLval right in
+        (* check if left_str is in traversal args *)
+        let leftStr = if List.mem (S.symbol leftStr) traversal_args then "" else leftStr in
+        let rightStr = if List.mem (S.symbol rightStr) traversal_args then "" else rightStr in
+        let concat = if leftStr = "" || rightStr = "" then "" else "." in
+        let traversalStr = "[" ^ mapcat ", " S.name traversal_args ^ "]" in
+        leftStr ^ concat ^ rightStr ^ traversalStr
+        )
+  in
+  let rec serialize_expr' (e : expr) : string = 
+    match e with 
+    | This -> "this"
+    | Univ -> "univ"
+    | None -> "none"
+    | IntLit i -> Int64.to_string i
+    | BoolLit b -> if b then "true" else "false"
+    | StrLit s -> "\"" ^ s ^ "\""
+    | Unop {op; expr} -> (match op with 
+                          | Not -> "not " ^ serialize_expr' expr
+                          | Neg -> "-" ^ serialize_expr' expr
+                          | Tilde -> "~" ^ serialize_expr' expr
+                          | Caret -> "^" ^ serialize_expr' expr
+                          | Star -> "*" ^ serialize_expr' expr)
+    | Binop {left; right; op} -> 
+      begin match op with 
+      | NotIn -> "not " ^ serialize_expr' left ^ " in " ^ serialize_expr' right
+      | _ as bop -> (serialize_expr' left) ^ " " ^ serializeBinop bop ^ " " ^ (serialize_expr' right)
+      end
+    | Implication {left; right; falseExpr} -> (serialize_expr' left) ^ " => " ^ (serialize_expr' right) ^ (match falseExpr with 
+                                                                                                      | None -> ""
+                                                                                                      | Some e -> " else " ^ serialize_expr' e)
+    | Assignment {left; right} -> serializeLval left ^ " = " ^ serialize_expr' right
+    | Call {func; args} -> S.name func ^ "[" ^ (mapcat ", " serialize_expr' args) ^ "]"
+    | Quantifier {qop; vars; expr} -> 
+      serializeQop qop  ^ " " ^ (mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) vars) ^ " | " ^ serialize_expr' expr ^
+      if List.length vars = 0 then "" else 
+      "[" ^ (mapcat ", " (fun (s, _) -> S.name s) vars) ^ "]"
+    | Lval l -> serializeLval l
+  in
+  serialize_expr' e  
+
+
+let serializeField (f : fieldDecl) : string =
+  let {id; ty; expr} = f in 
+  let exprStr = match expr with 
+    | None -> ""
+    | Some e -> " = " ^ serializeExpr e
+  in
+  S.name id ^ " : " ^ serializeType ty ^ exprStr
+
+let serializeSignature (s : sigDecl) : string = 
+  let {sig_id; fields} = s in
+  if List.length fields = 0 then "sig " ^ S.name sig_id ^ " { }" else 
+    let fieldsStr = mapcat ",\n\t" serializeField fields in
+    "sig " ^ S.name sig_id ^ " {\n\t" ^ fieldsStr ^ "\n}"
+  
+
+let serializeSigs (s : sigDecl list) : string = 
+  mapcat "\n\n" serializeSignature s
+
+let serializePredicate (p : pred) : string = 
+  let paramsStr = mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) p.params in
+  let condStr = match p.cond with 
+    | None -> ""
+    | Some e -> serializeExpr e ^ "\n\t"
+  in
+  let bodyStr = mapcat "\n\t" serializeExpr p.body in
+  "pred " ^ S.name p.pred_id ^ "[" ^ paramsStr ^ "] {\n\t" ^ condStr ^ bodyStr ^ "\n}"
+
+let serializeFunction (f : func) : string =
+  let paramsStr = mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) f.params in
+  let bodyStr = mapcat "\n\t" serializeExpr f.body in
+  let condStr = match f.cond with 
+    | None -> ""
+    | Some e -> serializeExpr e ^ "\n\t"
+  in
+  "fun " ^ S.name f.func_id ^ "[" ^ paramsStr ^ "] : " ^ serializeType f.out ^ " {\n\t" ^ condStr ^ bodyStr ^ "\n}"
+
+let serializeFunctionType (f : func_type) : string = 
+  match f with 
+  | Pred p -> serializePredicate p
+  | Func f -> serializeFunction f
+
+let serializeFunctionTypes (f : func_type list) : string =
+  mapcat "\n\n" serializeFunctionType f
   
 let string_of_program (p : prog) : string = 
   serializeModule p.module_header ^ "\n\n" ^
-  serializePurpose p.purpose ^ "\n\n"
+  serializePurpose p.purpose ^ "\n\n" ^ 
+  serializeSigs p.sigs ^ "\n\n" ^
+  serializeFunctionTypes p.preds_and_funcs 
+
+
   
   (* failwith "TODO: Implement string_of_prog" *)

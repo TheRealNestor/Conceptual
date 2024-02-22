@@ -7,13 +7,10 @@ let pretty_print_t_program prog =
   PrintBox_text.output stdout (TPretty.program_to_tree prog); output_string stdout "\n"
 
 
-
 let compile_program (filepath : string) = 
   let file_in = open_in filepath in
   let lex_buf = Lexing.from_channel ~with_positions:true file_in in 
   let _ = Lexing.set_filename lex_buf filepath in
-
-
   try
     let tokenizer = TokenCache.next_token Lexer.token in 
     
