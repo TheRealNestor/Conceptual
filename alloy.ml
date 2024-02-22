@@ -11,6 +11,7 @@ type paramId = S.symbol (* Parameters *)
 
 (* A concept should probably be mapped to an Alloy module *)
 (* module reserved keyword in ocaml *)
+
 type aModule = {
   name : uid;
   parameters : uid list option;
@@ -25,7 +26,7 @@ type qop = All | No | One | Some | Lone
 type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn
 
 
-type unop = Not | Neg | Tilde | Caret | Star
+type unop = Not | Neg | Tilde | Caret | Star | IsEmpty | IsNotEmpty
 
 type ty = 
 | Int 
@@ -51,7 +52,7 @@ and sigDecl = {
 
 (* TODO: More to add here *)
 and expr =
-| This | Univ | None
+| This | Univ | None 
 | IntLit of int64
 | BoolLit of bool
 | StrLit of string
@@ -91,6 +92,12 @@ type prog = {
   sigs : sigDecl list;
   preds_and_funcs : func_type list;
 }
+
+type cg_env = {
+  generics : S.symbol list ref;
+}
+
+let make_cg_env = {generics = ref []}
 
 (* -------------------------- Serialization --------------------------   *)
 
@@ -145,13 +152,15 @@ let serializeQop = function
 
 
 (* Serialization of module *)
-let serializeModule (m : aModule option) : string = 
+let serializeModule (env : cg_env ) (m : aModule option) : string = 
   match m with 
     | None -> ""
     | Some m -> let name = S.name m.name in 
                 match m.parameters with 
                   | None -> "module " ^ name
-                  | Some params -> "module " ^ name ^ "[" ^ mapcat "," S.name params ^ "]"
+                  | Some params -> 
+                    env.generics := params;
+                    "module " ^ name ^ "[" ^ mapcat "," S.name params ^ "]"
 
 let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
 
@@ -187,7 +196,9 @@ let serializeExpr (e : expr) : string =
                           | Neg -> "-" ^ serialize_expr' expr
                           | Tilde -> "~" ^ serialize_expr' expr
                           | Caret -> "^" ^ serialize_expr' expr
-                          | Star -> "*" ^ serialize_expr' expr)
+                          | Star -> "*" ^ serialize_expr' expr
+                          | IsEmpty -> "no " ^ serialize_expr' expr
+                          | IsNotEmpty -> "some " ^ serialize_expr' expr )
     | Binop {left; right; op} -> 
       begin match op with 
       | NotIn -> "not " ^ serialize_expr' left ^ " in " ^ serialize_expr' right
@@ -222,7 +233,9 @@ let serializeSignature (s : sigDecl) : string =
     "sig " ^ S.name sig_id ^ " {\n\t" ^ fieldsStr ^ "\n}"
   
 
-let serializeSigs (s : sigDecl list) : string = 
+let serializeSigs (env : cg_env) (s : sigDecl list) : string = 
+  (* filter from the signature declaration list all the generic types *)
+  let s = List.filter (fun x -> not (List.mem x.sig_id !(env.generics))) s in
   mapcat "\n\n" serializeSignature s
 
 let serializePredicate (p : pred) : string = 
@@ -252,11 +265,13 @@ let serializeFunctionTypes (f : func_type list) : string =
   mapcat "\n\n" serializeFunctionType f
   
 let string_of_program (p : prog) : string = 
-  serializeModule p.module_header ^ "\n\n" ^
+  let env = make_cg_env in 
+  let module_str = serializeModule env p.module_header ^ "\n\n" in (*This is to ensure that it is run first,
+                                                                   to populate the environment with generics*)
+  module_str ^
   serializePurpose p.purpose ^ "\n\n" ^ 
-  serializeSigs p.sigs ^ "\n\n" ^
+  serializeSigs env p.sigs ^ "\n\n" ^
   serializeFunctionTypes p.preds_and_funcs 
 
 
   
-  (* failwith "TODO: Implement string_of_prog" *)

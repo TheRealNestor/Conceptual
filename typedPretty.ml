@@ -11,13 +11,18 @@ let rec typ_to_string = function
 | TSet {tp} -> "set of " ^ (typ_to_string tp)
 | TMap{left;right} -> "Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">"
 | ErrorType -> "error"
+| NullSet{tp} -> 
+  begin match tp with 
+  | None -> "null"
+  | Some t -> "null of " ^ (typ_to_string t)
+  end
 
 let ident_to_tree (Ident{sym}) = Pretty.make_ident_line (Sym.name sym)
 
 let ident_from_signature = function 
 | Signature {name; _} | ParameterizedSignature {name; _} -> name
 
-let typ_to_tree = function 
+let rec typ_to_tree = function 
 | TInt -> Pretty.make_typ_line "Int"
 | TBool -> Pretty.make_typ_line "Bool"
 | TVoid -> Pretty.make_typ_line "Void"
@@ -26,7 +31,11 @@ let typ_to_tree = function
 | TSet {tp} -> Pretty.make_typ_line ("Set of " ^ (typ_to_string tp))
 | TMap{left;right} -> Pretty.make_typ_line ("Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">") 
 | ErrorType -> Pretty.make_typ_line "Error"
-
+| NullSet{tp} -> 
+  begin match tp with 
+  | None -> Pretty.make_typ_line "Null"
+  | Some t -> PBox.tree (Pretty.make_typ_line "Null") [typ_to_tree t]
+  end
 let binop_to_tree  = function
 | Plus -> Pretty.make_keyword_line "Plus"
 | Minus -> Pretty.make_keyword_line "Minus"
@@ -50,11 +59,15 @@ let unop_to_tree = function
 | Tilde -> Pretty.make_keyword_line "Tilde"
 | Caret -> Pretty.make_keyword_line "Caret"
 | Star -> Pretty.make_keyword_line "Star"
+| IsEmpty -> Pretty.make_keyword_line "IsEmpty"
+| IsNotEmpty -> Pretty.make_keyword_line "IsNotEmpty"
+
 
 let rec lval_to_tree = function
 | Var {name;tp} -> PBox.tree ( Pretty.make_info_node_line "Var:";) [ident_to_tree name; typ_to_tree tp]
 | Relation {left;right;tp} -> PBox.tree (Pretty.make_info_node_line "Relation:") [lval_to_tree left; lval_to_tree right; typ_to_tree tp]
 let rec expr_to_tree = function
+| EmptySet {tp} -> PBox.tree (Pretty.make_info_node_line "EmptySet") [typ_to_tree tp]
 | Integer {int} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "IntLit("; PBox.line (Int64.to_string int); Pretty.make_info_node_line ")"]
 | Boolean {bool} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "BoolLit("; PBox.line (string_of_bool bool); Pretty.make_info_node_line ")"]
 | String {str} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "StringLit("; PBox.line str; Pretty.make_info_node_line ")"]

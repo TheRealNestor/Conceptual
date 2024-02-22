@@ -7,3 +7,5 @@
 /parser.mli
 /bug.con
 /*.con
+/alloy/
+/concepts/

@@ -2,13 +2,6 @@
 open Ast
 
 exception TODO
-let rec str_of_typ = function 
-  | TInt _ -> "Int"
-  | TBool _ -> "Bool"
-  | TCustom{tp = Ident{name;_}} -> name
-  | TSet{tp; _} -> "Set<" ^ (str_of_typ tp) ^ ">"
-  | TMap{left; right;_} -> (str_of_typ left) ^ " -> " ^ (str_of_typ right)
-  | TString _ -> "String"
 
 let mk_loc loc = Location.make_location loc
   
@@ -26,11 +19,12 @@ let mk_loc loc = Location.make_location loc
 %token LPAREN RPAREN LBRACKET RBRACKET (*Brackets and stuff*)
 %token WHEN
 %token OUT (*Output*)
-
+%token IS_EMPTY IS_NOT_EMPTY (*Set-related predicates*)
+%token EMPTY_SET
 
 %token INT BOOL STRING (*Primitive types*)
 
-%token ARROW SET IN (* Set-related tokens *)
+%token ARROW SET ONE IN (* Set-related tokens *)
 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 
@@ -80,10 +74,10 @@ let mk_loc loc = Location.make_location loc
 
 // TODO: Test that the precedence is reasonable with pretty printer....
 // Logical operators are lowest precedence
-%right ASSIGN 
 %left LOR
 %left LAND
 %nonassoc NOT (*TODO: Should this be higher*)
+%nonassoc IS_EMPTY IS_NOT_EMPTY (*Set-related predicates*) 
 
 %left EQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
 %left PLUS MINUS 
@@ -94,10 +88,8 @@ let mk_loc loc = Location.make_location loc
 %left DOT 
 %nonassoc TILDE CARET STAR (*Set and relation unary operators*)
 
-
 %start <Ast.program> program 
 %%
-
 
 typ: 
 | STRING { TString{loc = mk_loc $loc} }
@@ -118,13 +110,14 @@ op_expr:
 | IDENT LPAREN separated_list(COMMA, expr) RPAREN 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
 
-
 expr:
+| EMPTY_SET { EmptySet{loc = mk_loc $loc} }
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
 | INT_LIT { Integer{int = $1; loc = mk_loc $loc} }
 | BOOL_LIT { Boolean{bool = $1; loc = mk_loc $loc} }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
+| expr set_unary { Unop{op = $2; operand = $1; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
 
 
@@ -135,6 +128,10 @@ expr:
 | TILDE { Tilde{loc = mk_loc $loc} }
 | CARET { Caret{loc = mk_loc $loc} }
 | STAR { Star{loc = mk_loc $loc} }
+
+%inline set_unary:
+| IS_EMPTY { IsEmpty{loc = mk_loc $loc} }
+| IS_NOT_EMPTY { IsNotEmpty{loc = mk_loc $loc} }
 
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }

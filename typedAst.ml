@@ -12,6 +12,7 @@ type typ =
 | TSet of { tp : typ  } (* set of types *)
 | TMap of { left : typ; right : typ } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 | ErrorType 
+| NullSet of { tp : typ option } (* For empty sets currently *)
 
 (* set, mappings, custom types --> probably the ones i should have first??? *)
 
@@ -40,6 +41,8 @@ type unop =
 | Tilde 
 | Caret
 | Star
+| IsEmpty
+| IsNotEmpty
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)
@@ -49,6 +52,7 @@ type unop =
 | Until of  } *)
 
 type expr = 
+| EmptySet of {tp : typ}
 | String of {str : string }
 | Integer of {int : int64 }
 | Boolean of {bool : bool }

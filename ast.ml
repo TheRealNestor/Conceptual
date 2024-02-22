@@ -38,6 +38,8 @@ type unop =
 | Tilde of { loc : Loc.location }
 | Caret of { loc : Loc.location }
 | Star of { loc : Loc.location }
+| IsEmpty of { loc : Loc.location }
+| IsNotEmpty of { loc : Loc.location }
 
 
 (* This is opeators for operational principle *)
@@ -48,6 +50,7 @@ type unop =
 | Until of { loc : Loc.location } *)
 
 type expr = 
+| EmptySet of { loc : Loc.location }
 | String of {str : string; loc : Loc.location }
 | Integer of {int : int64; loc : Loc.location }
 | Boolean of {bool : bool; loc : Loc.location }

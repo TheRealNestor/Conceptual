@@ -6,7 +6,6 @@ let pretty_print_program prog =
 let pretty_print_t_program prog = 
   PrintBox_text.output stdout (TPretty.program_to_tree prog); output_string stdout "\n"
 
-
 let compile_program (filepath : string) = 
   let file_in = open_in filepath in
   let lex_buf = Lexing.from_channel ~with_positions:true file_in in 
@@ -36,7 +35,7 @@ let compile_program (filepath : string) =
         print_endline "No semantic errors";
         pretty_print_t_program typed_prog;
         let code = CodeGen.translate_program typed_prog in 
-        raise (Failure "Code generation not implemented yet")
+        ()
       end;
   with
   (* TODO: should probably implement better parser errors.... *)

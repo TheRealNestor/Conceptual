@@ -75,7 +75,7 @@ rule token = parse
 | "<=" { LTE }
 | ">=" { GTE }
 | "==" { EQ }
-| '&' { AMP} (* Set intersection *)
+| '&' { AMP } (* Set intersection *)
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
 | "+=" { ADDEQ }
@@ -83,16 +83,20 @@ rule token = parse
 | "&=" { AMPEQ }
 | "->" { ARROW }
 | "!=" { NEQ }
+| "{}" { EMPTY_SET }
 | "out" { OUT }
 | "when" { WHEN }
 | "in" { IN }
 | "not" | '!' { NOT }
 | "set" { SET }
+| "one" { ONE }
 | "string" { STRING }
 | "bool" { BOOL }
 | "int" { INT }
 | "true" { BOOL_LIT(true) }
 | "false" { BOOL_LIT(false) }
+| "is empty" { IS_EMPTY }
+| "is not empty" { IS_NOT_EMPTY }
 (* Now operators for operational principles *)
 (* | "if" { IF } 
 | "can" { CAN }

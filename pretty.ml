@@ -53,8 +53,11 @@ let unop_to_tree = function
 | Star _ -> make_keyword_line "Star"
 | Tilde _ -> make_keyword_line "Tilde"
 | Caret _ -> make_keyword_line "Caret"
+| IsEmpty _ -> make_keyword_line "IsEmpty"
+| IsNotEmpty _ -> make_keyword_line "IsNotEmpty"
   
 let rec expr_to_tree = function
+| EmptySet _ -> PBox.tree (make_info_node_line "EmptySet") [make_info_node_line "Empty"]
 | String {str; _} -> PBox.hlist ~bars:false [make_info_node_line "StringLit("; PBox.line str; make_info_node_line ")"]
 | Integer {int; _} -> PBox.hlist ~bars:false [make_info_node_line "IntLit("; PBox.line (Int64.to_string int); make_info_node_line ")"]
 | Boolean {bool; _} -> PBox.hlist ~bars:false [make_info_node_line "BooleanLit("; make_keyword_line (if bool then "true" else "false"); make_info_node_line ")"]
@@ -66,7 +69,6 @@ let rec expr_to_tree = function
 and lval_to_tree = function
 | Var ident -> PBox.hlist ~bars:false [make_info_node_line "Var("; ident_to_tree ident; make_info_node_line ")"]
 | Relation{left;right;_} -> PBox.tree (make_info_node_line "Relation") [lval_to_tree left; lval_to_tree right]
-
 
 
 let rec statement_to_tree = function

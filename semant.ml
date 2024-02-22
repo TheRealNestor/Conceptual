@@ -8,6 +8,7 @@ let sym_from_ident (TAst.Ident{sym}) = sym
 
 let rec infertype_expr env expr : TAst.expr * TAst.typ = 
   begin match expr with 
+  | Ast.EmptySet _ -> TAst.EmptySet{tp=TAst.NullSet{tp=None}}, TAst.NullSet{tp = None}
   | Ast.String {str;_} -> TAst.String{str}, TAst.TString
   | Ast.Integer {int;_} -> TAst.Integer{int}, TAst.TInt
   | Ast.Boolean {bool;_} -> TAst.Boolean{bool}, TAst.TBool
@@ -17,9 +18,16 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       if not (Utility.is_relation expr_tp) then Env.insert_error env (Errors.NotARelation{tp=expr_tp;loc});
       op, expr_tp
     in
+    let infer_and_check_set op = 
+      let _, expr_tp = infertype_expr env operand in
+      if not (Utility.is_set expr_tp) then Env.insert_error env (Errors.NotASet{tp=expr_tp;loc});
+      op, expr_tp
+    in
     let op, expected_tp = begin match op with 
       | Ast.Not _ -> TAst.Not, TAst.TBool
       | Ast.Neg _ -> TAst.Neg, TAst.TInt
+      | Ast.IsEmpty _ -> infer_and_check_set TAst.IsEmpty
+      | Ast.IsNotEmpty _ -> infer_and_check_set TAst.IsNotEmpty
       | Ast.Tilde _ -> infer_and_check_relation TAst.Tilde
       | Ast.Caret _ -> infer_and_check_relation TAst.Caret
       | Ast.Star _ -> infer_and_check_relation TAst.Star
@@ -33,9 +41,15 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
 
     let need_to_wrap_in_set = ref false in
     let operators_with_special_type_comparisons = [TAst.Join; TAst.In; TAst.NotIn; TAst.Plus; TAst.Minus; TAst.Intersection] in
+    let null_ops = operators_with_special_type_comparisons @ [TAst.Eq; TAst.Neq] in 
     let is_same_valid_type = 
+    
+      if ((Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp) ||
+          (Utility.is_empty_set right_tp && Utility.is_primitive_type_or_set left_tp) ||
+          (Utility.is_empty_set left_tp && Utility.is_empty_set right_tp)) && (List.mem typed_op null_ops) 
+          then true
       (* check if typed_op is in set of special operators *)
-      if List.mem typed_op operators_with_special_type_comparisons then true (* Handle these special case later, where left and right can be different *)
+      else if List.mem typed_op operators_with_special_type_comparisons then true (* Handle these special case later, where left and right can be different *)
       else if left_tp = right_tp && left_tp <> TAst.ErrorType && left_tp <> TAst.TVoid then true
       else (Env.insert_error env (Errors.TypeMismatch{actual = right_tp; expected = left_tp; loc = Utility.get_expr_location right}); false)
     in
@@ -49,7 +63,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
       | Ast.In _ | Ast.NotIn _ -> 
-
         if not (Utility.is_primitive_type left_tp) then (
           Env.insert_error env (Errors.NotAPrimitiveType{tp=left_tp;loc});
         ) else if Utility.is_primitive_type right_tp then (
@@ -72,8 +85,15 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       let new_left_tp, new_right_tp = Utility.wrap_primitive_in_set left_tp right_tp in 
       Utility.change_expr_type t_left new_left_tp, Utility.change_expr_type t_right new_right_tp, new_left_tp
     ) else t_left, t_right, tp in
-    
-    TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
+    if typed_op = TAst.Join && Utility.is_lval t_left && Utility.is_lval t_right then 
+      TAst.Lval(TAst.Relation{left = Utility.expr_to_lval t_left; right = Utility.expr_to_lval t_right; tp}), tp
+    else (
+      let t_left = if Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp && List.mem typed_op null_ops then 
+        Utility.change_expr_type t_left right_tp else t_left in
+      let t_right = if Utility.is_empty_set right_tp && Utility.is_primitive_type_or_set left_tp && List.mem typed_op null_ops then
+        Utility.change_expr_type t_right left_tp else t_right in  
+      TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
+    )
   | Ast.Lval lval -> let lval, tp = infertype_lval env lval in TAst.Lval(lval), tp
   | Ast.Call {action;args;_} ->
     let t_ident = convert_ident action in
@@ -129,14 +149,15 @@ and infertype_lval env lval =
 and typecheck_expr env expr tp = 
   let texpr, texprtp = infertype_expr env expr in
   let loc = Utility.get_expr_location expr in 
-  if texprtp <> tp then Env.insert_error env (Errors.TypeMismatch {actual = texprtp; expected = tp; loc});
+  if Utility.is_empty_set texprtp && Utility.is_primitive_type_or_set tp then () 
+  else if texprtp <> tp then Env.insert_error env (Errors.TypeMismatch {actual = texprtp; expected = tp; loc});
   texpr
 
 (* I don't think we have anything that can modify the environment, no variable declarations for example, so does not return environment *)
 let typecheck_stmt env = function
 | Ast.Assignment {lval;rhs;_} -> 
   let lval, tp = infertype_lval env lval in
-  let rhs = typecheck_expr env rhs tp in
+  let rhs = typecheck_expr env rhs tp in  
   TAst.Assignment{lval;rhs;tp}
 
 

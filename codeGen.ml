@@ -69,6 +69,8 @@ let unop_to_als = function
 | TAst.Tilde -> Als.Tilde
 | TAst.Caret -> Als.Caret
 | TAst.Star -> Als.Star
+| TAst.IsEmpty -> Als.IsEmpty
+| TAst.IsNotEmpty -> Als.IsNotEmpty
 
 let binop_to_als = function
 | TAst.Plus -> Als.Plus
@@ -118,6 +120,7 @@ let rec lval_to_als env = function
 let rec trans_expr env expr =
   let _tr = trans_expr env in 
   begin match expr with
+  | TAst.EmptySet _ -> Als.None
   | TAst.String {str} -> Als.StrLit(str)
   | TAst.Integer{int} -> Als.IntLit(int)
   | TAst.Boolean{bool} -> Als.BoolLit(bool)
@@ -223,16 +226,13 @@ let trans_concept c =
   let preds_and_funcs = trans_actions cg_env actions in  
   {Als.module_header = Some als_header; purpose = doc_str; sigs; preds_and_funcs}
 
-
 let translate_program (prog : TAst.program) = 
   (* TODO: This is just testing for now... *)
-  let c = List.hd prog in
 
-
-  let alloy_prog = trans_concept c in 
-
-  let string_prog = Als.string_of_program alloy_prog in
-  let oc = open_out "model.als" in
-  Printf.fprintf oc "%s\n" string_prog;
-
-  failwith "TODO: translate_program"
+  List.iter (fun c -> 
+    let concept_name = Utility.get_concept_name c in 
+    let alloy_prog = trans_concept c in 
+    let string_prog = Als.string_of_program alloy_prog in
+    let oc = open_out ("alloy/" ^concept_name ^ ".als") in
+    Printf.fprintf oc "%s\n" string_prog;
+  ) prog;

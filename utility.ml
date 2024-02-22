@@ -46,6 +46,9 @@ let token_to_string = function
   | Parser.TILDE -> "TILDE"
   | Parser.CARET -> "CARET"
   | Parser.STAR -> "STAR"
+  | Parser.EMPTY_SET -> "EMPTY_SET"
+  | Parser.IS_EMPTY -> "IS_EMPTY"
+  | Parser.IS_NOT_EMPTY -> "IS_NOT_EMPTY"
 
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -65,6 +68,11 @@ let is_relation = function
 
 let is_set = function
 | TAst.TSet _ -> true
+| TAst.NullSet _ -> true
+| _ -> false
+
+let is_empty_set = function
+| TAst.NullSet _ -> true
 | _ -> false
 
 let primitive_type_of_set = function
@@ -84,9 +92,21 @@ let type_is_in_relation tp rel =
   | t -> t = tp
   in dfs rel
 
+let is_lval = function
+| TAst.Lval _ -> true
+| _ -> false
 
+let expr_to_lval = function 
+| TAst.Lval l -> l
+| _ -> failwith "Not an lval"
+
+let get_concept_name (TAst.Concept{signature;_}) = 
+  match signature with
+  | Signature{name=TAst.Ident{sym}} -> Symbol.name sym
+  | ParameterizedSignature{name=TAst.Ident{sym};_} -> Symbol.name sym
 
 let rec get_expr_location = function 
+| Ast.EmptySet {loc} -> loc
 | Ast.String {loc;_} -> loc
 | Ast.Integer {loc;_} -> loc
 | Ast.Boolean {loc;_} -> loc
@@ -195,6 +215,9 @@ let is_primitive_type = function
 | TAst.TInt | TAst.TBool | TAst.TString | TAst.TCustom _ -> true
 | _ -> false
 
+let is_primitive_type_or_set = function
+| TAst.TInt | TAst.TBool | TAst.TString | TAst.TCustom _ | TAst.TSet _ -> true
+| _ -> false
 
 let wrap_primitive_in_set left_tp right_tp =
   if left_tp = right_tp then left_tp, right_tp
@@ -204,6 +227,7 @@ let wrap_primitive_in_set left_tp right_tp =
 
 let change_expr_type (expr : TAst.expr) typ : TAst.expr =
   match expr with 
+  | EmptySet _ -> EmptySet{tp=typ}
   | Binop {op;left;right;_} -> Binop {op;left;right;tp=typ}
   | Unop {op;operand;_} -> Unop {op;operand;tp=typ}
   | Call {action;args;_} -> Call {action;args;tp=typ}
@@ -213,6 +237,7 @@ let change_expr_type (expr : TAst.expr) typ : TAst.expr =
 
 let get_expr_type (expr : TAst.expr) : TAst.typ = 
   match expr with
+  | EmptySet {tp} -> tp
   | Binop {tp;_} -> tp
   | Unop {tp;_} -> tp
   | Call {tp;_} -> tp
@@ -246,6 +271,7 @@ and tag_of_typ = function
   | TSet _ -> 6
   | TMap _ -> 7
   | ErrorType -> 8
+  | NullSet _ -> 9
 
 let same_base_type tp1 tp2 =
 match tp1, tp2 with 
