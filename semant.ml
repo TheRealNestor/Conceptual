@@ -38,12 +38,10 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     let t_left, left_tp = infertype_expr env left in
     let t_right, right_tp = infertype_expr env right in
     let typed_op = Utility.ast_binop_to_tast op in 
-
     let need_to_wrap_in_set = ref false in
-    let operators_with_special_type_comparisons = [TAst.Join; TAst.In; TAst.NotIn; TAst.Plus; TAst.Minus; TAst.Intersection] in
+    let operators_with_special_type_comparisons = [TAst.Mapsto; TAst.Join; TAst.In; TAst.NotIn; TAst.Plus; TAst.Minus; TAst.Intersection] in
     let null_ops = operators_with_special_type_comparisons @ [TAst.Eq; TAst.Neq] in 
     let is_same_valid_type = 
-    
       if ((Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp) ||
           (Utility.is_empty_set right_tp && Utility.is_primitive_type_or_set left_tp) ||
           (Utility.is_empty_set left_tp && Utility.is_empty_set right_tp)) && (List.mem typed_op null_ops) 
@@ -62,6 +60,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         if left_tp = TAst.TBool then TAst.TBool
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
+      | Ast.Mapsto _ -> TAst.TMap{left = left_tp; right = right_tp}
       | Ast.In _ | Ast.NotIn _ -> 
         if not (Utility.is_primitive_type left_tp) then (
           Env.insert_error env (Errors.NotAPrimitiveType{tp=left_tp;loc});
@@ -80,7 +79,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       | _ -> left_tp
       end
     ) else TAst.ErrorType in
-
     let t_left, t_right, tp = if !need_to_wrap_in_set then (
       let new_left_tp, new_right_tp = Utility.wrap_primitive_in_set left_tp right_tp in 
       Utility.change_expr_type t_left new_left_tp, Utility.change_expr_type t_right new_right_tp, new_left_tp
@@ -111,7 +109,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       let TAst.ActionSignature{out; params;_} = act in
       (* Return type can be inferred OUT field, which is a list of named parameters*)
       let return_type = List.map (fun (TAst.NamedParameter{typ;_}) -> typ) out in
-      (* for now only support return of 1 value TODO: *)
+      (* for now only support return of 1 value TODO: Is this the case for alloy? *)
       let return_type = begin match return_type with 
         | [] -> TAst.TVoid
         | [tp] -> tp
@@ -174,12 +172,20 @@ let add_named_param_to_env env (Ast.NamedParameter{name;typ;loc}) =
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) = 
   let typ = Utility.convert_type typ in
-  Env.insert_custom_type env typ, TAst.Parameter{typ} :: param_so_far 
+  Env.insert_custom_type env (Utility.unwrap_type typ), TAst.Parameter{typ} :: param_so_far 
 
 let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) = 
   let env, param = add_named_param_to_env env param in
   let tp = match param with TAst.NamedParameter{typ;_} -> typ in
-  let env_with_type = Env.insert_custom_type env tp in 
+
+  (* if type is map, add each type to environment if not already in environment*)
+  let rec insert_map_types env = function
+  | TAst.TMap{left;right} -> 
+    let env = insert_map_types env left in
+    insert_map_types env right 
+  | tp -> if not (Env.type_is_defined env (Utility.unwrap_type tp)) then Env.insert_custom_type env (Utility.unwrap_type tp) else env
+  in
+  let env_with_type = insert_map_types env tp in
   begin match expr with
   | None -> env_with_type, TAst.State{param; expr = None} :: states_so_far
   | Some expr -> 
@@ -193,7 +199,8 @@ let typecheck_action_signature env signature =
     fun (env_so_far, t_params_so_far) (Ast.NamedParameter{loc;_} as param) -> 
       let env, t_param = add_named_param_to_env env_so_far param in
       let TAst.NamedParameter{typ; _} = t_param in
-      if not (Env.type_is_defined env typ) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
+      (* TODO: somehow the types declared in state is not propagated!!!!! *)
+      if not (Env.type_is_defined env (Utility.unwrap_type typ)) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
       env, t_param :: t_params_so_far
   ) (env, []) params in
   let t_out = List.map (fun (Ast.NamedParameter{name;typ;_}) -> 
@@ -201,29 +208,22 @@ let typecheck_action_signature env signature =
   ) out in
   env, TAst.ActionSignature{name = convert_ident name; out = t_out; params = t_params}
 
-
-(* Actions are not mutually recursive, in fact they cannot call each other,
-   this is simply to store all the values  *)
-let add_action_sig_to_env env (Ast.ActionSignature{name;loc;_} as act_sig) =   
-  let name = convert_ident name in
-  let TAst.Ident{sym} = name in
-  if Env.is_declared env sym then 
-    Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
-  let env' = {env with errors = ref []} in (*Create a new env to avoid duplicate errors as typecheck_action_sig is called later, which also adds parameters to environment
-                                          Need to modify at least one field for it to not be the same entity....*)
-  let _, t_sig = typecheck_action_signature env' act_sig in
-  Env.insert env sym (Env.Act(t_sig))
-    
-let typecheck_action env action =
-  let Ast.Action{signature;cond;body;_} = action in
-  let env_with_params, signature = typecheck_action_signature env signature in 
+let typecheck_action (env, actions_so_far) action =
+  let Ast.Action{signature;cond;body;loc} = action in
+  let env_with_params, signature = typecheck_action_signature env signature in
   let body = List.map (typecheck_stmt env_with_params) body in
-  begin match cond with 
+  let t_act = match cond with 
   | None -> TAst.Action{signature; cond = None; body}
   | Some When{cond;_} -> 
     let t_expr, _ = infertype_expr env_with_params cond in
     TAst.Action{signature; cond = Some (TAst.When{cond = t_expr}); body}
-  end  
+  in
+  let ActionSignature{name;_} = signature in
+  let TAst.Ident{sym} = name in
+  if Env.is_declared env sym then 
+    Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
+  Env.insert env sym (Env.Act(signature)), t_act :: actions_so_far
+
 
 (* Only passed the environment to accumulate errors over multiple concepts at once,
    otherwise we could omit "env" parameter and call Env.make_env to create empty environment *)
@@ -240,10 +240,9 @@ let typecheck_concept env (c : Ast.concept) =
   let t_purpose = TAst.Purpose{doc_str} in
   let env, t_state_list = List.fold_left typecheck_state (env, []) states in
   let t_states = TAst.States{states = List.rev t_state_list} in
-  let env_with_action_sigs = List.fold_left add_action_sig_to_env env (List.map (fun (Ast.Action{signature;_}) -> signature) actions) in
-  let t_action_list = List.map (typecheck_action env_with_action_sigs) actions in
+  let env, t_action_list = List.fold_left typecheck_action (env, []) actions in
   let t_actions = TAst.Actions{actions = t_action_list} in
-  env_with_action_sigs, TAst.Concept{signature = t_sig; purpose = t_purpose; states = t_states; actions = t_actions}
+  env, TAst.Concept{signature = t_sig; purpose = t_purpose; states = t_states; actions = t_actions}
 
 
 (* Only passing the environment (instead of constructing an empty one)

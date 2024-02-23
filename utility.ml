@@ -49,6 +49,7 @@ let token_to_string = function
   | Parser.EMPTY_SET -> "EMPTY_SET"
   | Parser.IS_EMPTY -> "IS_EMPTY"
   | Parser.IS_NOT_EMPTY -> "IS_NOT_EMPTY"
+  | Parser.ONE -> "ONE"
 
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -61,7 +62,12 @@ let lex_and_print_tokens tokenizer lexbuf =
       in
       aux ()
 
+let unwrap_type = function
+| TAst.TSet{tp} -> tp
+| TAst.TOne{tp} -> tp
+| tp -> tp
 
+      
 let is_relation = function
 | TAst.TMap _ -> true
 | _ -> false
@@ -122,8 +128,9 @@ let rec convert_type = function
 | Ast.TInt _ -> TAst.TInt
 | Ast.TBool _ -> TAst.TBool
 | Ast.TString _ -> TAst.TString
-| Ast.TCustom {tp=Ident{name;_}} -> TAst.TCustom {tp = Ident{sym = Symbol.symbol name}}
+| Ast.TCustom {tp=Ident{name;_};_} -> TAst.TCustom {tp = Ident{sym = Symbol.symbol name}}
 | Ast.TSet {tp;_} -> TAst.TSet {tp = convert_type tp}
+| Ast.TOne {tp; _} -> TAst.TOne {tp = convert_type tp}
 | Ast.TMap{left;right;_} -> TAst.TMap{left = convert_type left; right = convert_type right}
 
 let ast_binop_to_tast = function
@@ -141,6 +148,7 @@ let ast_binop_to_tast = function
 | Ast.NotIn _ -> TAst.NotIn
 | Ast.Intersection _ -> TAst.Intersection
 | Ast.Join _ -> TAst.Join
+| Ast.Mapsto _ -> TAst.Mapsto
 
 
 let get_lval_or_expr_location = function
@@ -161,11 +169,11 @@ let construct_join_type env expr left_tp right_tp =
        Not the most efficient approach but relation should rarely but relations should rarely be long*)
   let left_history, right_history = type_to_array_of_types left_tp, type_to_array_of_types right_tp in
   let leftmost_type_of_right, rightmost_type_of_left = List.hd right_history, List.hd @@ List.rev left_history in
-
+  let unwrapped_left_tp, unwrapped_right_tp = unwrap_type leftmost_type_of_right, unwrap_type rightmost_type_of_left in
   if not (is_relation left_tp || is_relation right_tp) then (
     Env.insert_error env (Errors.IllFormedRelation{loc = get_lval_or_expr_location expr; left = left_tp; right = right_tp}); TAst.ErrorType
-  ) else if rightmost_type_of_left <> leftmost_type_of_right then (
-    Env.insert_error env (Errors.DisjointRelation{loc = get_lval_or_expr_location expr; left = rightmost_type_of_left; right = leftmost_type_of_right}); TAst.ErrorType
+  ) else if unwrapped_left_tp <> unwrapped_right_tp then (
+    Env.insert_error env (Errors.DisjointRelation{loc = get_lval_or_expr_location expr; left = unwrapped_left_tp; right = unwrapped_right_tp}); TAst.ErrorType
   ) else (
     (* Construct the resulting type of the join  *)
     (* This includes everything in left_history except its last element, everything in right_history except for head *)
@@ -269,9 +277,10 @@ and tag_of_typ = function
   | TVoid -> 4
   | TCustom _ -> 5
   | TSet _ -> 6
-  | TMap _ -> 7
-  | ErrorType -> 8
-  | NullSet _ -> 9
+  | TOne _ -> 7
+  | TMap _ -> 8
+  | ErrorType -> 9
+  | NullSet _ -> 10
 
 let same_base_type tp1 tp2 =
 match tp1, tp2 with 

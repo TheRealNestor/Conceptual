@@ -9,6 +9,7 @@ let rec typ_to_string = function
 | TVoid -> "void"
 | TCustom {tp = Ident{sym}} -> Sym.name sym
 | TSet {tp} -> "set of " ^ (typ_to_string tp)
+| TOne {tp} -> "one of " ^ (typ_to_string tp)
 | TMap{left;right} -> "Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">"
 | ErrorType -> "error"
 | NullSet{tp} -> 
@@ -29,6 +30,7 @@ let rec typ_to_tree = function
 | TString -> Pretty.make_typ_line "String"
 | TCustom {tp = Ident{sym}} -> Pretty.make_typ_line (Sym.name sym)
 | TSet {tp} -> Pretty.make_typ_line ("Set of " ^ (typ_to_string tp))
+| TOne {tp} -> Pretty.make_typ_line ("One of " ^ (typ_to_string tp))
 | TMap{left;right} -> Pretty.make_typ_line ("Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">") 
 | ErrorType -> Pretty.make_typ_line "Error"
 | NullSet{tp} -> 
@@ -36,6 +38,7 @@ let rec typ_to_tree = function
   | None -> Pretty.make_typ_line "Null"
   | Some t -> PBox.tree (Pretty.make_typ_line "Null") [typ_to_tree t]
   end
+
 let binop_to_tree  = function
 | Plus -> Pretty.make_keyword_line "Plus"
 | Minus -> Pretty.make_keyword_line "Minus"
@@ -51,6 +54,7 @@ let binop_to_tree  = function
 | NotIn -> Pretty.make_keyword_line "NotIn"
 | Intersection -> Pretty.make_keyword_line "Intersection"
 | Join -> Pretty.make_keyword_line "Join"
+| Mapsto -> Pretty.make_keyword_line "Mapsto"
 
 
 let unop_to_tree = function

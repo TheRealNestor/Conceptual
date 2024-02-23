@@ -8,7 +8,8 @@ type typ =
   | TString of { loc : Loc.location }
   | TBool of { loc : Loc.location }
   | TInt of { loc : Loc.location }
-  | TCustom of { tp : ident; } (* custom type *)
+  | TCustom of { tp : ident; loc : Loc.location } (* custom type *)
+  | TOne of { tp : typ; loc : Loc.location } (* one of a type *)
   | TSet of { tp : typ ; loc : Loc.location } (* set of types *)
   | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 
@@ -31,6 +32,7 @@ type binop =
 | NotIn of { loc : Loc.location }
 | Intersection of { loc : Loc.location } 
 | Join of { loc : Loc.location }
+| Mapsto of { loc : Loc.location }
 
 type unop = 
 | Not of { loc : Loc.location }

@@ -18,13 +18,12 @@ type aModule = {
 }
 
 
-type multiplicity = One | Lone | Some | None
+(* type multiplicity = One | Lone | Some | None *)
 
 type qop = All | No | One | Some | Lone 
 
 (* TODO: Add the rest of these? *)
-type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn
-
+type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Mapsto
 
 type unop = Not | Neg | Tilde | Caret | Star | IsEmpty | IsNotEmpty
 
@@ -34,20 +33,25 @@ type ty =
 | Str 
 | Sig of sigId 
 | Set of ty 
+| One of ty
 | Rel of ty * ty
-
 
 and fieldDecl = {
   id : fieldId;
   (* mul : multiplicity option; *) (* This could probably be handled entirely in the serialization based on type *)
   ty : ty;
-  expr : expr option;
+  expr : expr option; (*This is not currently used....*)
 }
 
 and sigDecl = {
   sig_id : sigId;
   (* sig_mul : multiplicity option; *)
   fields : fieldDecl list;
+}
+
+and fact = {
+  fact_id : uid;
+  body : expr option;
 }
 
 (* TODO: More to add here *)
@@ -90,6 +94,7 @@ type prog = {
   module_header : aModule option; 
   purpose : string;
   sigs : sigDecl list;
+  facts : fact list;
   preds_and_funcs : func_type list;
 }
 
@@ -125,6 +130,17 @@ let rec serializeType (t : ty) : string =
     | Sig s -> S.name s
     | Set t -> "set " ^ serializeType t
     | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
+    | One t -> "one " ^ serializeType t
+
+let rec serializeTypePrimitive (t : ty) : string = 
+  match t with 
+  | Int -> "Int"
+  | Bool -> "Bool"
+  | Str -> "Str"
+  | Sig s -> S.name s
+  | Set t -> serializeTypePrimitive t
+  | Rel (t1, t2) -> serializeTypePrimitive t1 ^ " -> " ^ serializeTypePrimitive t2
+  | One t -> serializeTypePrimitive t
 
 let serializeBinop = function 
 | Plus -> "+"
@@ -141,6 +157,7 @@ let serializeBinop = function
 | Join -> "->"
 | In -> "in"
 | NotIn -> failwith "not in operation is not applied directly like this"
+| Mapsto -> "->"
 
 let serializeQop = function
 | All -> "all"
@@ -197,7 +214,7 @@ let serializeExpr (e : expr) : string =
                           | Tilde -> "~" ^ serialize_expr' expr
                           | Caret -> "^" ^ serialize_expr' expr
                           | Star -> "*" ^ serialize_expr' expr
-                          | IsEmpty -> "no " ^ serialize_expr' expr
+                          | IsEmpty -> "no" ^ serialize_expr' expr
                           | IsNotEmpty -> "some " ^ serialize_expr' expr )
     | Binop {left; right; op} -> 
       begin match op with 
@@ -210,7 +227,7 @@ let serializeExpr (e : expr) : string =
     | Assignment {left; right} -> serializeLval left ^ " = " ^ serialize_expr' right
     | Call {func; args} -> S.name func ^ "[" ^ (mapcat ", " serialize_expr' args) ^ "]"
     | Quantifier {qop; vars; expr} -> 
-      serializeQop qop  ^ " " ^ (mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) vars) ^ " | " ^ serialize_expr' expr ^
+      serializeQop qop  ^ " " ^ (mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeTypePrimitive ty) vars) ^ " | " ^ serialize_expr' expr ^
       if List.length vars = 0 then "" else 
       "[" ^ (mapcat ", " (fun (s, _) -> S.name s) vars) ^ "]"
     | Lval l -> serializeLval l
@@ -237,6 +254,18 @@ let serializeSigs (env : cg_env) (s : sigDecl list) : string =
   (* filter from the signature declaration list all the generic types *)
   let s = List.filter (fun x -> not (List.mem x.sig_id !(env.generics))) s in
   mapcat "\n\n" serializeSignature s
+
+
+let serializeFact (f : fact) : string = 
+  let {fact_id; body} = f in 
+  let bodyStr = match body with 
+    | None -> ""
+    | Some e -> serializeExpr e
+  in
+  "fact " ^ S.name fact_id ^ " {\n\t" ^ bodyStr ^ "\n}"
+
+let serializeFacts (f : fact list) : string =
+  mapcat "\n\n" serializeFact f
 
 let serializePredicate (p : pred) : string = 
   let paramsStr = mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) p.params in
@@ -271,6 +300,7 @@ let string_of_program (p : prog) : string =
   module_str ^
   serializePurpose p.purpose ^ "\n\n" ^ 
   serializeSigs env p.sigs ^ "\n\n" ^
+  serializeFacts p.facts ^ "\n\n" ^
   serializeFunctionTypes p.preds_and_funcs 
 
 

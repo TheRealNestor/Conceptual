@@ -91,13 +91,20 @@ let mk_loc loc = Location.make_location loc
 %start <Ast.program> program 
 %%
 
-typ: 
+primitives:
 | STRING { TString{loc = mk_loc $loc} }
 | INT { TInt{loc = mk_loc $loc} }
 | BOOL { TBool{loc = mk_loc $loc} }
-| IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}} }
-| SET typ { TSet{tp = $2; loc = mk_loc $loc} }
-| typ ARROW typ { TMap{left = $1; right = $3; loc = mk_loc $loc} }
+
+non_primitives:
+| IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc } }
+| ONE IDENT { TOne{tp = TCustom{tp = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc }; loc = mk_loc $loc } }
+| SET IDENT { TSet{tp = TCustom{tp = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc}; loc = mk_loc $loc } }
+| non_primitives ARROW non_primitives { TMap{left = $1; right = $3; loc = mk_loc $loc} }
+
+typ: 
+| primitives { $1 }
+| non_primitives { $1 }
 
 lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
@@ -148,12 +155,13 @@ expr:
 | IN { In{loc = mk_loc $loc} }
 | NOT IN { NotIn{loc = mk_loc $loc} }
 | DOT { Join{loc = mk_loc $loc} } 
+| ARROW { Mapsto{loc = mk_loc $loc} }
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
 
 parameter:
-| IDENT { Parameter{typ = TCustom{tp = Ident{name = $1; loc = mk_loc $loc}}; loc = mk_loc $loc} } (*Parameterized concept in signature*)
+| IDENT { Parameter{typ = TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc}; loc = mk_loc $loc} } (*Parameterized concept in signature*)
 
 named_parameters:
 | separated_list(COMMA, IDENT) COLON typ {

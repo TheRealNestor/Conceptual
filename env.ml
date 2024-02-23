@@ -6,7 +6,6 @@ type env_object =
 | Var of TAst.typ
 | Act of TAst.action_sig
 
-
 type environment = {env_objects : env_object Sym.Table.t; 
                     errors : Errors.error list ref;
                     valid_custom_types : TAst.typ list  } 

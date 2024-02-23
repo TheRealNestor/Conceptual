@@ -22,13 +22,25 @@ let ident_from_signature = function
 | Signature {name; _} | ParameterizedSignature {name; _} -> name
 
 
+let rec typ_to_string = function
+| TString _ -> "String"
+| TBool _ -> "Bool"
+| TInt _ -> "Int"
+| TCustom{tp = Ident{name; _};_} -> name
+| TSet{tp = t; _} -> "Set(" ^ typ_to_string t ^ ")"
+| TOne{tp = t; _} -> "One(" ^ typ_to_string t ^ ")"
+| TMap {left; right; _} -> "Map(" ^ typ_to_string left ^ ", " ^ typ_to_string right ^ ")"
+
+
 let rec typ_to_tree = function
 | TString _ -> make_typ_line "String"
 | TBool _ -> make_typ_line "Bool"
 | TInt _ -> make_typ_line "Int" 
-| TCustom{tp = Ident{name; _}} -> make_typ_line name
-| TSet{tp = t; _} -> PBox.tree (make_typ_line "Set") [typ_to_tree t]
+| TCustom _ as t -> make_typ_line @@ typ_to_string t
+| TSet _  as t -> make_typ_line @@ typ_to_string t 
+| TOne _ as t -> make_typ_line @@ typ_to_string t
 | TMap {left; right; _} -> PBox.tree (make_typ_line "Map") [typ_to_tree left; typ_to_tree right]
+
   
 let binop_to_tree = function
 | Plus _ -> make_keyword_line "Plus"
@@ -45,6 +57,7 @@ let binop_to_tree = function
 | NotIn _ -> make_keyword_line "NotIn"
 | Intersection _ -> make_keyword_line "Intersection"
 | Join _ -> make_keyword_line "Join"
+| Mapsto _ -> make_keyword_line "Mapsto"
 
   
 let unop_to_tree = function
