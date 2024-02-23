@@ -199,7 +199,12 @@ stmt:
 | compound_assign 
   { let (lval, op, rhs) = $1 in
     let loc = mk_loc $loc in
-    Assignment{lval; rhs = Binop{left = Lval(lval); op; right = rhs; loc}; loc} } 
+    (* TODO: ? If lval is a relation, represent it as a join expression instead...*)
+    let left = match lval with 
+    | Relation{left; right; loc} -> Binop{left=Lval(left); op = Join{loc}; right=Lval(right); loc}
+    | Var _ -> Lval(lval)
+    in
+    Assignment{lval; rhs = Binop{left; op; right = rhs; loc}; loc} } 
 
 action_sig_param:
 | named_parameters OUT? {

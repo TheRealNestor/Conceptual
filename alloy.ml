@@ -102,7 +102,8 @@ type cg_env = {
   generics : S.symbol list ref;
 }
 
-let make_cg_env = {generics = ref []}
+(*This is to remove signatures if the module is parameterized *)
+let make_cg_env = {generics = ref []} 
 
 (* -------------------------- Serialization --------------------------   *)
 

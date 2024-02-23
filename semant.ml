@@ -83,15 +83,15 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       let new_left_tp, new_right_tp = Utility.wrap_primitive_in_set left_tp right_tp in 
       Utility.change_expr_type t_left new_left_tp, Utility.change_expr_type t_right new_right_tp, new_left_tp
     ) else t_left, t_right, tp in
-    if typed_op = TAst.Join && Utility.is_lval t_left && Utility.is_lval t_right then 
+    (* if typed_op = TAst.Join && Utility.is_lval t_left && Utility.is_lval t_right then 
       TAst.Lval(TAst.Relation{left = Utility.expr_to_lval t_left; right = Utility.expr_to_lval t_right; tp}), tp
-    else (
+    else ( *) (*TODO: Remove this*)
       let t_left = if Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp && List.mem typed_op null_ops then 
         Utility.change_expr_type t_left right_tp else t_left in
       let t_right = if Utility.is_empty_set right_tp && Utility.is_primitive_type_or_set left_tp && List.mem typed_op null_ops then
         Utility.change_expr_type t_right left_tp else t_right in  
       TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
-    )
+    (* ) *)
   | Ast.Lval lval -> let lval, tp = infertype_lval env lval in TAst.Lval(lval), tp
   | Ast.Call {action;args;_} ->
     let t_ident = convert_ident action in
@@ -241,7 +241,7 @@ let typecheck_concept env (c : Ast.concept) =
   let env, t_state_list = List.fold_left typecheck_state (env, []) states in
   let t_states = TAst.States{states = List.rev t_state_list} in
   let env, t_action_list = List.fold_left typecheck_action (env, []) actions in
-  let t_actions = TAst.Actions{actions = t_action_list} in
+  let t_actions = TAst.Actions{actions = List.rev t_action_list} in
   env, TAst.Concept{signature = t_sig; purpose = t_purpose; states = t_states; actions = t_actions}
 
 
