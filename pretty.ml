@@ -57,9 +57,8 @@ let binop_to_tree = function
 | NotIn _ -> make_keyword_line "NotIn"
 | Intersection _ -> make_keyword_line "Intersection"
 | Join _ -> make_keyword_line "Join"
-| Mapsto _ -> make_keyword_line "Mapsto"
+| MapsTo _ -> make_keyword_line "MapsTo"
 
-  
 let unop_to_tree = function
 | Not _ -> make_keyword_line "Not"
 | Neg _ -> make_keyword_line "Neg"

@@ -62,9 +62,10 @@ let lex_and_print_tokens tokenizer lexbuf =
       in
       aux ()
 
-let unwrap_type = function
+let rec unwrap_type = function
 | TAst.TSet{tp} -> tp
 | TAst.TOne{tp} -> tp
+| TAst.TMap{left;right} -> TAst.TMap{left=unwrap_type left; right=unwrap_type right}
 | tp -> tp
 
       
@@ -148,7 +149,7 @@ let ast_binop_to_tast = function
 | Ast.NotIn _ -> TAst.NotIn
 | Ast.Intersection _ -> TAst.Intersection
 | Ast.Join _ -> TAst.Join
-| Ast.Mapsto _ -> TAst.Mapsto
+| Ast.MapsTo _ -> TAst.MapsTo
 
 
 let get_lval_or_expr_location = function
@@ -260,31 +261,17 @@ let is_simple_type = function
 | _ -> false
 
 
-
-let rec compare_typ (a : TAst.typ) (b : TAst.typ) = match (a, b) with
-  | (TString, TString) | (TBool, TBool) | (TInt, TInt) | (TVoid, TVoid) | (ErrorType, ErrorType) -> 0
-  | (TCustom {tp = Ident{sym=a}}, TCustom {tp = Ident{sym=b}}) -> String.compare (Symbol.name a) (Symbol.name b)
-  | (TSet {tp = a}, TSet {tp = b}) -> compare_typ a b
-  | (TMap {left = a1; right = b1}, TMap {left = a2; right = b2}) ->
-      let cmp_left = compare_typ a1 a2 in
-      if cmp_left = 0 then compare_typ b1 b2 else cmp_left
-  | (a, b) -> Int.compare (tag_of_typ a) (tag_of_typ b)
-
-and tag_of_typ = function
-  | TString -> 1
-  | TBool -> 2
-  | TInt -> 3
-  | TVoid -> 4
-  | TCustom _ -> 5
-  | TSet _ -> 6
-  | TOne _ -> 7
-  | TMap _ -> 8
-  | ErrorType -> 9
-  | NullSet _ -> 10
-
 let same_base_type tp1 tp2 =
 match tp1, tp2 with 
 | TAst.TSet {tp=a}, b -> a = b
 | a, TAst.TSet {tp=b} -> a = b
 | a, b -> a = b
 
+
+let get_lval_type = function
+| TAst.Var {tp;_} -> tp
+| TAst.Relation {tp;_} -> tp
+
+let is_join_expr = function
+| TAst.Binop {op=TAst.Join;_} -> true
+| _ -> false

@@ -155,7 +155,7 @@ expr:
 | IN { In{loc = mk_loc $loc} }
 | NOT IN { NotIn{loc = mk_loc $loc} }
 | DOT { Join{loc = mk_loc $loc} } 
-| ARROW { Mapsto{loc = mk_loc $loc} }
+| ARROW { MapsTo{loc = mk_loc $loc} } (* Relation "literals" *)
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
@@ -204,7 +204,8 @@ stmt:
     | Relation{left; right; loc} -> Binop{left=Lval(left); op = Join{loc}; right=Lval(right); loc}
     | Var _ -> Lval(lval)
     in
-    Assignment{lval; rhs = Binop{left; op; right = rhs; loc}; loc} } 
+    Assignment{lval; rhs = Binop{left=Lval(lval); op; right = rhs; loc}; loc}
+  }
 
 action_sig_param:
 | named_parameters OUT? {

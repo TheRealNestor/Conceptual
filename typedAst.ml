@@ -35,7 +35,7 @@ type binop =
 | NotIn
 | Intersection 
 | Join
-| Mapsto
+| MapsTo
 
 type unop = 
 | Not 

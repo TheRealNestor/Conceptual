@@ -23,7 +23,7 @@ type aModule = {
 type qop = All | No | One | Some | Lone 
 
 (* TODO: Add the rest of these? *)
-type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Mapsto
+type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | MapsTo
 
 type unop = Not | Neg | Tilde | Caret | Star | IsEmpty | IsNotEmpty
 
@@ -69,7 +69,7 @@ and expr =
 | Lval of lval 
 and lval = 
 | VarRef of S.symbol
-| Relation of {left : lval; right : lval; traversal_args : S.symbol list} (* Traversal args, is using action parameters on lval of assignment, should be written [arg1, arg2, ....] *)
+| Relation of {left : lval; right : lval;} 
 
 type pred = {
   pred_id : predId;
@@ -105,6 +105,32 @@ type cg_env = {
 (*This is to remove signatures if the module is parameterized *)
 let make_cg_env = {generics = ref []} 
 
+
+
+
+let rec compare_typ a b = match (a, b) with
+(* same as below but for als  *)
+| (Str, Str) | (Bool, Bool) | (Int, Int) -> 0
+| (Sig a, _) when S.name a = "State" -> 1
+| (_, Sig b) when S.name b = "State" -> -1
+| (Sig a, Sig b) -> String.compare (Symbol.name a) (Symbol.name b)
+| (Set a, Set b) -> compare_typ a b
+| (One a, One b) -> compare_typ a b
+| (Rel (a1, a2), Rel (b1, b2)) -> 
+    let cmp_left = compare_typ a1 b1 in
+    if cmp_left = 0 then compare_typ a2 b2 else cmp_left
+| (a, b) -> Int.compare (tag_of_typ a) (tag_of_typ b)
+
+and tag_of_typ = function
+| Str -> 0
+| Bool -> 1
+| Int -> 2
+| Sig _ -> 3
+| Set _ -> 4
+| One _ -> 5
+| Rel _ -> 6
+
+
 (* -------------------------- Serialization --------------------------   *)
 
 (* s : separator, f : function to apply, l : list to work on --> results concatenated *)
@@ -123,7 +149,10 @@ let braces s = "{" ^ s ^ "}"
 let brackets s = "[" ^ s ^ "]"
 let wrap_in_comment s = "/* " ^ s ^ " */"
 
-let rec serializeType (t : ty) : string = 
+let sort_by_type (l : 'a list) (f : 'a -> ty) : 'a list = 
+  List.fast_sort (fun a b -> compare_typ (f a) (f b)) l
+
+  let rec serializeType (t : ty) : string = 
     match t with 
     | Int -> "Int"
     | Bool -> "Bool"
@@ -132,6 +161,41 @@ let rec serializeType (t : ty) : string =
     | Set t -> "set " ^ serializeType t
     | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
     | One t -> "one " ^ serializeType t
+    
+let serializeTypeList (l : (S.symbol * ty) list) : string = 
+  (* This is definitely not the most optimal way of doing this, but w/e let's not prematurely optimize *)
+  if List.length l = 0 then "" else
+  let table = Hashtbl.create @@ List.length l in
+  List.iter (fun (s, ty) -> 
+    let symbols = 
+      try Hashtbl.find table ty 
+      with Not_found -> []
+    in
+    Hashtbl.replace table ty (s :: symbols)
+  ) l;
+
+  (* Sort the symbols for each key in lexiographic order*)
+  Hashtbl.iter (fun ty symbols -> 
+    Hashtbl.replace table ty (List.fast_sort (fun a b -> String.compare (S.name a) (S.name b)) symbols)
+  ) table;
+
+  (* Convert to list with the key and all values 
+     the order of hashtable is random when folding so we convert it to a list first*)
+  let list = Hashtbl.fold (fun ty symbols acc -> 
+    (ty, symbols) :: acc
+  ) table [] in 
+
+  (* Sort the list by the type ( largely lexiographically with "State" last), keeping the values *)
+  let list = List.fast_sort (fun (ty1, _) (ty2, _) -> compare_typ ty1 ty2) list in
+
+  let typeStr = mapcat ", " (fun (ty, symbols) -> 
+    let symbolsStr = mapcat ", " (fun s -> S.name s) symbols in
+    symbolsStr ^ ": " ^ serializeType ty
+  ) list in
+  typeStr
+  
+
+
 
 let rec serializeTypePrimitive (t : ty) : string = 
   match t with 
@@ -155,10 +219,11 @@ let serializeBinop = function
 | Gte -> ">="
 | Eq -> "="
 | Neq -> "!="
-| Join -> "->"
+| Join -> "."
 | In -> "in"
 | NotIn -> failwith "not in operation is not applied directly like this"
-| Mapsto -> "->"
+| MapsTo -> "->"
+
 
 let serializeQop = function
 | All -> "all"
@@ -166,7 +231,6 @@ let serializeQop = function
 | One -> "one"
 | Some -> "some"
 | Lone -> "lone"
-
 
 
 (* Serialization of module *)
@@ -182,24 +246,12 @@ let serializeModule (env : cg_env ) (m : aModule option) : string =
 
 let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
 
-
 let serializeExpr (e : expr) : string = 
   let rec serializeLval (l : lval) : string = 
     match l with 
     | VarRef s -> S.name s
-    | Relation {left; right;traversal_args} -> 
-      if List.length traversal_args = 0 then     
-        serializeLval left ^ "." ^ serializeLval right
-      else (
-        let leftStr = serializeLval left in
-        let rightStr = serializeLval right in
-        (* check if left_str is in traversal args *)
-        let leftStr = if List.mem (S.symbol leftStr) traversal_args then "" else leftStr in
-        let rightStr = if List.mem (S.symbol rightStr) traversal_args then "" else rightStr in
-        let concat = if leftStr = "" || rightStr = "" then "" else "." in
-        let traversalStr = "[" ^ mapcat ", " S.name traversal_args ^ "]" in
-        leftStr ^ concat ^ rightStr ^ traversalStr
-        )
+    | Relation {left; right;} -> 
+        serializeLval left ^ "->" ^ serializeLval right        
   in
   let rec serialize_expr' (e : expr) : string = 
     match e with 
@@ -269,7 +321,7 @@ let serializeFacts (f : fact list) : string =
   mapcat "\n\n" serializeFact f
 
 let serializePredicate (p : pred) : string = 
-  let paramsStr = mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) p.params in
+  let paramsStr = serializeTypeList p.params in
   let condStr = match p.cond with 
     | None -> ""
     | Some e -> serializeExpr e ^ "\n\t"
@@ -278,7 +330,7 @@ let serializePredicate (p : pred) : string =
   "pred " ^ S.name p.pred_id ^ "[" ^ paramsStr ^ "] {\n\t" ^ condStr ^ bodyStr ^ "\n}"
 
 let serializeFunction (f : func) : string =
-  let paramsStr = mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) f.params in
+  let paramsStr = serializeTypeList f.params in
   let bodyStr = mapcat "\n\t" serializeExpr f.body in
   let condStr = match f.cond with 
     | None -> ""

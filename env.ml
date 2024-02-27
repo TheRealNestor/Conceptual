@@ -8,11 +8,12 @@ type env_object =
 
 type environment = {env_objects : env_object Sym.Table.t; 
                     errors : Errors.error list ref;
-                    valid_custom_types : TAst.typ list  } 
+                    valid_custom_types : TAst.typ list;
+                    } 
    
 (* create an initial environment with the given functions defined *)
 let make_env =
- {env_objects = Sym.Table.empty; errors = ref []; valid_custom_types = []} 
+ {env_objects = Sym.Table.empty; errors = ref []; valid_custom_types = [];} 
 
 let insert env sym obj =
   let {env_objects; _} = env in

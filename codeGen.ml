@@ -7,6 +7,9 @@ type cg_env = {
   state_variables : Sym.symbol list; (* actually declared variable in state component of concept*)
   state_symbols : Sym.symbol Queue.t ref; (* is for code generating s1,s2, ... : State for assignments*)
   action_parameters : Sym.symbol list; (* parameters of the action, used for code generation*)
+  distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
+  assignment_type : TAst.typ; (* type of the assignment, used for code generation*)
+  assignment_lval : TAst.lval option; (* lval of the assignment, used for code generation*)
 }
 
 let make_cg_env = {
@@ -14,6 +17,9 @@ let make_cg_env = {
   state_variables = [];
   state_symbols = ref @@ Queue.create (); 
   action_parameters = [];
+  distributive_joins = [];
+  assignment_type = TAst.ErrorType; (* This is reassigned before it is used*)
+  assignment_lval = None;
 }
 
 let fresh_symbol initial_counter =
@@ -91,7 +97,7 @@ let binop_to_als = function
 | TAst.Join -> Als.Join
 | TAst.In -> Als.In 
 | TAst.NotIn -> Als.NotIn
-| TAst.Mapsto -> Als.Mapsto
+| TAst.MapsTo -> Als.MapsTo
 
 let rec typ_to_als = function
 | TAst.TInt -> Als.Int
@@ -105,22 +111,47 @@ let rec typ_to_als = function
 
 
 let rec lval_to_als env = function 
-| TAst.Var {name;_} -> 
+| TAst.Var {name;tp} -> 
   if List.mem (sym_from name) env.state_variables then 
     Als.VarRef(prepend_state_symbol env (sym_from name))
+  (* check that type of lval  *)
+  else if List.length env.distributive_joins <> 0 && tp <> env.assignment_type then (
+    let str = List.fold_left (
+      fun str sym -> 
+        let str = str ^ (Sym.name sym) ^ "->" in
+        str
+    ) "" env.distributive_joins in 
+    let str = str ^ (Sym.name @@ sym_from name) in
+    Als.VarRef(Sym.symbol str) (*TODO: Could perhaps use Als.relation too*)
+  )
   else Als.VarRef(sym_from name)
-| TAst.Relation{left;right;_} -> 
-  (* When translating relations, I should probably check against, whether the action argument is in the environment,
-     if it is in the environment I should move it towards the end [arg1,arg2,...] *)
-  let rec traverse_relation = function
-  | TAst.Var {name;_} -> 
-    let n = sym_from name in
-    if List.mem n env.action_parameters then [n] else []
-  | TAst.Relation{left;right;_} ->
-    traverse_relation left @ traverse_relation right
-  in
-  let traversal_args = traverse_relation left @ traverse_relation right in  
-  Als.Relation({left = lval_to_als env left; right = lval_to_als env right; traversal_args})
+| TAst.Relation{right;_} -> 
+  (* you only get relation on lefthand side *)
+
+  (* I think we always want to modify a field in the state somehow. In that sense this should evaluate to a state variable
+     on the left hand of the assignment. 
+     So in situations like u.reservations, we want to modify the reservations field in state,i.e. rightmost of the composite join *)
+
+  (* For statements like u.reservations += r, which of course is parsed as
+                        u.reservations = u.reservations + r
+  The lhs is a relation, and we can interpret the right hand side as a binop join, which we can translate differently.
+  Ultimately, we want to end up with something like
+                  s1.reservations = s0.reservations + u->r
+
+  a.b.c += v
+  a.b.c = a.b.c + v
+  s0.c = s0.c + a->b->v
+
+  I want to do above, but how would this work if i had many binary operations
+  a.b.c += v + w
+
+  how would it figure out which one it should prepend a->b-> to ?
+
+  We can handle this in binop operations?
+  *)
+  lval_to_als env right
+  (* Als.Relation({left = lval_to_als env left; right = lval_to_als env right;}) *)
+     
 
 
 let rec trans_expr env expr =
@@ -132,7 +163,22 @@ let rec trans_expr env expr =
   | TAst.Boolean{bool} -> Als.BoolLit(bool)
   | TAst.Unop{op;operand;_} -> Als.Unop{op = unop_to_als op; expr = _tr operand}
   | TAst.Binop{op;left;right;_} -> 
-    begin match op with
+    begin match op with   
+    | TAst.Join ->
+      (* check whether the join operation evaluate to the assignment_lval *)
+      let is_same = if env.assignment_lval = None then false else
+      begin match left,right with 
+      | TAst.Lval l, TAst.Lval l2 -> TAst.Relation{left=l;right=l2;tp=env.assignment_type} = Option.get env.assignment_lval
+      | _ -> false
+      end in
+      (* Handle non-compound assignments.... *)
+      if is_same then 
+        Als.Lval(lval_to_als env @@ Option.get env.assignment_lval)
+      else 
+        begin match left,right with 
+        | _ , TAst.Lval (TAst.Var{name;_}) -> Als.Call({func = prepend_state_symbol env (sym_from name); args = _tr left :: []})
+        | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
+        end
     | TAst.In | TAst.NotIn -> 
       let left_tp, right_tp = Utility.get_expr_type left, Utility.get_expr_type right in
       if  Utility.is_simple_type left_tp && Utility.is_relation right_tp then 
@@ -156,6 +202,10 @@ let rec trans_expr env expr =
         let qop = if op = TAst.In then Als.All else Als.No in
         let expr = Als.Binop{left = _tr left; right = _tr right; op = Als.In} in
         Als.Quantifier{qop; vars = quant_vars; expr}    
+      (* else if Utility.is_join_expr right then (
+        
+        failwith "TODO"
+      ) *)
       else
         Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
     | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
@@ -166,18 +216,19 @@ end
 
 let trans_stmt env = function 
 | TAst.Assignment{lval; rhs; _ }  -> 
-  let right = trans_expr env rhs in 
-  let _ = Queue.pop !(env.state_symbols) in
-  let lval_sym = begin match lval with 
-  | TAst.Var {name;_} -> sym_from name
-  | TAst.Relation{right;_} -> 
-    let rec traverse_relation = function
-    | TAst.Var {name;_} -> sym_from name
-    | TAst.Relation{right;_} ->
-      traverse_relation right
-    in
-    traverse_relation right
-  end in
+  (* This finds the rightmost lval on the left side. This is the state variable that is modified. Return this, alongside the als.assignment *)
+  let rec traverse_relation = function
+  | TAst.Var {name;_} -> [sym_from name]
+  | TAst.Relation{left;right;_} ->
+    traverse_relation left @ traverse_relation right
+  in
+  let lval_syms_reversed = List.rev @@ traverse_relation lval in
+  let lval_sym = List.hd lval_syms_reversed in
+  let lval_syms_without_last = List.rev @@ List.tl lval_syms_reversed in 
+  let env = if List.length  lval_syms_without_last = 0 then {env with assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval;} 
+  else {env with distributive_joins = lval_syms_without_last; assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval} in
+  let right = trans_expr env rhs in  (*Do this before popping, such that the right state symbol is one value lower*)
+  let _ = Queue.pop !(env.state_symbols) in 
   lval_sym, Als.Assignment{left = lval_to_als env lval; right}
 
 
@@ -256,9 +307,7 @@ let trans_action env (TAst.Action{signature;cond;body}) =
       let top_sub = String.sub top_str 1 (String.length top_str - 1) in (* remove first character*)
       let top_no = int_of_string top_sub in
 
-
       let lval_sym, t_stmt = trans_stmt env stmt in
-
       let state_syms = List.filter (fun sym -> sym <> lval_sym) env.state_variables in
       (* Construct a statement for all remaining symbols*)
       let rhs_syms = List.map (fun sym -> Sym.symbol @@ "s" ^ (string_of_int top_no) ^ "." ^ Sym.name sym) state_syms in
@@ -271,7 +320,6 @@ let trans_action env (TAst.Action{signature;cond;body}) =
       ) lhs_syms rhs_syms in
       body_so_far @ [t_stmt] @ rest_stmts
   ) [] body in
-    
   if List.length out = 0 then 
     Als.Pred{pred_id = sym_from name; cond = als_cond; params; body}
   else (

@@ -38,8 +38,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     let t_left, left_tp = infertype_expr env left in
     let t_right, right_tp = infertype_expr env right in
     let typed_op = Utility.ast_binop_to_tast op in 
-    let need_to_wrap_in_set = ref false in
-    let operators_with_special_type_comparisons = [TAst.Mapsto; TAst.Join; TAst.In; TAst.NotIn; TAst.Plus; TAst.Minus; TAst.Intersection] in
+    let operators_with_special_type_comparisons = [TAst.MapsTo; TAst.Join; TAst.In; TAst.NotIn; TAst.Plus; TAst.Minus; TAst.Intersection] in
     let null_ops = operators_with_special_type_comparisons @ [TAst.Eq; TAst.Neq] in 
     let is_same_valid_type = 
       if ((Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp) ||
@@ -60,7 +59,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         if left_tp = TAst.TBool then TAst.TBool
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
-      | Ast.Mapsto _ -> TAst.TMap{left = left_tp; right = right_tp}
       | Ast.In _ | Ast.NotIn _ -> 
         if not (Utility.is_primitive_type left_tp) then (
           Env.insert_error env (Errors.NotAPrimitiveType{tp=left_tp;loc});
@@ -74,24 +72,23 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         );
         TAst.TBool
       | Ast.Plus _ | Ast.Minus _ | Ast.Intersection _  -> 
-        need_to_wrap_in_set := true;
-        left_tp (*This is temporary, will be changed immediately following this...*)
+        (* Primitive types can be added to sets, TODO: u->r can be added to relations *)
+        let new_left_tp, new_right_tp = Utility.wrap_primitive_in_set left_tp right_tp in
+        if new_left_tp <> new_right_tp then (
+          Env.insert_error env (Errors.TypeMismatch{actual = new_right_tp; expected = new_left_tp; loc = Utility.get_expr_location right});
+        );
+        new_left_tp
+      | Ast.MapsTo _ -> 
+        let left_tp, right_tp = Utility.wrap_primitive_in_set left_tp right_tp in
+        TAst.TMap{left = left_tp; right = right_tp}
       | _ -> left_tp
       end
     ) else TAst.ErrorType in
-    let t_left, t_right, tp = if !need_to_wrap_in_set then (
-      let new_left_tp, new_right_tp = Utility.wrap_primitive_in_set left_tp right_tp in 
-      Utility.change_expr_type t_left new_left_tp, Utility.change_expr_type t_right new_right_tp, new_left_tp
-    ) else t_left, t_right, tp in
-    (* if typed_op = TAst.Join && Utility.is_lval t_left && Utility.is_lval t_right then 
-      TAst.Lval(TAst.Relation{left = Utility.expr_to_lval t_left; right = Utility.expr_to_lval t_right; tp}), tp
-    else ( *) (*TODO: Remove this*)
       let t_left = if Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp && List.mem typed_op null_ops then 
         Utility.change_expr_type t_left right_tp else t_left in
       let t_right = if Utility.is_empty_set right_tp && Utility.is_primitive_type_or_set left_tp && List.mem typed_op null_ops then
         Utility.change_expr_type t_right left_tp else t_right in  
       TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
-    (* ) *)
   | Ast.Lval lval -> let lval, tp = infertype_lval env lval in TAst.Lval(lval), tp
   | Ast.Call {action;args;_} ->
     let t_ident = convert_ident action in
@@ -141,6 +138,7 @@ and infertype_lval env lval =
     let left, left_tp = infertype_lval env left in
     let right, right_tp = infertype_lval env right in
     let tp = Utility.construct_join_type env (Ast.Lval(l)) left_tp right_tp in 
+    
     TAst.Relation{left;right;tp}, tp
   end
 
@@ -157,7 +155,6 @@ let typecheck_stmt env = function
   let lval, tp = infertype_lval env lval in
   let rhs = typecheck_expr env rhs tp in  
   TAst.Assignment{lval;rhs;tp}
-
 
 let add_named_param_to_env env (Ast.NamedParameter{name;typ;loc}) =
   let name = convert_ident name in
@@ -183,7 +180,8 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) =
   | TAst.TMap{left;right} -> 
     let env = insert_map_types env left in
     insert_map_types env right 
-  | tp -> if not (Env.type_is_defined env (Utility.unwrap_type tp)) then Env.insert_custom_type env (Utility.unwrap_type tp) else env
+  | tp -> if not (Env.type_is_defined env (Utility.unwrap_type tp)) then Env.insert_custom_type env (Utility.unwrap_type tp)
+          else env
   in
   let env_with_type = insert_map_types env tp in
   begin match expr with

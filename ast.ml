@@ -32,7 +32,7 @@ type binop =
 | NotIn of { loc : Loc.location }
 | Intersection of { loc : Loc.location } 
 | Join of { loc : Loc.location }
-| Mapsto of { loc : Loc.location }
+| MapsTo of { loc : Loc.location }
 
 type unop = 
 | Not of { loc : Loc.location }
