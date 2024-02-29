@@ -86,7 +86,6 @@ let primitive_type_of_set = function
 | TAst.TSet {tp} -> tp
 | _ -> failwith "Not a set"
 
-
 (* create a function that checks that a given tp is included somewhere in a TMap{left;right} *)
 let type_is_in_relation tp rel = 
   if not (is_relation rel) then false

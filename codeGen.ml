@@ -243,20 +243,20 @@ let trans_concept_signature = function
 
 (* TODO: This expr should obviously be used, however it should probably be constrained even further in semantic analysis/parsing*)
 let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = TAst.NamedParameter{name;typ};expr}) = 
-  (* let fact = match expr with
+  let fact = match expr with
   | None -> None
   | Some e -> 
     (* Convert expression to body of a fact somehow *)
     (* To do this, I should use the type in the parameter*)
     (* Alloy expression should have the form of a quantified expression, where we are quantifying over the lval typ (parameter)*)
-    
     let qop = if Utility.is_relation typ then (
       let fresh_sym = fresh_symbol 0 in
       let typ_list = List.rev @@ List.tl @@ List.rev @@ Utility.type_to_array_of_types typ in (*All but last *)
       let vars = List.map (fun tp -> fresh_sym @@ sym_from_typ tp, typ_to_als tp) typ_list in
       
-      Als.Assignment{left = Als.VarRef (Sym.symbol ("State." ^ Sym.name @@ sym_from name )); right = trans_expr env_so_far e }
-      (* Als.Quantifier{qop = Als.All; vars; expr = trans_expr env_so_far e} *)
+      let als_expr = Als.Assignment{left = Als.VarRef (Sym.symbol ("State." ^ Sym.name @@ sym_from name )); right = 
+        trans_expr env_so_far e } in
+      Als.Quantifier{qop = Als.All; vars; expr = als_expr}
     ) else 
       Als.Assignment{left = Als.VarRef (Sym.symbol ("State." ^ Sym.name @@ sym_from name )); right = trans_expr env_so_far e}
     in 
@@ -264,10 +264,10 @@ let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{pa
   in
   let fact = if fact = None then [] else 
   [{Als.fact_id = sym_from name; body = fact}]
-  in *)
+  in
   
   {Als.id = sym_from name; ty = typ_to_als typ; expr = None} :: fields_so_far, 
-  [] @ facts_so_far,
+  fact @ facts_so_far,
   add_tp_to_env {env_so_far with state_variables = sym_from name :: env_so_far.state_variables} typ
 
 let trans_concept_states env states = 

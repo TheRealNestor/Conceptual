@@ -60,7 +60,8 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
       | Ast.In _ | Ast.NotIn _ -> 
-        if not (Utility.is_primitive_type left_tp) then (
+        (* TODO: Probably need to review these conditions *)
+        if not (Utility.is_primitive_type left_tp) && left_tp <> right_tp then (
           Env.insert_error env (Errors.NotAPrimitiveType{tp=left_tp;loc});
         ) else if Utility.is_primitive_type right_tp then (
           Env.insert_error env (Errors.PrimitiveType{tp=right_tp;loc});
@@ -72,7 +73,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         );
         TAst.TBool
       | Ast.Plus _ | Ast.Minus _ | Ast.Intersection _  -> 
-        (* Primitive types can be added to sets, TODO: u->r can be added to relations *)
         let new_left_tp, new_right_tp = Utility.wrap_primitive_in_set left_tp right_tp in
         if new_left_tp <> new_right_tp then (
           Env.insert_error env (Errors.TypeMismatch{actual = new_right_tp; expected = new_left_tp; loc = Utility.get_expr_location right});
@@ -130,23 +130,23 @@ and infertype_lval env lval =
     let tp = begin match tp_opt with 
       | None -> Env.insert_error env (Errors.Undeclared{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType
       | Some Act(_) -> Env.insert_error env (Errors.ActionAsLval{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType (* TODO: Might be useful to do stuff like x.f = y *)
-      | Some Var(tp) -> tp        
+      | Some Var(tp) -> tp    
     end in
-    TAst.Var{name = TAst.Ident{sym}; tp}, tp
+    TAst.Var{name = TAst.Ident{sym}; tp}, Utility.unwrap_type tp
   | Ast.Relation {left;right;_} as l -> 
     (* Check that the relation is well-formed *)    
     let left, left_tp = infertype_lval env left in
     let right, right_tp = infertype_lval env right in
     let tp = Utility.construct_join_type env (Ast.Lval(l)) left_tp right_tp in 
-    
-    TAst.Relation{left;right;tp}, tp
+    TAst.Relation{left;right;tp}, Utility.unwrap_type tp
   end
 
 and typecheck_expr env expr tp = 
   let texpr, texprtp = infertype_expr env expr in
   let loc = Utility.get_expr_location expr in 
   if Utility.is_empty_set texprtp && Utility.is_primitive_type_or_set tp then () 
-  else if texprtp <> tp then Env.insert_error env (Errors.TypeMismatch {actual = texprtp; expected = tp; loc});
+  else if Utility.unwrap_type texprtp <> Utility.unwrap_type tp then 
+    Env.insert_error env (Errors.TypeMismatch {actual = texprtp; expected = tp; loc});
   texpr
 
 (* I don't think we have anything that can modify the environment, no variable declarations for example, so does not return environment *)
@@ -156,11 +156,11 @@ let typecheck_stmt env = function
   let rhs = typecheck_expr env rhs tp in  
   TAst.Assignment{lval;rhs;tp}
 
-let add_named_param_to_env env (Ast.NamedParameter{name;typ;loc}) =
+let add_named_param_to_env ?(insert_error = true) env (Ast.NamedParameter{name;typ;loc}) =
   let name = convert_ident name in
   let TAst.Ident{sym} = name in
   let typ = Utility.convert_type typ in
-  if Env.is_declared env sym then 
+  if Env.is_declared env sym && insert_error then 
     Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
   let typ = if not (Utility.is_first_order_type env typ loc) then (
     Env.insert_error env (Errors.TypeNotFirstOrder{tp=typ;loc}); TAst.ErrorType
@@ -171,17 +171,21 @@ let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) =
   let typ = Utility.convert_type typ in
   Env.insert_custom_type env (Utility.unwrap_type typ), TAst.Parameter{typ} :: param_so_far 
 
+let add_state_param_to_env (env) (Ast.State{param;_}) = 
+  fst @@ add_named_param_to_env env param
+
 let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) = 
-  let env, param = add_named_param_to_env env param in
+  let _, param = add_named_param_to_env ~insert_error:false env param in (*variables already inserted*)
   let tp = match param with TAst.NamedParameter{typ;_} -> typ in
 
   (* if type is map, add each type to environment if not already in environment*)
   let rec insert_map_types env = function
   | TAst.TMap{left;right} -> 
     let env = insert_map_types env left in
-    insert_map_types env right 
-  | tp -> if not (Env.type_is_defined env (Utility.unwrap_type tp)) then Env.insert_custom_type env (Utility.unwrap_type tp)
-          else env
+    insert_map_types env right
+  | TAst.TCustom _ as tp | TAst.TOne{tp} | TAst.TSet{tp} | tp  -> 
+    if not (Env.type_is_defined env (Utility.unwrap_type tp)) then Env.insert_custom_type env (Utility.unwrap_type tp)
+    else env
   in
   let env_with_type = insert_map_types env tp in
   begin match expr with
@@ -197,7 +201,6 @@ let typecheck_action_signature env signature =
     fun (env_so_far, t_params_so_far) (Ast.NamedParameter{loc;_} as param) -> 
       let env, t_param = add_named_param_to_env env_so_far param in
       let TAst.NamedParameter{typ; _} = t_param in
-      (* TODO: somehow the types declared in state is not propagated!!!!! *)
       if not (Env.type_is_defined env (Utility.unwrap_type typ)) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
       env, t_param :: t_params_so_far
   ) (env, []) params in
@@ -236,6 +239,7 @@ let typecheck_concept env (c : Ast.concept) =
     end
   in
   let t_purpose = TAst.Purpose{doc_str} in
+  let env = List.fold_left add_state_param_to_env env states in (*Add state variables to environment in initial pass for mutual recursion*)
   let env, t_state_list = List.fold_left typecheck_state (env, []) states in
   let t_states = TAst.States{states = List.rev t_state_list} in
   let env, t_action_list = List.fold_left typecheck_action (env, []) actions in
