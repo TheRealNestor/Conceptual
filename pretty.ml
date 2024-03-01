@@ -66,7 +66,6 @@ let unop_to_tree = function
 | Tilde _ -> make_keyword_line "Tilde"
 | Caret _ -> make_keyword_line "Caret"
 | IsEmpty _ -> make_keyword_line "IsEmpty"
-| IsNotEmpty _ -> make_keyword_line "IsNotEmpty"
   
 let rec expr_to_tree = function
 | EmptySet _ -> PBox.tree (make_info_node_line "EmptySet") [make_info_node_line "Empty"]

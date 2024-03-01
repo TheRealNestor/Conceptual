@@ -13,6 +13,8 @@ type typ =
   | TSet of { tp : typ ; loc : Loc.location } (* set of types *)
   | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 
+  
+
 
 type parameter = Parameter of {typ : typ; loc : Loc.location } (*This is for the concept signature *)
 type named_parameter = NamedParameter of {name : ident; typ : typ; loc : Loc.location } (*State declarations, action signatures*)
@@ -41,7 +43,6 @@ type unop =
 | Caret of { loc : Loc.location }
 | Star of { loc : Loc.location }
 | IsEmpty of { loc : Loc.location }
-| IsNotEmpty of { loc : Loc.location }
 
 
 (* This is opeators for operational principle *)

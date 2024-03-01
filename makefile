@@ -24,4 +24,11 @@ run:
 	dune exec ./conceptual.exe $(RUN_ARG)
 
 
-
+#Ensure that the grammar rule is always run
+# https://github.com/Lelio-Brun/Obelisk?tab=readme-ov-file
+.PHONY: grammar
+grammar:
+	rm -f grammar/*
+	obelisk latex parser.mly > grammar/obelisk.tex
+	sed -i '/\\documentclass/a \\n\\\usepackage[right=0.1cm]{geometry}' grammar/obelisk.tex
+	pdflatex -output-directory=grammar grammar/obelisk.tex

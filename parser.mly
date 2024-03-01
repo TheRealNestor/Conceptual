@@ -19,7 +19,7 @@ let mk_loc loc = Location.make_location loc
 %token LPAREN RPAREN LBRACKET RBRACKET (*Brackets and stuff*)
 %token WHEN
 %token OUT (*Output*)
-%token IS_EMPTY IS_NOT_EMPTY (*Set-related predicates*)
+%token IS_EMPTY (*Set-related predicates*)
 %token EMPTY_SET
 
 %token INT BOOL STRING (*Primitive types*)
@@ -37,7 +37,7 @@ let mk_loc loc = Location.make_location loc
 // __________________
 // Explicit rule types go here, in case we want to use -ml as opposed to table-driven
 %type <Ast.parameter> parameter
-%type <Ast.named_parameter list> named_parameters
+%type <Ast.named_parameter list> params
 %type <Ast.typ> typ
 
 %type <Ast.state list> state
@@ -77,13 +77,13 @@ let mk_loc loc = Location.make_location loc
 %left LOR
 %left LAND
 %nonassoc NOT (*TODO: Should this be higher*)
-%nonassoc IS_EMPTY IS_NOT_EMPTY (*Set-related predicates*) 
+%nonassoc IS_EMPTY (*Set-related predicates*) 
 
 %left EQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
 %left PLUS MINUS 
 
 %left AMP
-%right ARROW (*TODO: Should this be left?*)
+%right ARROW 
 %nonassoc SET
 %left DOT 
 %nonassoc TILDE CARET STAR (*Set and relation unary operators*)
@@ -91,25 +91,25 @@ let mk_loc loc = Location.make_location loc
 %start <Ast.program> program 
 %%
 
-primitives:
+prim_typ:
 | STRING { TString{loc = mk_loc $loc} }
 | INT { TInt{loc = mk_loc $loc} }
 | BOOL { TBool{loc = mk_loc $loc} }
+| IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc} }
 
-non_primitives:
-| IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc } }
-| ONE IDENT { TOne{tp = TCustom{tp = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc }; loc = mk_loc $loc } }
-| SET IDENT { TSet{tp = TCustom{tp = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc}; loc = mk_loc $loc } }
-| non_primitives ARROW non_primitives { TMap{left = $1; right = $3; loc = mk_loc $loc} }
+mult: 
+| ONE { One{loc = mk_loc $loc} }
+| SET { Set{loc = mk_loc $loc} }
 
 typ: 
-| primitives { $1 }
-| non_primitives { $1 }
+| mult? prim_typ { $2 }
+| typ ARROW typ { TMap{left = $1; right = $3; loc = mk_loc $loc} }
+
+
 
 lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
-
 
 // This is simply to prevent calls from happening in simple expressions (calls only allowed in lvals)
 op_expr:
@@ -117,28 +117,31 @@ op_expr:
 | IDENT LPAREN separated_list(COMMA, expr) RPAREN 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
 
-expr:
-| EMPTY_SET { EmptySet{loc = mk_loc $loc} }
-| STR_LIT { String{str = $1; loc = mk_loc $loc} }
+const: 
 | INT_LIT { Integer{int = $1; loc = mk_loc $loc} }
+| STR_LIT { String{str = $1; loc = mk_loc $loc} }
 | BOOL_LIT { Boolean{bool = $1; loc = mk_loc $loc} }
+| EMPTY_SET { EmptySet{loc = mk_loc $loc} }
+
+expr:
+| const { $1 }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
 | expr set_unary { Unop{op = $2; operand = $1; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
 
 
+
 // TODO: might have to check for precedence of MINUS in particular, as that symbol is used elsewhere too 
 %inline unary:
 | NOT { Not{loc = mk_loc $loc} }
-| MINUS { Neg{loc = mk_loc $loc} }
+| MINUS { Neg{loc = mk_loc $loc} } (*TODO: Could this be refactored to Const*)
 | TILDE { Tilde{loc = mk_loc $loc} }
 | CARET { Caret{loc = mk_loc $loc} }
 | STAR { Star{loc = mk_loc $loc} }
 
 %inline set_unary:
 | IS_EMPTY { IsEmpty{loc = mk_loc $loc} }
-| IS_NOT_EMPTY { IsNotEmpty{loc = mk_loc $loc} }
 
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
@@ -160,10 +163,10 @@ expr:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
 
-parameter:
+c_param:
 | IDENT { Parameter{typ = TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc}; loc = mk_loc $loc} } (*Parameterized concept in signature*)
 
-named_parameters:
+params:
 | separated_list(COMMA, IDENT) COLON typ {
   let idents = List.map (fun id -> Ident{name = id; loc = mk_loc $loc}) $1 in
   List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) idents
@@ -172,7 +175,7 @@ named_parameters:
 
 c_sig:
 | CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
-| CONCEPT IDENT LBRACKET separated_list(COMMA, parameter) RBRACKET (*Probably do not want to allow empty [] here*)
+| CONCEPT IDENT LBRACKET separated_list(COMMA, c_param) RBRACKET 
   { ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params = $4; loc = mk_loc $loc} }
 
 c_purpose: 
@@ -181,9 +184,9 @@ c_purpose:
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 
-| named_parameters 
+| params 
   { List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc } ) $1 }
-| named_parameters ASSIGN expr 
+| params ASSIGN expr 
   { List.map ( fun param -> State{param; expr = Some $3; loc = mk_loc $loc }  ) $1 }
 
 c_state:
@@ -208,12 +211,12 @@ stmt:
   }
 
 action_sig_param:
-| named_parameters OUT? {
+| params OUT? {
   match $1, $2 with
   | params, None -> params, []
   | params, Some _ -> params, params
 }
-| named_parameters OUT? COMMA action_sig_param {
+| params OUT? COMMA action_sig_param {
   match $1, $2, $4 with
   | params, None, (params', out) -> params @ params', out
   | params, Some _, (params', out) -> params @ params', params @ out

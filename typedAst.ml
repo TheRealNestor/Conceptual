@@ -44,7 +44,6 @@ type unop =
 | Caret
 | Star
 | IsEmpty
-| IsNotEmpty
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)

@@ -267,8 +267,7 @@ let serializeExpr (e : expr) : string =
                           | Tilde -> "~" ^ serialize_expr' expr
                           | Caret -> "^" ^ serialize_expr' expr
                           | Star -> "*" ^ serialize_expr' expr
-                          | IsEmpty -> "no" ^ serialize_expr' expr
-                          | IsNotEmpty -> "some " ^ serialize_expr' expr )
+                          | IsEmpty -> "no" ^ serialize_expr' expr)
     | Binop {left; right; op} -> 
       begin match op with 
       | NotIn -> "not " ^ serialize_expr' left ^ " in " ^ serialize_expr' right

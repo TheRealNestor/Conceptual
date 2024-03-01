@@ -27,7 +27,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       | Ast.Not _ -> TAst.Not, TAst.TBool
       | Ast.Neg _ -> TAst.Neg, TAst.TInt
       | Ast.IsEmpty _ -> infer_and_check_set TAst.IsEmpty
-      | Ast.IsNotEmpty _ -> infer_and_check_set TAst.IsNotEmpty
       | Ast.Tilde _ -> infer_and_check_relation TAst.Tilde
       | Ast.Caret _ -> infer_and_check_relation TAst.Caret
       | Ast.Star _ -> infer_and_check_relation TAst.Star
@@ -132,13 +131,13 @@ and infertype_lval env lval =
       | Some Act(_) -> Env.insert_error env (Errors.ActionAsLval{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType (* TODO: Might be useful to do stuff like x.f = y *)
       | Some Var(tp) -> tp    
     end in
-    TAst.Var{name = TAst.Ident{sym}; tp}, Utility.unwrap_type tp
+    TAst.Var{name = TAst.Ident{sym}; tp}, tp
   | Ast.Relation {left;right;_} as l -> 
     (* Check that the relation is well-formed *)    
     let left, left_tp = infertype_lval env left in
     let right, right_tp = infertype_lval env right in
     let tp = Utility.construct_join_type env (Ast.Lval(l)) left_tp right_tp in 
-    TAst.Relation{left;right;tp}, Utility.unwrap_type tp
+    TAst.Relation{left;right;tp}, tp
   end
 
 and typecheck_expr env expr tp = 
@@ -171,7 +170,7 @@ let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) =
   let typ = Utility.convert_type typ in
   Env.insert_custom_type env (Utility.unwrap_type typ), TAst.Parameter{typ} :: param_so_far 
 
-let add_state_param_to_env (env) (Ast.State{param;_}) = 
+let add_state_param_to_env env (Ast.State{param;_}) = 
   fst @@ add_named_param_to_env env param
 
 let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) = 
@@ -209,22 +208,23 @@ let typecheck_action_signature env signature =
   ) out in
   env, TAst.ActionSignature{name = convert_ident name; out = t_out; params = t_params}
 
-let typecheck_action (env, actions_so_far) action =
+let add_action_name_to_env env ((TAst.Action{signature;_}), loc) =
+  let TAst.ActionSignature{name;_} = signature in
+  let sym = sym_from_ident name in
+  if Env.is_declared env sym then 
+    Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
+  Env.insert env sym (Env.Act(signature))
+
+
+let typecheck_action env action =
   let Ast.Action{signature;cond;body;loc} = action in
   let env_with_params, signature = typecheck_action_signature env signature in
   let body = List.map (typecheck_stmt env_with_params) body in
-  let t_act = match cond with 
-  | None -> TAst.Action{signature; cond = None; body}
+  match cond with 
+  | None -> TAst.Action{signature; cond = None; body}, loc
   | Some When{cond;_} -> 
     let t_expr, _ = infertype_expr env_with_params cond in
-    TAst.Action{signature; cond = Some (TAst.When{cond = t_expr}); body}
-  in
-  let ActionSignature{name;_} = signature in
-  let TAst.Ident{sym} = name in
-  if Env.is_declared env sym then 
-    Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
-  Env.insert env sym (Env.Act(signature)), t_act :: actions_so_far
-
+    TAst.Action{signature; cond = Some (TAst.When{cond = t_expr}); body}, loc
 
 (* Only passed the environment to accumulate errors over multiple concepts at once,
    otherwise we could omit "env" parameter and call Env.make_env to create empty environment *)
@@ -242,7 +242,9 @@ let typecheck_concept env (c : Ast.concept) =
   let env = List.fold_left add_state_param_to_env env states in (*Add state variables to environment in initial pass for mutual recursion*)
   let env, t_state_list = List.fold_left typecheck_state (env, []) states in
   let t_states = TAst.States{states = List.rev t_state_list} in
-  let env, t_action_list = List.fold_left typecheck_action (env, []) actions in
+  let t_actions_with_loc = List.map (typecheck_action env) actions in
+  let env = List.fold_left add_action_name_to_env env t_actions_with_loc in
+  let t_action_list = List.map fst t_actions_with_loc in
   let t_actions = TAst.Actions{actions = List.rev t_action_list} in
   env, TAst.Concept{signature = t_sig; purpose = t_purpose; states = t_states; actions = t_actions}
 

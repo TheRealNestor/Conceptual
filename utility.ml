@@ -48,7 +48,6 @@ let token_to_string = function
   | Parser.STAR -> "STAR"
   | Parser.EMPTY_SET -> "EMPTY_SET"
   | Parser.IS_EMPTY -> "IS_EMPTY"
-  | Parser.IS_NOT_EMPTY -> "IS_NOT_EMPTY"
   | Parser.ONE -> "ONE"
 
 let lex_and_print_tokens tokenizer lexbuf =

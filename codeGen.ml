@@ -80,7 +80,6 @@ let unop_to_als = function
 | TAst.Caret -> Als.Caret
 | TAst.Star -> Als.Star
 | TAst.IsEmpty -> Als.IsEmpty
-| TAst.IsNotEmpty -> Als.IsNotEmpty
 
 let binop_to_als = function
 | TAst.Plus -> Als.Plus
