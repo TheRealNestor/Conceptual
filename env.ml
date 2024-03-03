@@ -19,15 +19,27 @@ let insert env sym obj =
   let {env_objects; _} = env in
   {env with env_objects = Sym.Table.add sym obj env_objects}
 
+
+let rec set_mult mult = function
+| TAst.TInt _ -> TAst.TInt{mult}
+| TAst.TBool _ -> TAst.TBool{mult}
+| TAst.TString _ -> TAst.TString{mult}
+| TAst.TCustom {tp;_} -> TAst.TCustom {tp;mult}
+| TAst.TMap{left;right} -> TAst.TMap{left = set_mult mult left; right = set_mult mult right}
+| tp -> tp
+
 let insert_custom_type env typ = 
+  let typ = set_mult None typ in
   {env with valid_custom_types = typ :: env.valid_custom_types}
+  
+let type_is_defined env typ = 
+  let typ = set_mult None typ in
+  List.mem typ env.valid_custom_types
 
 let insert_error env err =
   let {errors; _} = env in
   errors := err :: !errors
 
-let type_is_defined env typ = 
-  List.mem typ env.valid_custom_types
 
 let is_declared env sym =
   let {env_objects; _} = env in

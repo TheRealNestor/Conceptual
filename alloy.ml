@@ -25,27 +25,24 @@ type qop = All | No | One | Some | Lone
 (* TODO: Add the rest of these? *)
 type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | MapsTo
 
-type unop = Not | Neg | Tilde | Caret | Star | IsEmpty | IsNotEmpty
+type unop = Not | Tilde | Caret | Star | IsEmpty 
+type mul = One | Set | Implicit 
 
 type ty = 
-| Int 
-| Bool
-| Str 
-| Sig of sigId 
-| Set of ty 
-| One of ty
+| Int of mul
+| Bool of mul 
+| Str of mul
+| Sig of sigId * mul 
 | Rel of ty * ty
 
 and fieldDecl = {
   id : fieldId;
-  (* mul : multiplicity option; *) (* This could probably be handled entirely in the serialization based on type *)
   ty : ty;
   expr : expr option; (*This is not currently used....*)
 }
 
 and sigDecl = {
   sig_id : sigId;
-  (* sig_mul : multiplicity option; *)
   fields : fieldDecl list;
 }
 
@@ -54,7 +51,6 @@ and fact = {
   body : expr option;
 }
 
-(* TODO: More to add here *)
 and expr =
 | This | Univ | None 
 | IntLit of int64
@@ -106,30 +102,23 @@ type cg_env = {
 let make_cg_env = {generics = ref []} 
 
 
-
-
 let rec compare_typ a b = match (a, b) with
 (* same as below but for als  *)
-| (Str, Str) | (Bool, Bool) | (Int, Int) -> 0
-| (Sig a, _) when S.name a = "State" -> 1
-| (_, Sig b) when S.name b = "State" -> -1
-| (Sig a, Sig b) -> String.compare (Symbol.name a) (Symbol.name b)
-| (Set a, Set b) -> compare_typ a b
-| (One a, One b) -> compare_typ a b
+| (Str _, Str _) | (Bool _, Bool _) | (Int _, Int _) -> 0
+| (Sig (a,_), _) when S.name a = "State" -> 1
+| (_, Sig (b,_)) when S.name b = "State" -> -1
+| (Sig (a,_), Sig (b,_)) -> String.compare (Symbol.name a) (Symbol.name b)
 | (Rel (a1, a2), Rel (b1, b2)) -> 
     let cmp_left = compare_typ a1 b1 in
     if cmp_left = 0 then compare_typ a2 b2 else cmp_left
 | (a, b) -> Int.compare (tag_of_typ a) (tag_of_typ b)
 
 and tag_of_typ = function
-| Str -> 0
-| Bool -> 1
-| Int -> 2
+| Str _ -> 0
+| Bool _ -> 1
+| Int _ -> 2
 | Sig _ -> 3
-| Set _ -> 4
-| One _ -> 5
-| Rel _ -> 6
-
+| Rel _ -> 4
 
 (* -------------------------- Serialization --------------------------   *)
 
@@ -152,15 +141,18 @@ let wrap_in_comment s = "/* " ^ s ^ " */"
 let sort_by_type (l : 'a list) (f : 'a -> ty) : 'a list = 
   List.fast_sort (fun a b -> compare_typ (f a) (f b)) l
 
+let serializeMul = function
+| One -> "one "
+| Set -> "set "
+| Implicit -> ""
+
   let rec serializeType (t : ty) : string = 
     match t with 
-    | Int -> "Int"
-    | Bool -> "Bool"
-    | Str -> "Str"
-    | Sig s -> S.name s
-    | Set t -> "set " ^ serializeType t
+    | Int m-> serializeMul m ^ "Int"
+    | Bool m-> serializeMul m ^ "Bool"
+    | Str m-> serializeMul m ^ "Str"
+    | Sig (s,m)-> serializeMul m ^ S.name s
     | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
-    | One t -> "one " ^ serializeType t
     
 let serializeTypeList (l : (S.symbol * ty) list) : string = 
   (* This is definitely not the most optimal way of doing this, but w/e let's not prematurely optimize *)
@@ -196,16 +188,6 @@ let serializeTypeList (l : (S.symbol * ty) list) : string =
   
 
 
-
-let rec serializeTypePrimitive (t : ty) : string = 
-  match t with 
-  | Int -> "Int"
-  | Bool -> "Bool"
-  | Str -> "Str"
-  | Sig s -> S.name s
-  | Set t -> serializeTypePrimitive t
-  | Rel (t1, t2) -> serializeTypePrimitive t1 ^ " -> " ^ serializeTypePrimitive t2
-  | One t -> serializeTypePrimitive t
 
 let serializeBinop = function 
 | Plus -> "+"
@@ -259,11 +241,10 @@ let serializeExpr (e : expr) : string =
     | Univ -> "univ"
     | None -> "none"
     | IntLit i -> Int64.to_string i
-    | BoolLit b -> if b then "true" else "false"
+    | BoolLit b -> if b then "1=1" else "4=2" (*TODO: Alloy does not have boolean literals*)
     | StrLit s -> "\"" ^ s ^ "\""
     | Unop {op; expr} -> (match op with 
                           | Not -> "not " ^ serialize_expr' expr
-                          | Neg -> "-" ^ serialize_expr' expr
                           | Tilde -> "~" ^ serialize_expr' expr
                           | Caret -> "^" ^ serialize_expr' expr
                           | Star -> "*" ^ serialize_expr' expr
@@ -279,7 +260,7 @@ let serializeExpr (e : expr) : string =
     | Assignment {left; right} -> serializeLval left ^ " = " ^ serialize_expr' right
     | Call {func; args} -> S.name func ^ "[" ^ (mapcat ", " serialize_expr' args) ^ "]"
     | Quantifier {qop; vars; expr} -> 
-      serializeQop qop  ^ " " ^ (mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeTypePrimitive ty) vars) ^ " | " ^ serialize_expr' expr ^
+      serializeQop qop  ^ " " ^ (mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) vars) ^ " | " ^ serialize_expr' expr ^
       if List.length vars = 0 then "" else 
       "[" ^ (mapcat ", " (fun (s, _) -> S.name s) vars) ^ "]"
     | Lval l -> serializeLval l
@@ -288,7 +269,7 @@ let serializeExpr (e : expr) : string =
 
 
 let serializeField (f : fieldDecl) : string =
-  let {id; ty; expr} = f in 
+  let {id; ty; expr; } = f in 
   let exprStr = match expr with 
     | None -> ""
     | Some e -> " = " ^ serializeExpr e

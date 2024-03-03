@@ -42,12 +42,10 @@ let sym_from_typ tp =
     else String.make 1 str.[0]
   in
   let rec sym_from_type' = function
-  | TAst.TCustom{tp= TAst.Ident{sym}} -> Sym.symbol @@ String.lowercase_ascii @@ Sym.name sym
-  | TAst.TSet{tp} -> sym_from_type' tp
-  | TAst.TOne{tp} -> sym_from_type' tp
-  | TAst.TString -> Sym.symbol "string"
-  | TAst.TInt -> Sym.symbol "int"
-  | TAst.TBool -> Sym.symbol "bool"
+  | TAst.TCustom{tp= TAst.Ident{sym}; _} -> Sym.symbol @@ String.lowercase_ascii @@ Sym.name sym
+  | TAst.TString _ -> Sym.symbol "string"
+  | TAst.TInt _ -> Sym.symbol "int"
+  | TAst.TBool _ -> Sym.symbol "bool"
   | _ -> failwith "Other types are not supported ..."    
   in
   first_letter_of_sym @@ sym_from_type' tp
@@ -57,9 +55,8 @@ let type_in_env env tp =
   List.mem tp env.custom_types
 
 let rec add_tp_to_env env = function 
-| TAst.TCustom{tp = TAst.Ident{sym}} -> 
+| TAst.TCustom{tp = TAst.Ident{sym}; _} -> 
   if type_in_env env sym then env else {env with custom_types = sym::env.custom_types}
-| TAst.TSet{tp} -> add_tp_to_env env tp
 | TAst.TMap{left;right} -> 
   let env = add_tp_to_env env left in
   add_tp_to_env env right
@@ -67,7 +64,7 @@ let rec add_tp_to_env env = function
 
 let get_sym_from_parameter (TAst.Parameter{typ}) =
   begin match typ with
-  | TCustom{tp = TAst.Ident{sym}} -> sym
+  | TCustom{tp = TAst.Ident{sym};_} -> sym
   | _ -> failwith "should never get here: get_sym_from_parameter. Semant or parsing broken"
   end
 
@@ -75,7 +72,6 @@ let sym_from (TAst.Ident {sym}) = sym
 
 let unop_to_als = function 
 | TAst.Not -> Als.Not
-| TAst.Neg -> Als.Neg
 | TAst.Tilde -> Als.Tilde
 | TAst.Caret -> Als.Caret
 | TAst.Star -> Als.Star
@@ -98,13 +94,17 @@ let binop_to_als = function
 | TAst.NotIn -> Als.NotIn
 | TAst.MapsTo -> Als.MapsTo
 
+let mult_to_als = function
+| None -> Als.Implicit
+| Some TAst.One -> Als.One
+| Some TAst.Set -> Als.Set
+
+
 let rec typ_to_als = function
-| TAst.TInt -> Als.Int
-| TAst.TBool -> Als.Bool
-| TAst.TString -> Als.Str
-| TAst.TCustom{tp} -> Als.Sig(sym_from tp) (*Note that this is  assumes no explicit multiplicty and no fields*)
-| TAst.TSet{tp} -> Als.Set(typ_to_als tp)
-| TAst.TOne{tp} -> Als.One(typ_to_als tp)
+| TAst.TInt {mult} -> Als.Int(mult_to_als mult)
+| TAst.TBool {mult} -> Als.Bool(mult_to_als mult)
+| TAst.TString {mult} -> Als.Str(mult_to_als mult)
+| TAst.TCustom{tp;mult;_} -> Als.Sig(sym_from tp, mult_to_als mult) (*Note that this is  assumes no explicit multiplicty and no fields*)
 | TAst.TMap{left;right} -> Als.Rel(typ_to_als left, typ_to_als right)
 | _  -> failwith "Other types not supported"
 
@@ -180,7 +180,7 @@ let rec trans_expr env expr =
         end
     | TAst.In | TAst.NotIn -> 
       let left_tp, right_tp = Utility.get_expr_type left, Utility.get_expr_type right in
-      if  Utility.is_simple_type left_tp && Utility.is_relation right_tp then 
+      if  Utility.is_relation right_tp then 
         (* traverse the relation until we find the simple type *)
         let type_list = Utility.type_to_array_of_types right_tp in 
         let type_array = Array.of_list type_list in
@@ -262,10 +262,8 @@ let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{pa
     Some qop 
   in
   let fact = if fact = None then [] else 
-  [{Als.fact_id = sym_from name; body = fact}]
-  in
-  
-  {Als.id = sym_from name; ty = typ_to_als typ; expr = None} :: fields_so_far, 
+  [{Als.fact_id = sym_from name; body = fact}] in 
+  {Als.id = sym_from name; ty = typ_to_als typ; expr = None;} :: fields_so_far, 
   fact @ facts_so_far,
   add_tp_to_env {env_so_far with state_variables = sym_from name :: env_so_far.state_variables} typ
 
@@ -288,7 +286,7 @@ let trans_action env (TAst.Action{signature;cond;body}) =
   let create_n_state_params n =
     let rec create_n_state_params' n acc = 
       if n = 0 then acc
-      else create_n_state_params' (n-1) (acc @ [Queue.pop state_symbols, Als.Sig(Sym.symbol "State")])
+      else create_n_state_params' (n-1) (acc @ [Queue.pop state_symbols, Als.Sig(Sym.symbol "State", Als.Implicit)])
     in create_n_state_params' n []
   in
   let env = {env with state_symbols = ref @@ Queue.copy state_symbols} in

@@ -52,7 +52,7 @@ concept composition rule via the keywords "concept" and "app" *)
 
 rule token = parse 
 | eof { EOF }
-| '=' { ASSIGN }
+| '=' { EQ }
 | '+' { PLUS }
 | '-' { MINUS }
 | ':' { COLON }
@@ -61,10 +61,10 @@ rule token = parse
 | '~' { TILDE }
 | '^' { CARET }
 | '*' { STAR }
-| '(' { LPAREN }
-| ')' { RPAREN }
-| '[' { LBRACKET }
-| ']' { RBRACKET }
+| '(' { LPAR }
+| ')' { RPAR }
+| '[' { LBRACK }
+| ']' { RBRACK }
 | '"' { Buffer.clear string_buf; string lexbuf; STR_LIT (Buffer.contents string_buf)}  (*Clear current buffer, do the string rule, return contents of buffer afterwards as a STRING token *)
 | whitespace+ { token lexbuf } (* Skip whitespace *)
 | '\n' { Lexing.new_line lexbuf; token lexbuf} (* Increment line number *)
@@ -74,11 +74,11 @@ rule token = parse
 | '>' { GT }
 | "<=" { LTE }
 | ">=" { GTE }
-| "==" { EQ }
+| "==" { EQEQ }
 | '&' { AMP } (* Set intersection *)
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
-| "+=" { ADDEQ }
+| "+=" { PLUSEQ }
 | "-=" { MINUSEQ }
 | "&=" { AMPEQ }
 | "->" { ARROW }
@@ -95,7 +95,7 @@ rule token = parse
 | "int" { INT }
 | "true" { BOOL_LIT(true) }
 | "false" { BOOL_LIT(false) }
-| "is empty" { IS_EMPTY }
+| "is empty" { EMPTY }
 (* Now operators for operational principles *)
 (* | "if" { IF } 
 | "can" { CAN }
@@ -112,7 +112,8 @@ rule token = parse
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
 | "operational principle" { add_token_to_cache OP; OP }
 | ident as i { IDENT i }
-| ident as i whitespace* '(' { add_token_to_cache LPAREN; ACTION_START i } (*TODO: Add newline here too? To more easily distinguish idents for action_signature vs idents used in statements*)
+| ident as i '(' { add_token_to_cache LPAR; ACTION_START i } 
+(*TODO: Add newline here too? To more easily distinguish idents for action_signature vs idents used in statements*)
 | digits as i_lit { 
   (* Wrap in big int to do arithmetic/overflow computation *)
   let num = Z.big_int_of_string i_lit in 

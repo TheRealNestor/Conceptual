@@ -19,7 +19,7 @@ type error =
 | NotAnAction of {loc : Loc.location; name : TAst.ident}
 | UnsupportedMultipleReturnTypes of {loc : Loc.location} (*TODO: Temporary?*)
 | ArgumentCountMismatch of {loc : Loc.location; expected : int; actual : int}
-| TypeNotFirstOrder of {loc : Loc.location; tp : TAst.typ}
+(* | TypeNotFirstOrder of {loc : Loc.location; tp : TAst.typ} *)
 | UnterminatedString of {loc : Loc.location}
 | NotARelation of {loc : Loc.location; tp : TAst.typ}
 | InvalidInExpression of {loc : Loc.location; left : TAst.typ; right : TAst.typ}
@@ -46,7 +46,7 @@ let print_error err =
   | NotAnAction {loc; name} -> Printf.printf "NotAnAction. The name %s is not an action \t" (string_of_t_ident name); Loc.print_location loc;
   | UnsupportedMultipleReturnTypes {loc} -> Printf.printf "UnsupportedMultipleReturnTypes. Multiple return types are not supported. Alloy does not support it either?. \t"; Loc.print_location loc;
   | ArgumentCountMismatch {loc; expected; actual} -> Printf.printf "ArgumentCountMismatch. Expected %d arguments but got %d \t" expected actual; Loc.print_location loc;
-  | TypeNotFirstOrder {loc; tp} -> Printf.printf "TypeNotFirstOrder. The type %s is not first order \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+  (* | TypeNotFirstOrder {loc; tp} -> Printf.printf "TypeNotFirstOrder. The type %s is not first order \t" (TPretty.typ_to_string tp); Loc.print_location loc; *)
   | UnterminatedString {loc} -> Printf.printf "UnterminatedString. Unterminated string \t"; Loc.print_location loc;
   | NotARelation {loc; tp} -> Printf.printf "NotARelation. The type %s is not a relation \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | InvalidInExpression {loc; left; right} -> Printf.printf "InvalidInExpression. The types %s and %s are not compatible \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;

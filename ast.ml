@@ -4,16 +4,15 @@ exception TODO
 
 type ident = Ident of {name: string; loc : Loc.location }
 
+type mult = One | Set 
+
 type typ =
-  | TString of { loc : Loc.location }
-  | TBool of { loc : Loc.location }
-  | TInt of { loc : Loc.location }
-  | TCustom of { tp : ident; loc : Loc.location } (* custom type *)
-  | TOne of { tp : typ; loc : Loc.location } (* one of a type *)
-  | TSet of { tp : typ ; loc : Loc.location } (* set of types *)
+  | TString of { loc : Loc.location; mult : mult option }
+  | TBool of { loc : Loc.location; mult : mult option}
+  | TInt of { loc : Loc.location; mult : mult option}
+  | TCustom of { tp : ident; loc : Loc.location; mult : mult option } (* custom type *)
   | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 
-  
 
 
 type parameter = Parameter of {typ : typ; loc : Loc.location } (*This is for the concept signature *)
@@ -38,7 +37,6 @@ type binop =
 
 type unop = 
 | Not of { loc : Loc.location }
-| Neg of { loc : Loc.location }
 | Tilde of { loc : Loc.location }
 | Caret of { loc : Loc.location }
 | Star of { loc : Loc.location }

@@ -2,21 +2,21 @@ module TAst = TypedAst
 
 let token_to_string = function
   | Parser.EOF -> "EOF"
-  | Parser.EQ -> "EQ"
+  | Parser.EQEQ -> "EQEQ"
   | Parser.NEQ -> "NEQ"
   | Parser.PLUS -> "PLUS"
   | Parser.MINUS -> "MINUS"
-  | Parser.ASSIGN -> "ASSIGN"
-  | Parser.ADDEQ -> "ADDEQ"
+  | Parser.EQ -> "EQ"
+  | Parser.PLUSEQ -> "PLUSEQ"
   | Parser.MINUSEQ -> "MINUSEQ"
   | Parser.NOT -> "NOT"
   | Parser.COLON -> "COLON"
   | Parser.COMMA -> "COMMA"
   | Parser.DOT -> "DOT"
-  | Parser.LPAREN -> "LPAREN"
-  | Parser.RPAREN -> "RPAREN"
-  | Parser.LBRACKET -> "LBRACKET"
-  | Parser.RBRACKET -> "RBRACKET"
+  | Parser.LPAR -> "LPAR"
+  | Parser.RPAR -> "RPAR"
+  | Parser.LBRACK -> "LBRACK"
+  | Parser.RBRACK -> "RBRACK"
   | Parser.WHEN -> "WHEN"
   | Parser.ARROW -> "ARROW"
   | Parser.SET -> "SET"
@@ -47,7 +47,7 @@ let token_to_string = function
   | Parser.CARET -> "CARET"
   | Parser.STAR -> "STAR"
   | Parser.EMPTY_SET -> "EMPTY_SET"
-  | Parser.IS_EMPTY -> "IS_EMPTY"
+  | Parser.EMPTY -> "IS_EMPTY"
   | Parser.ONE -> "ONE"
 
 let lex_and_print_tokens tokenizer lexbuf =
@@ -60,30 +60,48 @@ let lex_and_print_tokens tokenizer lexbuf =
             aux ()
       in
       aux ()
-
-let rec unwrap_type = function
-| TAst.TSet{tp} -> tp
-| TAst.TOne{tp} -> tp
-| TAst.TMap{left;right} -> TAst.TMap{left=unwrap_type left; right=unwrap_type right}
-| tp -> tp
-
       
-let is_relation = function
-| TAst.TMap _ -> true
+(* Checks if types are equal (disregarding multiplicity) *)
+let rec same_base_type tp1 tp2 =
+  match tp1, tp2 with 
+  | TAst.TInt _, TAst.TInt _ -> true
+  | TAst.TBool _, TAst.TBool _ -> true
+  | TAst.TString _, TAst.TString _ -> true
+  | TAst.TCustom {tp=tp1;_}, TAst.TCustom {tp=tp2;_} -> tp1 = tp2
+  | TAst.NullSet _, TAst.NullSet _ -> true
+  | TAst.NullSet _, _ -> true
+  | _, TAst.NullSet _ -> true
+  | TAst.TMap {left=left1;right=right1}, TAst.TMap {left=left2;right=right2} -> 
+    same_base_type left1 left2 && same_base_type right1 right2
+  | _ -> false
+  
+
+let is_integer = function
+| TAst.TInt _ -> true
 | _ -> false
 
-let is_set = function
-| TAst.TSet _ -> true
-| TAst.NullSet _ -> true
+let is_string = function
+| TAst.TString _ -> true
+| _ -> false
+
+let is_boolean = function
+| TAst.TBool _ -> true
+| _ -> false
+
+let is_relation = function
+| TAst.TMap _ -> true
 | _ -> false
 
 let is_empty_set = function
 | TAst.NullSet _ -> true
 | _ -> false
 
-let primitive_type_of_set = function
-| TAst.TSet {tp} -> tp
-| _ -> failwith "Not a set"
+let get_mult = function
+| TAst.TInt {mult} -> mult
+| TAst.TBool {mult} -> mult
+| TAst.TString {mult} -> mult
+| TAst.TCustom {mult;_} -> mult
+| _ -> None
 
 (* create a function that checks that a given tp is included somewhere in a TMap{left;right} *)
 let type_is_in_relation tp rel = 
@@ -93,8 +111,7 @@ let type_is_in_relation tp rel =
   (* TODO: could possibly extend this to work when tp is of type TMap, and then look for the structure within rel *)
   let rec dfs = function
   | TAst.TMap{left;right} -> dfs left || dfs right
-  | TAst.TSet{tp=t} -> t = tp 
-  | t -> t = tp
+  | t -> same_base_type t tp
   in dfs rel
 
 let is_lval = function
@@ -123,13 +140,16 @@ and get_lval_location = function
 | Ast.Var(Ident { loc;_ }) -> loc
 | Ast.Relation {loc;_} -> loc
 
+let ast_mult_to_tast = function
+| None -> None
+| Some Ast.One -> Some TAst.One
+| Some Ast.Set -> Some TAst.Set
+
 let rec convert_type = function
-| Ast.TInt _ -> TAst.TInt
-| Ast.TBool _ -> TAst.TBool
-| Ast.TString _ -> TAst.TString
-| Ast.TCustom {tp=Ident{name;_};_} -> TAst.TCustom {tp = Ident{sym = Symbol.symbol name}}
-| Ast.TSet {tp;_} -> TAst.TSet {tp = convert_type tp}
-| Ast.TOne {tp; _} -> TAst.TOne {tp = convert_type tp}
+| Ast.TInt {mult;_} -> TAst.TInt{mult = ast_mult_to_tast mult}
+| Ast.TBool {mult;_} -> TAst.TBool{mult = ast_mult_to_tast mult}
+| Ast.TString {mult;_} -> TAst.TString{mult = ast_mult_to_tast mult}
+| Ast.TCustom {tp=Ident{name;_};mult;_} -> TAst.TCustom {tp = Ident{sym = Symbol.symbol name};mult = ast_mult_to_tast mult}
 | Ast.TMap{left;right;_} -> TAst.TMap{left = convert_type left; right = convert_type right}
 
 let ast_binop_to_tast = function
@@ -168,7 +188,7 @@ let construct_join_type env expr left_tp right_tp =
        Not the most efficient approach but relation should rarely but relations should rarely be long*)
   let left_history, right_history = type_to_array_of_types left_tp, type_to_array_of_types right_tp in
   let leftmost_type_of_right, rightmost_type_of_left = List.hd right_history, List.hd @@ List.rev left_history in
-  let unwrapped_left_tp, unwrapped_right_tp = unwrap_type leftmost_type_of_right, unwrap_type rightmost_type_of_left in
+  let unwrapped_left_tp, unwrapped_right_tp = leftmost_type_of_right, rightmost_type_of_left in
   if not (is_relation left_tp || is_relation right_tp) then (
     Env.insert_error env (Errors.IllFormedRelation{loc = get_lval_or_expr_location expr; left = left_tp; right = right_tp}); TAst.ErrorType
   ) else if unwrapped_left_tp <> unwrapped_right_tp then (
@@ -196,41 +216,29 @@ let construct_join_type env expr left_tp right_tp =
 (* As we are using typed ast, we must explicitly provide location in case errors happen *)
 
 (* TODO: This should be updated? Maps can be used with other maps for instance, distinguish between map and set complex types. *)
-let is_first_order_type env tp loc =
+(* let is_first_order_type env tp loc =
   let complex_type_encountered = ref false in
   let rec dfs = function
     | TAst.TMap {left; right} -> 
-      if !complex_type_encountered then true
-      else (
-        complex_type_encountered := true;
-        dfs left && dfs right
-      )
-    | TAst.TSet {tp} -> 
-      if !complex_type_encountered then true
-      else (
-        complex_type_encountered := true;
-        dfs tp
-      )
+      complex_type_encountered := true;
+      (* if any of left or right or their sub types are sets, return false *)
+      dfs left && dfs right
+    | TAst.TString {mult} | TAst.TInt {mult} | TAst.TBool {mult} | TAst.TCustom {mult;_} -> 
+      (match mult with
+      | None -> false
+      | Some TAst.One -> 
+        if !complex_type_encountered then (
+          Env.insert_error env (Errors.TypeNotFirstOrder {tp; loc});
+          true
+        ) else 
+          false
+      | Some TAst.Set -> false)
     | _ -> true
   in
   let is_first_order = dfs tp in
   if not is_first_order then
     Env.insert_error env (Errors.TypeNotFirstOrder {tp; loc});
-  is_first_order
-
-let is_primitive_type = function
-| TAst.TInt | TAst.TBool | TAst.TString | TAst.TCustom _ -> true
-| _ -> false
-
-let is_primitive_type_or_set = function
-| TAst.TInt | TAst.TBool | TAst.TString | TAst.TCustom _ | TAst.TSet _ -> true
-| _ -> false
-
-let wrap_primitive_in_set left_tp right_tp =
-  if left_tp = right_tp then left_tp, right_tp
-  else if left_tp = TAst.TSet{tp=right_tp} then left_tp, left_tp
-  else if right_tp = TAst.TSet{tp=left_tp} then right_tp, right_tp
-  else left_tp, right_tp
+  is_first_order *)
 
 let change_expr_type (expr : TAst.expr) typ : TAst.expr =
   match expr with 
@@ -250,20 +258,9 @@ let get_expr_type (expr : TAst.expr) : TAst.typ =
   | Call {tp;_} -> tp
   | Lval(Var {tp;_}) -> tp
   | Lval(Relation {tp;_}) -> tp
-  | String _ -> TAst.TString
-  | Integer _ -> TAst.TInt
-  | Boolean _ -> TAst.TBool
-
-let is_simple_type = function
-| TAst.TInt | TAst.TBool | TAst.TString | TAst.TCustom _ -> true
-| _ -> false
-
-
-let same_base_type tp1 tp2 =
-match tp1, tp2 with 
-| TAst.TSet {tp=a}, b -> a = b
-| a, TAst.TSet {tp=b} -> a = b
-| a, b -> a = b
+  | String _ -> TAst.TString{mult = None}
+  | Integer _ -> TAst.TInt{mult = None}
+  | Boolean _ -> TAst.TBool{mult = None}
 
 
 let get_lval_type = function

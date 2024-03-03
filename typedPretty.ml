@@ -2,20 +2,23 @@ open TypedAst
 module Sym = Symbol
 module PBox = PrintBox
 
+let mult_to_string = function
+| None -> ""
+| Some One -> "One of "
+| Some Set -> "Set of "
+
 let rec typ_to_string = function 
-| TInt -> "int"
-| TBool -> "bool"
-| TString -> "unit"
-| TVoid -> "void"
-| TCustom {tp = Ident{sym}} -> Sym.name sym
-| TSet {tp} -> "set of " ^ (typ_to_string tp)
-| TOne {tp} -> "one of " ^ (typ_to_string tp)
+| TInt {mult} -> mult_to_string mult ^ "Int"
+| TBool {mult} -> mult_to_string mult ^ "Bool" 
+| TString {mult} -> mult_to_string mult ^ "String"
+| TCustom {tp = Ident{sym};mult} -> mult_to_string mult ^ Sym.name sym
 | TMap{left;right} -> "Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">"
-| ErrorType -> "error"
+| TVoid -> "Void"
+| ErrorType -> "Error"
 | NullSet{tp} -> 
   begin match tp with 
-  | None -> "null"
-  | Some t -> "null of " ^ (typ_to_string t)
+  | None -> "Null"
+  | Some t -> "Null of " ^ (typ_to_string t)
   end
 
 let ident_to_tree (Ident{sym}) = Pretty.make_ident_line (Sym.name sym)
@@ -23,21 +26,10 @@ let ident_to_tree (Ident{sym}) = Pretty.make_ident_line (Sym.name sym)
 let ident_from_signature = function 
 | Signature {name; _} | ParameterizedSignature {name; _} -> name
 
-let rec typ_to_tree = function 
-| TInt -> Pretty.make_typ_line "Int"
-| TBool -> Pretty.make_typ_line "Bool"
-| TVoid -> Pretty.make_typ_line "Void"
-| TString -> Pretty.make_typ_line "String"
-| TCustom {tp = Ident{sym}} -> Pretty.make_typ_line (Sym.name sym)
-| TSet {tp} -> Pretty.make_typ_line ("Set of " ^ (typ_to_string tp))
-| TOne {tp} -> Pretty.make_typ_line ("One of " ^ (typ_to_string tp))
-| TMap{left;right} -> Pretty.make_typ_line ("Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">") 
-| ErrorType -> Pretty.make_typ_line "Error"
-| NullSet{tp} -> 
-  begin match tp with 
-  | None -> Pretty.make_typ_line "Null"
-  | Some t -> PBox.tree (Pretty.make_typ_line "Null") [typ_to_tree t]
-  end
+let rec typ_to_tree = function
+| TMap {left; right; _} -> PBox.tree (Pretty.make_typ_line "Map") [typ_to_tree left; typ_to_tree right]
+| _ as t -> Pretty.make_typ_line @@ typ_to_string t
+
 
 let binop_to_tree  = function
 | Plus -> Pretty.make_keyword_line "Plus"
@@ -57,7 +49,6 @@ let binop_to_tree  = function
 | MapsTo -> Pretty.make_keyword_line "MapsTo"
 
 let unop_to_tree = function
-| Neg -> Pretty.make_keyword_line "Neg"
 | Not -> Pretty.make_keyword_line "Not"
 | Tilde -> Pretty.make_keyword_line "Tilde"
 | Caret -> Pretty.make_keyword_line "Caret"
@@ -137,8 +128,8 @@ let concept_to_tree (c : concept ) =
   PBox.tree (Pretty.make_info_node_line "Concept") [
     PBox.tree (Pretty.make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty signature];
     PBox.tree (Pretty.make_info_node_line "Purpose") [PBox.text doc_str];
-    PBox.tree (Pretty.make_info_node_line "States") [states_to_tree states];
-    PBox.tree (Pretty.make_info_node_line "Actions") [actions_to_tree actions];
+    states_to_tree states;
+    actions_to_tree actions;
     (* PBox.tree (Pretty.make_info_node_line "Operational Principle") [Pretty.make_info_node_line c.op.doc_str] *)
   ]
 

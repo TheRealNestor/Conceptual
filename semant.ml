@@ -9,42 +9,33 @@ let sym_from_ident (TAst.Ident{sym}) = sym
 let rec infertype_expr env expr : TAst.expr * TAst.typ = 
   begin match expr with 
   | Ast.EmptySet _ -> TAst.EmptySet{tp=TAst.NullSet{tp=None}}, TAst.NullSet{tp = None}
-  | Ast.String {str;_} -> TAst.String{str}, TAst.TString
-  | Ast.Integer {int;_} -> TAst.Integer{int}, TAst.TInt
-  | Ast.Boolean {bool;_} -> TAst.Boolean{bool}, TAst.TBool
+  | Ast.String {str;_} -> TAst.String{str}, TAst.TString{mult = None}
+  | Ast.Integer {int;_} -> TAst.Integer{int}, TAst.TInt{mult = None}
+  | Ast.Boolean {bool;_} -> TAst.Boolean{bool}, TAst.TBool{mult = None}
   | Ast.Unop {op;operand;loc} ->
     let infer_and_check_relation op = 
       let _, expr_tp = infertype_expr env operand in
       if not (Utility.is_relation expr_tp) then Env.insert_error env (Errors.NotARelation{tp=expr_tp;loc});
       op, expr_tp
     in
-    let infer_and_check_set op = 
-      let _, expr_tp = infertype_expr env operand in
-      if not (Utility.is_set expr_tp) then Env.insert_error env (Errors.NotASet{tp=expr_tp;loc});
-      op, expr_tp
-    in
-    let op, expected_tp = begin match op with 
-      | Ast.Not _ -> TAst.Not, TAst.TBool
-      | Ast.Neg _ -> TAst.Neg, TAst.TInt
-      | Ast.IsEmpty _ -> infer_and_check_set TAst.IsEmpty
+    let op, tp = begin match op with 
+      | Ast.Not _ -> TAst.Not, TAst.TBool{mult = None}
+      | Ast.IsEmpty _ -> TAst.IsEmpty, TAst.TBool{mult = None}
       | Ast.Tilde _ -> infer_and_check_relation TAst.Tilde
       | Ast.Caret _ -> infer_and_check_relation TAst.Caret
       | Ast.Star _ -> infer_and_check_relation TAst.Star
     end in
-    let operand = typecheck_expr env operand expected_tp in
-    TAst.Unop{op;operand;tp=expected_tp}, expected_tp
+    let operand = fst @@ infertype_expr env operand  in
+    TAst.Unop{op;operand;tp}, tp
   | Ast.Binop {op;left;right;loc} ->
     let t_left, left_tp = infertype_expr env left in
     let t_right, right_tp = infertype_expr env right in
     let typed_op = Utility.ast_binop_to_tast op in 
-    let operators_with_special_type_comparisons = [TAst.MapsTo; TAst.Join; TAst.In; TAst.NotIn; TAst.Plus; TAst.Minus; TAst.Intersection] in
+    let operators_with_special_type_comparisons = [TAst.MapsTo; TAst.Join; TAst.In; TAst.NotIn;] in
     let null_ops = operators_with_special_type_comparisons @ [TAst.Eq; TAst.Neq] in 
     let is_same_valid_type = 
-      if ((Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp) ||
-          (Utility.is_empty_set right_tp && Utility.is_primitive_type_or_set left_tp) ||
-          (Utility.is_empty_set left_tp && Utility.is_empty_set right_tp)) && (List.mem typed_op null_ops) 
-          then true
-      (* check if typed_op is in set of special operators *)
+      if Utility.same_base_type left_tp right_tp then true
+      (* check if typed_op is in set of special operators that may not require same *)
       else if List.mem typed_op operators_with_special_type_comparisons then true (* Handle these special case later, where left and right can be different *)
       else if left_tp = right_tp && left_tp <> TAst.ErrorType && left_tp <> TAst.TVoid then true
       else (Env.insert_error env (Errors.TypeMismatch{actual = right_tp; expected = left_tp; loc = Utility.get_expr_location right}); false)
@@ -52,40 +43,26 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     let tp = if is_same_valid_type then (
       begin match op with
       | Ast.Lt _ | Ast.Lte _ | Ast.Gt _ | Ast.Gte _ ->
-        if left_tp = TAst.TInt then TAst.TBool
-        else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TInt; loc = Utility.get_expr_location left}); TAst.ErrorType)
+        if Utility.is_integer left_tp then TAst.TBool{mult=None}
+        else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TInt{mult=None}; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Lor _ | Ast.Land _ -> 
-        if left_tp = TAst.TBool then TAst.TBool
-        else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool; loc = Utility.get_expr_location left}); TAst.ErrorType)
+        if Utility.is_boolean left_tp then TAst.TBool{mult=None}
+        else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool{mult=None}; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
       | Ast.In _ | Ast.NotIn _ -> 
         (* TODO: Probably need to review these conditions *)
-        if not (Utility.is_primitive_type left_tp) && left_tp <> right_tp then (
-          Env.insert_error env (Errors.NotAPrimitiveType{tp=left_tp;loc});
-        ) else if Utility.is_primitive_type right_tp then (
-          Env.insert_error env (Errors.PrimitiveType{tp=right_tp;loc});
-        ) else if (Utility.is_set right_tp) && (Utility.primitive_type_of_set right_tp <> left_tp) then (
-          Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TSet{tp=left_tp}; loc});
-        ) 
-        else if (Utility.is_relation right_tp) && not (Utility.type_is_in_relation left_tp right_tp) then (
+        if (Utility.is_relation right_tp) && not (Utility.type_is_in_relation left_tp right_tp) then (
           Env.insert_error env (Errors.InvalidInExpression{left = left_tp; right = right_tp; loc});
         );
-        TAst.TBool
-      | Ast.Plus _ | Ast.Minus _ | Ast.Intersection _  -> 
-        let new_left_tp, new_right_tp = Utility.wrap_primitive_in_set left_tp right_tp in
-        if new_left_tp <> new_right_tp then (
-          Env.insert_error env (Errors.TypeMismatch{actual = new_right_tp; expected = new_left_tp; loc = Utility.get_expr_location right});
-        );
-        new_left_tp
+        TAst.TBool{mult=None}
       | Ast.MapsTo _ -> 
-        let left_tp, right_tp = Utility.wrap_primitive_in_set left_tp right_tp in
         TAst.TMap{left = left_tp; right = right_tp}
       | _ -> left_tp
       end
     ) else TAst.ErrorType in
-      let t_left = if Utility.is_empty_set left_tp && Utility.is_primitive_type_or_set right_tp && List.mem typed_op null_ops then 
+      let t_left = if Utility.is_empty_set left_tp && not @@ Utility.is_relation right_tp && List.mem typed_op null_ops then 
         Utility.change_expr_type t_left right_tp else t_left in
-      let t_right = if Utility.is_empty_set right_tp && Utility.is_primitive_type_or_set left_tp && List.mem typed_op null_ops then
+      let t_right = if Utility.is_empty_set right_tp && not @@ Utility.is_relation left_tp && List.mem typed_op null_ops then
         Utility.change_expr_type t_right left_tp else t_right in  
       TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
   | Ast.Lval lval -> let lval, tp = infertype_lval env lval in TAst.Lval(lval), tp
@@ -143,8 +120,8 @@ and infertype_lval env lval =
 and typecheck_expr env expr tp = 
   let texpr, texprtp = infertype_expr env expr in
   let loc = Utility.get_expr_location expr in 
-  if Utility.is_empty_set texprtp && Utility.is_primitive_type_or_set tp then () 
-  else if Utility.unwrap_type texprtp <> Utility.unwrap_type tp then 
+  if Utility.is_empty_set texprtp && not @@ Utility.is_relation tp then () 
+  else if not @@ Utility.same_base_type texprtp tp then 
     Env.insert_error env (Errors.TypeMismatch {actual = texprtp; expected = tp; loc});
   texpr
 
@@ -161,14 +138,14 @@ let add_named_param_to_env ?(insert_error = true) env (Ast.NamedParameter{name;t
   let typ = Utility.convert_type typ in
   if Env.is_declared env sym && insert_error then 
     Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
-  let typ = if not (Utility.is_first_order_type env typ loc) then (
+  (* let typ = if not (Utility.is_first_order_type env typ loc) then (
     Env.insert_error env (Errors.TypeNotFirstOrder{tp=typ;loc}); TAst.ErrorType
-  ) else typ in 
+  ) else typ in  *)
   Env.insert env sym (Var(typ)), TAst.NamedParameter{name = Ident{sym}; typ; }
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) = 
   let typ = Utility.convert_type typ in
-  Env.insert_custom_type env (Utility.unwrap_type typ), TAst.Parameter{typ} :: param_so_far 
+  Env.insert_custom_type env typ, TAst.Parameter{typ} :: param_so_far 
 
 let add_state_param_to_env env (Ast.State{param;_}) = 
   fst @@ add_named_param_to_env env param
@@ -182,8 +159,8 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) =
   | TAst.TMap{left;right} -> 
     let env = insert_map_types env left in
     insert_map_types env right
-  | TAst.TCustom _ as tp | TAst.TOne{tp} | TAst.TSet{tp} | tp  -> 
-    if not (Env.type_is_defined env (Utility.unwrap_type tp)) then Env.insert_custom_type env (Utility.unwrap_type tp)
+  | TAst.TCustom _ as tp | tp  -> 
+    if not (Env.type_is_defined env tp) then Env.insert_custom_type env tp
     else env
   in
   let env_with_type = insert_map_types env tp in
@@ -200,7 +177,7 @@ let typecheck_action_signature env signature =
     fun (env_so_far, t_params_so_far) (Ast.NamedParameter{loc;_} as param) -> 
       let env, t_param = add_named_param_to_env env_so_far param in
       let TAst.NamedParameter{typ; _} = t_param in
-      if not (Env.type_is_defined env (Utility.unwrap_type typ)) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
+      if not (Env.type_is_defined env typ) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
       env, t_param :: t_params_so_far
   ) (env, []) params in
   let t_out = List.map (fun (Ast.NamedParameter{name;typ;_}) -> 
@@ -245,9 +222,8 @@ let typecheck_concept env (c : Ast.concept) =
   let t_actions_with_loc = List.map (typecheck_action env) actions in
   let env = List.fold_left add_action_name_to_env env t_actions_with_loc in
   let t_action_list = List.map fst t_actions_with_loc in
-  let t_actions = TAst.Actions{actions = List.rev t_action_list} in
+  let t_actions = TAst.Actions{actions = t_action_list} in
   env, TAst.Concept{signature = t_sig; purpose = t_purpose; states = t_states; actions = t_actions}
-
 
 (* Only passing the environment (instead of constructing an empty one)
    so that I can accumulate all the errors, rest is empty *)

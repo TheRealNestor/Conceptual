@@ -21,27 +21,23 @@ let ident_to_tree (Ident {name;_}) = make_ident_line name
 let ident_from_signature = function 
 | Signature {name; _} | ParameterizedSignature {name; _} -> name
 
+let mult_to_string = function
+| None -> ""
+| Some One -> "One of "
+| Some Set -> "Set of "
 
 let rec typ_to_string = function
-| TString _ -> "String"
-| TBool _ -> "Bool"
-| TInt _ -> "Int"
-| TCustom{tp = Ident{name; _};_} -> name
-| TSet{tp = t; _} -> "Set(" ^ typ_to_string t ^ ")"
-| TOne{tp = t; _} -> "One(" ^ typ_to_string t ^ ")"
+| TString {mult;_} -> mult_to_string mult ^ "String"
+| TBool {mult;_} -> mult_to_string mult ^ "Bool"
+| TInt {mult;_} -> mult_to_string mult ^ "Int"
+| TCustom{tp = Ident{name; _};mult;_} -> mult_to_string mult ^ name
 | TMap {left; right; _} -> "Map(" ^ typ_to_string left ^ ", " ^ typ_to_string right ^ ")"
 
-
 let rec typ_to_tree = function
-| TString _ -> make_typ_line "String"
-| TBool _ -> make_typ_line "Bool"
-| TInt _ -> make_typ_line "Int" 
-| TCustom _ as t -> make_typ_line @@ typ_to_string t
-| TSet _  as t -> make_typ_line @@ typ_to_string t 
-| TOne _ as t -> make_typ_line @@ typ_to_string t
 | TMap {left; right; _} -> PBox.tree (make_typ_line "Map") [typ_to_tree left; typ_to_tree right]
+| _ as t -> make_typ_line @@ typ_to_string t
 
-  
+
 let binop_to_tree = function
 | Plus _ -> make_keyword_line "Plus"
 | Minus _ -> make_keyword_line "Minus"
@@ -61,7 +57,6 @@ let binop_to_tree = function
 
 let unop_to_tree = function
 | Not _ -> make_keyword_line "Not"
-| Neg _ -> make_keyword_line "Neg"
 | Star _ -> make_keyword_line "Star"
 | Tilde _ -> make_keyword_line "Tilde"
 | Caret _ -> make_keyword_line "Caret"
@@ -138,8 +133,8 @@ let concept_to_tree (c : concept ) =
   PBox.tree (make_info_node_line "Concept") [
     PBox.tree (make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty signature];
     PBox.tree (make_info_node_line "Purpose") [PBox.text doc_str];
-    PBox.tree (make_info_node_line "States") [states_to_tree states];
-    PBox.tree (make_info_node_line "Actions") [actions_to_tree actions];
+    states_to_tree states;
+    actions_to_tree actions;
     (* PBox.tree (make_info_node_line "Operational Principle") [make_info_node_line c.op.doc_str] *)
   ]
 

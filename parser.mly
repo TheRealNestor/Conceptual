@@ -1,25 +1,27 @@
 %{
 open Ast
 
-exception TODO
-
 let mk_loc loc = Location.make_location loc
-  
+
+let add_mult_to_typ mult = function 
+| TString t -> TString{t with mult}
+| TInt t -> TInt{t with mult}
+| TBool t -> TBool{t with mult}
+| TCustom t -> TCustom{t with mult}
+| _ as t -> t
 
 %}
 
-// TODO: Probably clean up "with_loc". Kind of annoying having to put that everywhere....
-
 %token EOF (*End of file*)
-%token EQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ here? *)
+%token EQEQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ here? *)
 %token PLUS MINUS AMP (*Binary operators*)
-%token ASSIGN ADDEQ MINUSEQ AMPEQ (* Mutators*)
+%token EQ PLUSEQ MINUSEQ AMPEQ (* Mutators*)
 %token NOT TILDE CARET STAR (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
-%token LPAREN RPAREN LBRACKET RBRACKET (*Brackets and stuff*)
+%token LPAR RPAR LBRACK RBRACK (*Brackets and stuff*)
 %token WHEN
 %token OUT (*Output*)
-%token IS_EMPTY (*Set-related predicates*)
+%token EMPTY (*Set-related predicates*)
 %token EMPTY_SET
 
 %token INT BOOL STRING (*Primitive types*)
@@ -36,7 +38,6 @@ let mk_loc loc = Location.make_location loc
 
 // __________________
 // Explicit rule types go here, in case we want to use -ml as opposed to table-driven
-%type <Ast.parameter> parameter
 %type <Ast.named_parameter list> params
 %type <Ast.typ> typ
 
@@ -56,7 +57,6 @@ let mk_loc loc = Location.make_location loc
 %type <Ast.concept_states> c_state
 %type <Ast.concept_actions> c_actions
 
-%type <Ast.parameter list> separated_nonempty_list(COMMA, parameter) loption(separated_nonempty_list(COMMA, parameter))
 %type <string list>  separated_nonempty_list(COMMA, IDENT) loption(separated_nonempty_list(COMMA, IDENT))
 %type <Ast.concept list> concept*
 %type <Ast.stmt list> stmt* 
@@ -72,14 +72,13 @@ let mk_loc loc = Location.make_location loc
 
 // Associativity and precedence
 
-// TODO: Test that the precedence is reasonable with pretty printer....
 // Logical operators are lowest precedence
 %left LOR
 %left LAND
 %nonassoc NOT (*TODO: Should this be higher*)
-%nonassoc IS_EMPTY (*Set-related predicates*) 
+%nonassoc EMPTY (*Set-related predicates*) 
 
-%left EQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
+%left EQEQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
 %left PLUS MINUS 
 
 %left AMP
@@ -92,20 +91,18 @@ let mk_loc loc = Location.make_location loc
 %%
 
 prim_typ:
-| STRING { TString{loc = mk_loc $loc} }
-| INT { TInt{loc = mk_loc $loc} }
-| BOOL { TBool{loc = mk_loc $loc} }
-| IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc} }
+| STRING { TString{loc = mk_loc $loc; mult = None} }
+| INT { TInt{loc = mk_loc $loc; mult = None} }
+| BOOL { TBool{loc = mk_loc $loc; mult = None} }
+| IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None} }
 
 mult: 
-| ONE { One{loc = mk_loc $loc} }
-| SET { Set{loc = mk_loc $loc} }
+| ONE { One }
+| SET { Set }
 
 typ: 
-| mult? prim_typ { $2 }
-| typ ARROW typ { TMap{left = $1; right = $3; loc = mk_loc $loc} }
-
-
+| ioption(mult) prim_typ { add_mult_to_typ $1 $2 }
+| prim_typ ARROW typ { TMap{left = $1; right = $3; loc = mk_loc $loc} }
 
 lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
@@ -114,34 +111,36 @@ lval:
 // This is simply to prevent calls from happening in simple expressions (calls only allowed in lvals)
 op_expr:
 | expr { $1 }
-| IDENT LPAREN separated_list(COMMA, expr) RPAREN 
+| IDENT LPAR separated_list(COMMA, expr) RPAR 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
 
 const: 
-| INT_LIT { Integer{int = $1; loc = mk_loc $loc} }
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
 | BOOL_LIT { Boolean{bool = $1; loc = mk_loc $loc} }
 | EMPTY_SET { EmptySet{loc = mk_loc $loc} }
+| MINUS? INT_LIT { 
+  match $1 with
+  | None -> Integer{int = $2; loc = mk_loc $loc}
+  | Some _ -> Integer{int = Int64.mul (-1L) $2; loc = mk_loc $loc} 
+  }
+// TODO: might have to check for precedence of MINUS in particular, as that symbol is used elsewhere too 
 
 expr:
 | const { $1 }
+| LPAR expr RPAR { $2 }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
-| expr set_unary { Unop{op = $2; operand = $1; loc = mk_loc $loc} }
+| expr EMPTY { Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
 
 
 
-// TODO: might have to check for precedence of MINUS in particular, as that symbol is used elsewhere too 
 %inline unary:
 | NOT { Not{loc = mk_loc $loc} }
-| MINUS { Neg{loc = mk_loc $loc} } (*TODO: Could this be refactored to Const*)
 | TILDE { Tilde{loc = mk_loc $loc} }
 | CARET { Caret{loc = mk_loc $loc} }
 | STAR { Star{loc = mk_loc $loc} }
 
-%inline set_unary:
-| IS_EMPTY { IsEmpty{loc = mk_loc $loc} }
 
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
@@ -149,7 +148,7 @@ expr:
 | AMP { Intersection{loc = mk_loc $loc} }
 | LAND { Land{loc = mk_loc $loc} }
 | LOR { Lor{loc = mk_loc $loc} }
-| EQ { Eq{loc = mk_loc $loc} }
+| EQEQ { Eq{loc = mk_loc $loc} }
 | NEQ { Neq{loc = mk_loc $loc} }
 | LT { Lt{loc = mk_loc $loc} }
 | GT { Gt{loc = mk_loc $loc} }
@@ -162,21 +161,23 @@ expr:
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
-
-c_param:
-| IDENT { Parameter{typ = TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc}; loc = mk_loc $loc} } (*Parameterized concept in signature*)
-
 params:
-| separated_list(COMMA, IDENT) COLON typ {
+| separated_nonempty_list(COMMA, IDENT) COLON typ {
   let idents = List.map (fun id -> Ident{name = id; loc = mk_loc $loc}) $1 in
   List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) idents
 }
 
 
 c_sig:
-| CONCEPT IDENT { Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc} }
-| CONCEPT IDENT LBRACKET separated_list(COMMA, c_param) RBRACKET 
-  { ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params = $4; loc = mk_loc $loc} }
+| CONCEPT IDENT delimited(LBRACK, separated_list(COMMA, IDENT), RBRACK)? { 
+  match $3 with
+  | None -> Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc}
+  | Some params ->
+  let params = List.map (fun id -> Parameter{typ = TCustom{tp = Ident{name = id; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None}; loc = mk_loc $loc}) params in
+  if params = [] then Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc}
+  else ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params; loc = mk_loc $loc} 
+  }
+
 
 c_purpose: 
 | PURPOSE { Purpose{doc_str = $1; loc = mk_loc $loc} }
@@ -186,27 +187,27 @@ c_purpose:
 state: 
 | params 
   { List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc } ) $1 }
-| params ASSIGN expr 
+| params EQ expr 
   { List.map ( fun param -> State{param; expr = Some $3; loc = mk_loc $loc }  ) $1 }
 
 c_state:
 | STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
 
 compound_assign:
-| lval ADDEQ expr { $1, Plus{loc = mk_loc $loc}, $3 }
+| lval PLUSEQ expr { $1, Plus{loc = mk_loc $loc}, $3 }
 | lval MINUSEQ expr { $1, Minus{loc = mk_loc $loc}, $3 }
 | lval AMPEQ expr { $1, Intersection{loc = mk_loc $loc}, $3 }
 
 stmt:
-| lval ASSIGN expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
+| lval EQ expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
 | compound_assign 
   { let (lval, op, rhs) = $1 in
     let loc = mk_loc $loc in
     (* TODO: ? If lval is a relation, represent it as a join expression instead...*)
-    let left = match lval with 
+    (* let left = match lval with 
     | Relation{left; right; loc} -> Binop{left=Lval(left); op = Join{loc}; right=Lval(right); loc}
     | Var _ -> Lval(lval)
-    in
+    in*)
     Assignment{lval; rhs = Binop{left=Lval(lval); op; right = rhs; loc}; loc}
   }
 
@@ -223,7 +224,7 @@ action_sig_param:
 }
 
 action_sig:
-| ACTION_START LPAREN action_sig_param* RPAREN {
+| ACTION_START LPAR action_sig_param* RPAR {
   let (params, out) = List.fold_left (fun (acc_params, acc_out) (params, out) -> (acc_params @ params, acc_out @ out)) ([], []) $3 in
   ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params; out; loc = mk_loc $loc} 
 }

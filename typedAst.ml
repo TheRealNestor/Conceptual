@@ -2,18 +2,18 @@ module Sym = Symbol
 
 type ident = Ident of { sym : Sym.symbol }
 
+type mult = One | Set 
+
 (* TODO: strings? *)
 type typ =
-| TString 
-| TBool 
-| TInt
-| TVoid
-| TCustom of { tp : ident } (* custom type *)
-| TSet of { tp : typ  } (* set of types *)
-| TOne of { tp : typ } (* one of a type *)
+| TString of { mult : mult option }
+| TBool of { mult : mult option }
+| TInt of { mult : mult option }
+| TCustom of { tp : ident; mult : mult option } (* custom type *)
 | TMap of { left : typ; right : typ } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
-| ErrorType 
 | NullSet of { tp : typ option } (* For empty sets currently *)
+| ErrorType 
+| TVoid
 
 (* set, mappings, custom types --> probably the ones i should have first??? *)
 
@@ -39,7 +39,6 @@ type binop =
 
 type unop = 
 | Not 
-| Neg 
 | Tilde 
 | Caret
 | Star
