@@ -55,6 +55,7 @@ let print_error err =
   | ActionAsLval {loc; name} -> Printf.printf "ActionAsLval. The name %s is an action \t" (string_of_t_ident name); Loc.print_location loc;
   | NotASet {loc; tp} -> Printf.printf "NotASet. The type %s is not a set \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | InvalidCStyle {loc; input} -> Printf.printf "InvalidShorthand. Invalid C-style shorthand: %s= \t" input; Loc.print_location loc;
+
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

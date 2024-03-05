@@ -15,13 +15,13 @@ exception ParserError
 %}
 
 %token EOF (*End of file*)
-%token EQEQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ here? *)
+%token EQEQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ ? *)
 %token PLUS MINUS AMP (*Binary operators*)
-%token EQ PLUSEQ MINUSEQ AMPEQ (* Mutators*)
+%token EQ (* Mutators*)
 %token NOT TILDE CARET STAR (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
 %token LPAR RPAR LBRACK RBRACK (*Brackets and stuff*)
-%token WHEN
+%token WHEN CAN (*Precondition related*)
 %token OUT (*Output*)
 %token EMPTY (*Set-related predicates*)
 %token EMPTY_SET
@@ -109,11 +109,15 @@ lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
+call: 
+| IDENT LPAR separated_list(COMMA, expr) RPAR 
+  { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc} }
+
 // This is simply to prevent calls from happening in simple expressions (calls only allowed in lvals)
 op_expr:
 | expr { $1 }
-| IDENT LPAR separated_list(COMMA, expr) RPAR 
-  { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc}}
+| call { $1 }
+| CAN call { Can{expr = $1; loc = mk_loc $loc} }
 
 const: 
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }

@@ -14,7 +14,6 @@ type typ =
   | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 
 
-
 type parameter = Parameter of {typ : typ; loc : Loc.location } (*This is for the concept signature *)
 type named_parameter = NamedParameter of {name : ident; typ : typ; loc : Loc.location } (*State declarations, action signatures*)
   
@@ -59,13 +58,14 @@ type expr =
 | Unop of {op : unop; operand : expr; loc : Loc.location;}
 | Binop of {left : expr; op : binop; right : expr; loc : Loc.location}
 | Call of {action : ident; args : expr list; loc : Loc.location }
+| Can of {call : expr ; loc : Loc.location } (*This only allows call currently*)
 and lval = 
 | Var of ident
 | Relation of {left : lval; right : lval; loc : Loc.location}
 
 
 type stmt = 
-| Assignment of {lval : lval; rhs : expr; loc : Loc.location} (*Assignment, function/action call, possibly more?*)
+| Assignment of {lval : lval; rhs : expr; loc : Loc.location}
 
                                           
 type state = State of {

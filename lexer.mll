@@ -41,7 +41,7 @@ let backslash_escapes =
 
 let digit = ['0'-'9']
 let digits = digit+
-let ident_start =  ['a'-'z''A'-'Z''_']
+let ident_start =  ['a'-'z''A'-'Z']
 let ident_continue = ['a'-'z''A'-'Z''_''0'-'9']*
 let ident = ident_start ident_continue
 let whitespace = [' ' '\t' '\r']
@@ -85,6 +85,7 @@ rule token = parse
 | "when" { WHEN }
 | "in" { IN }
 | "not" | '!' { NOT }
+| "can" { CAN }
 | "set" { SET }
 | "one" { ONE }
 | "string" { STRING }

@@ -30,9 +30,9 @@ let fresh_symbol initial_counter =
   fun initial ->
     let n = !c in c := n + 1; Sym.symbol (initial ^ (string_of_int n))
 
-
 let prepend_state_symbol (s : Sym.symbol) n  : Sym.symbol = 
-  Sym.symbol @@ "State." ^ Sym.name s ^ mutation_apostrophies n
+  Sym.symbol @@ "(State." ^ Sym.name s ^ mutation_apostrophies n ^ ")" (*TODO: Do this? Or just when used with join?*)
+  (* Sym.symbol @@ "State." ^ Sym.name s ^ mutation_apostrophies n  *)
 
 let sym_from_typ tp =
   let first_letter_of_sym (sym : Sym.symbol) = 
@@ -49,7 +49,6 @@ let sym_from_typ tp =
   in
   first_letter_of_sym @@ sym_from_type' tp
 
-  
 let type_in_env env tp = 
   List.mem tp env.custom_types
 
@@ -107,7 +106,6 @@ let rec typ_to_als = function
 | TAst.TMap{left;right} -> Als.Rel(typ_to_als left, typ_to_als right)
 | _  -> failwith "Other types not supported"
 
-
 let rec lval_to_als env = function 
 | TAst.Var {name;tp} -> 
   if List.mem (sym_from name) env.state_variables then 
@@ -150,7 +148,6 @@ let rec lval_to_als env = function
   lval_to_als env right
   (* Als.Relation({left = lval_to_als env left; right = lval_to_als env right;}) *)
      
-
 let rec trans_expr env expr =
   let _tr = trans_expr env in 
   begin match expr with
@@ -242,22 +239,8 @@ let trans_concept_signature = function
 let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = TAst.NamedParameter{name;typ};expr}) = 
   let fact = match expr with
   | None -> None
-  | Some e -> 
-    (* Convert expression to body of a fact somehow *)
-    (* To do this, I should use the type in the parameter*)
-    (* Alloy expression should have the form of a quantified expression, where we are quantifying over the lval typ (parameter)*)
-    let qop = if Utility.is_relation typ then (
-      let fresh_sym = fresh_symbol 0 in
-      let typ_list = List.rev @@ List.tl @@ List.rev @@ Utility.type_to_array_of_types typ in (*All but last *)
-      let vars = List.map (fun tp -> fresh_sym @@ sym_from_typ tp, typ_to_als tp) typ_list in
-      let als_expr = Als.Assignment{left = Als.VarRef (Sym.symbol ("State." ^ Sym.name @@ sym_from name )); right = 
-        trans_expr env_so_far e } in
-      Als.Quantifier{qop = Als.All; vars; expr = als_expr}
-    ) else 
-      Als.Assignment{left = Als.VarRef (Sym.symbol ("State." ^ Sym.name @@ sym_from name )); right = trans_expr env_so_far e}
-    in 
-    Some qop 
-  in
+  | Some e -> Some (Als.Assignment{left = Als.VarRef (prepend_state_symbol (sym_from name) 0 ); right = trans_expr env_so_far e})
+  in 
   let fact = if fact = None then [] else 
   [{Als.fact_id = sym_from name; body = fact}] in 
   {Als.id = sym_from name; ty = typ_to_als typ; expr = None;} :: fields_so_far, 
@@ -311,8 +294,8 @@ let trans_concept c =
   let als_header, env = trans_concept_signature signature in
   let als_states, als_facts, cg_env = trans_concept_states env states in 
   (* need a list of signatures, first from the primitive types stored in cg_env *)
-  let primitive_sigs = List.map (fun sym -> {Als.sig_id = sym; fields = []}) cg_env.custom_types in
-  let sigs = List.rev @@ {Als.sig_id = Sym.symbol "State"; fields = List.rev @@ als_states} :: primitive_sigs in
+  let primitive_sigs = List.map (fun sym -> {Als.sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
+  let sigs = List.rev @@ {Als.sig_id = Sym.symbol "State"; fields = List.rev @@ als_states; mult = Als.One} :: primitive_sigs in
   let preds_and_funcs = trans_actions cg_env actions in  
   {Als.module_header = Some als_header; facts = als_facts; purpose = doc_str; sigs; preds_and_funcs}
 

@@ -87,7 +87,8 @@ let rec expr_to_tree = function
 | Unop {op; operand; _} -> PBox.tree (make_info_node_line "UnOp") [unop_to_tree op; expr_to_tree operand]
 | Lval l -> PBox.tree (make_info_node_line "Lval") [lval_to_tree l]
 | Call {action; args; _ } -> PBox.tree (make_info_node_line "Call") [ident_to_tree action; PBox.tree (make_info_node_line "Arguments") (List.map expr_to_tree args)]
-     
+| Can {call;_} -> PBox.tree (make_info_node_line "Can") [expr_to_tree call]
+
 and lval_to_tree = function
 | Var ident -> PBox.hlist ~bars:false [make_info_node_line "Var("; ident_to_tree ident; make_info_node_line ")"]
 | Relation{left;right;_} -> PBox.tree (make_info_node_line "Relation") [lval_to_tree left; lval_to_tree right]

@@ -59,10 +59,13 @@ type expr =
 | Lval of lval 
 | Unop of {op : unop; operand : expr; tp : typ}
 | Binop of {left : expr; op : binop; right : expr; tp : typ}
+(* Move operational principle expressions? *)
 | Call of {action : ident; args : expr list; tp : typ}
+| Can of {call : expr; }
 and lval = 
 | Var of {name : ident; tp : typ}
 | Relation of {left : lval; right : lval; tp : typ}
+
 
 
 type stmt = 

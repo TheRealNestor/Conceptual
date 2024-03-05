@@ -7,8 +7,6 @@ let token_to_string = function
   | Parser.PLUS -> "PLUS"
   | Parser.MINUS -> "MINUS"
   | Parser.EQ -> "EQ"
-  | Parser.PLUSEQ -> "PLUSEQ"
-  | Parser.MINUSEQ -> "MINUSEQ"
   | Parser.NOT -> "NOT"
   | Parser.COLON -> "COLON"
   | Parser.COMMA -> "COMMA"
@@ -38,7 +36,6 @@ let token_to_string = function
   | Parser.BOOL -> "BOOL"
   | Parser.BOOL_LIT b -> Printf.sprintf "BOOL_LIT(%b)" b
   | Parser.ACTION_START s -> Printf.sprintf "ACTION_START(%s)" s
-  | Parser.AMPEQ -> "AMPEQ"
   | Parser.AMP -> "AMP"
   | Parser.OUT -> "OUT"
   | Parser.STRING -> "STRING"
@@ -49,6 +46,7 @@ let token_to_string = function
   | Parser.EMPTY_SET -> "EMPTY_SET"
   | Parser.EMPTY -> "IS_EMPTY"
   | Parser.ONE -> "ONE"
+  | Parser.CAN -> "CAN"
 
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -97,10 +95,7 @@ let is_empty_set = function
 | _ -> false
 
 let get_mult = function
-| TAst.TInt {mult} -> mult
-| TAst.TBool {mult} -> mult
-| TAst.TString {mult} -> mult
-| TAst.TCustom {mult;_} -> mult
+| TAst.TInt {mult} | TAst.TBool {mult} | TAst.TString {mult} | TAst.TCustom {mult;_} -> mult
 | _ -> None
 
 (* create a function that checks that a given tp is included somewhere in a TMap{left;right} *)
@@ -128,14 +123,10 @@ let get_concept_name (TAst.Concept{signature;_}) =
   | ParameterizedSignature{name=TAst.Ident{sym};_} -> Symbol.name sym
 
 let rec get_expr_location = function 
-| Ast.EmptySet {loc} -> loc
-| Ast.String {loc;_} -> loc
-| Ast.Integer {loc;_} -> loc
-| Ast.Boolean {loc;_} -> loc
-| Ast.Binop {loc;_} -> loc
-| Ast.Unop {loc;_} -> loc
-| Ast.Call {loc;_} -> loc
 | Ast.Lval l -> get_lval_location l
+| Ast.EmptySet {loc} | Ast.String {loc;_} | Ast.Integer {loc;_} | Ast.Boolean {loc;_} -> loc
+| Ast.Binop {loc;_} | Ast.Unop {loc;_} | Ast.Call {loc;_} | Ast.Can {loc;_} -> loc
+
 and get_lval_location = function
 | Ast.Var(Ident { loc;_ }) -> loc
 | Ast.Relation {loc;_} -> loc
@@ -260,15 +251,10 @@ let change_expr_type (expr : TAst.expr) typ : TAst.expr =
 
 let get_expr_type (expr : TAst.expr) : TAst.typ = 
   match expr with
-  | EmptySet {tp} -> tp
-  | Binop {tp;_} -> tp
-  | Unop {tp;_} -> tp
-  | Call {tp;_} -> tp
-  | Lval(Var {tp;_}) -> tp
-  | Lval(Relation {tp;_}) -> tp
+  | EmptySet {tp} | Binop {tp;_} | Unop {tp;_} | Call {tp;_} | Lval(Var {tp;_}) | Lval(Relation {tp;_}) -> tp
   | String _ -> TAst.TString{mult = None}
   | Integer _ -> TAst.TInt{mult = None}
-  | Boolean _ -> TAst.TBool{mult = None}
+  | Boolean _ | Can _ -> TAst.TBool{mult = None}
 
 
 let get_lval_type = function

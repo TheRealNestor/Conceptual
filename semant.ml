@@ -96,6 +96,18 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         TAst.Call{action = t_ident; args = t_args; tp = return_type}, return_type
       ) 
     end
+  | Ast.Can{call;_} -> 
+    let t_call, _ = infertype_expr env call in
+    match t_call with 
+    | TAst.Call _ -> 
+    (* | TAst.Call{action;args;_} ->  *)
+      (* check that the action is in the environment  *)
+
+      (* check that the number of arguments match the signature in the environment *)
+      (* the value used as argument should be preserved somehow, e.g. "after create(x), delete(x), x not in pool" *)
+      (* this should extract the pre- / firing condition of the action AND evaluate to a boolean *)
+      failwith "TODO: semant CAN expression"
+    | _ -> failwith "CAN only applies to calls. Parser excludes all other expressions"
   end
 
 and infertype_lval env lval = 
