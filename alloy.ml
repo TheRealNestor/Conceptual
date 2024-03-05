@@ -186,9 +186,6 @@ let serializeTypeList (l : (S.symbol * ty) list) : string =
   ) list in
   typeStr
   
-
-
-
 let serializeBinop = function 
 | Plus -> "+"
 | Minus -> "-"
@@ -228,6 +225,12 @@ let serializeModule (env : cg_env ) (m : aModule option) : string =
 
 let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
 
+let serializeVars vars = mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) vars
+
+let serializeQuantify qop vars = 
+  let qopStr = serializeQop qop in
+  qopStr ^ " " ^ serializeVars vars ^ " | "
+
 let serializeExpr (e : expr) : string = 
   let rec serializeLval (l : lval) : string = 
     match l with 
@@ -260,7 +263,7 @@ let serializeExpr (e : expr) : string =
     | Assignment {left; right} -> serializeLval left ^ " = " ^ serialize_expr' right
     | Call {func; args} -> S.name func ^ "[" ^ (mapcat ", " serialize_expr' args) ^ "]"
     | Quantifier {qop; vars; expr} -> 
-      serializeQop qop  ^ " " ^ (mapcat ", " (fun (s, ty) -> S.name s ^ " : " ^ serializeType ty) vars) ^ " | " ^ serialize_expr' expr ^
+      serializeQuantify qop vars ^ serialize_expr' expr ^
       if List.length vars = 0 then "" else 
       "[" ^ (mapcat ", " (fun (s, _) -> S.name s) vars) ^ "]"
     | Lval l -> serializeLval l
@@ -274,7 +277,7 @@ let serializeField (f : fieldDecl) : string =
     | None -> ""
     | Some e -> " = " ^ serializeExpr e
   in
-  S.name id ^ " : " ^ serializeType ty ^ exprStr
+  "var " ^ S.name id ^ " : " ^ serializeType ty ^ exprStr (*"var" here works because State atom is only one with field in translation*)
 
 let serializeSignature (s : sigDecl) : string = 
   let {sig_id; fields} = s in
@@ -323,8 +326,106 @@ let serializeFunctionType (f : func_type) : string =
   | Pred p -> serializePredicate p
   | Func f -> serializeFunction f
 
+
+let serializeInit flds = 
+  (* create a fact, should contain each field in the State *)
+  (* for each field write "no " ^ name*)
+  let exprs = List.map (fun x -> "no " ^ S.name x.id) flds in
+  let exprs = String.concat "\n\t" exprs in
+  exprs
+
+let serializeStutter flds =
+  let assignments = mapcat "\n\t" (fun x -> 
+    serializeExpr (Assignment {left = VarRef(S.symbol @@  S.name x.id ^ "'"); right = Lval(VarRef(S.symbol @@ S.name x.id))})
+  ) flds in
+  "pred alloy_stutter {\n\t" ^ assignments ^ "\n}"
+
+let transitions funcs fields =
+  let func_str_list = mapcat "\n\t\t" (fun x -> 
+    let (id, params) = match x with
+    | Pred p -> (p.pred_id, p.params)
+    | Func f -> (f.func_id, f.params)
+    in
+    serializeQuantify Some params ^
+    serializeExpr (Call { func = id; args = List.map (fun (s, _) -> Lval (VarRef s)) params }) ^ " or"
+    ) funcs
+  in
+  (* remove last occurrence of "or" *)
+  let func_str_list = String.sub func_str_list 0 (String.length func_str_list - 3) in
+  "fact alloy_behavior {\n\t" ^
+  "// The initial state\n\t" ^ 
+  serializeInit fields ^ "\n\n\t" ^
+  "// The state transitions\n\t" ^
+  "always (\n\t\talloy_stutter or\n\t\t" ^ func_str_list ^ "\n\t)\n}"
+  
+let serializeDynamicBehavior p = 
+  let sigs = p.sigs in
+  let state = List.find (fun x -> S.name x.sig_id = "State") sigs in
+  let fields = state.fields in
+  let stutter = serializeStutter fields in
+  let transitions = transitions p.preds_and_funcs fields in  
+  stutter ^ "\n\n" ^ transitions
+
 let serializeFunctionTypes (f : func_type list) : string =
   mapcat "\n\n" serializeFunctionType f
+
+let serializeEvents (f : func_type list) : string = 
+  (* I need a list of records with the function name and variables respectively *)
+  let str = List.map (fun x -> 
+    match x with 
+    | Pred p -> (S.name p.pred_id, p.params)
+    | Func f -> (S.name f.func_id, f.params)
+  ) f in
+  let str = ("alloy_stutter", []) :: str in
+  let names, _ = List.split str in
+
+  let enum_str = "enum Event { " ^ mapcat ", " (fun x -> x) names ^ " } " in
+  let event_fun_str = mapcat "\n" (fun (name, vars) -> 
+    let vars_type_str = serializeVars vars in
+    let types = mapcat "-> " (fun (_, ty) -> serializeType ty) vars in
+    let vars_str = mapcat ", " (fun (s, _) -> S.name s) vars in
+    let expr_str = if List.length vars = 0 then (
+      " { e : " ^ name ^ " | " ^ name ^ " } "
+    )
+    else 
+      " { " ^ vars_type_str ^ " | " ^ name ^ "[" ^ vars_str ^ "] } "
+  in
+    "fun _" ^ name ^ " : Event -> " ^ types ^ " { " ^ name ^ " -> " ^ expr_str ^ " } " 
+  ) str in
+
+  (* TODO: this should not use s? The name of variables are irrelevant *)
+  let key_of_vars (vars : (paramId * ty) list) = 
+    let serialize_var (_, ty) = serializeType ty
+    in mapcat "." serialize_var (List.rev vars)
+  in
+
+  let partition_and_group_by_vars list = 
+    let tbl = Hashtbl.create 10 in
+    List.iter (fun (name, vars) -> 
+      let key = key_of_vars vars in
+        try 
+          let names = Hashtbl.find tbl key in 
+          Hashtbl.replace tbl key (name :: names)
+        with Not_found -> Hashtbl.add tbl key [name]        
+      ) list; 
+    Hashtbl.fold (fun key names acc -> (key, names) :: acc) tbl []
+  in
+  let partitioned = partition_and_group_by_vars str in
+
+  (* TODO: group together actions with teh same type/vars *)
+  let event_set_str = "fun events : set Event {\n\t" ^
+  mapcat " + " (
+    fun (type_str, vars) ->
+      let vars_str = mapcat " + " (fun s -> "_" ^ s) vars in
+
+      if List.length vars > 1 then 
+        "(" ^ vars_str ^ ")." ^ type_str
+      else  
+        "_" ^ List.hd vars  
+  ) partitioned ^ "\n}" in
+  enum_str ^ "\n\n" ^ event_fun_str ^ "\n\n" ^ event_set_str
+
+
   
 let string_of_program (p : prog) : string = 
   let env = make_cg_env in 
@@ -334,7 +435,15 @@ let string_of_program (p : prog) : string =
   serializePurpose p.purpose ^ "\n\n" ^ 
   serializeSigs env p.sigs ^ "\n\n" ^
   serializeFacts p.facts ^ "\n\n" ^
-  serializeFunctionTypes p.preds_and_funcs 
+  serializeFunctionTypes p.preds_and_funcs ^ "\n\n" ^
+
+  "-------------------------------------------" ^ "\n\n" ^
+  serializeDynamicBehavior p ^ "\n\n" ^
+  serializeEvents p.preds_and_funcs ^ "\n\n" ^
+  "-------------------------------------------" ^ "\n\n" 
+
+  
+
 
 
   

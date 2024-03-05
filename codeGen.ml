@@ -5,22 +5,25 @@ module Sym = Symbol
 type cg_env = {
   custom_types : Sym.symbol list;
   state_variables : Sym.symbol list; (* actually declared variable in state component of concept*)
-  state_symbols : Sym.symbol Queue.t ref; (* is for code generating s1,s2, ... : State for assignments*)
   action_parameters : Sym.symbol list; (* parameters of the action, used for code generation*)
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
   assignment_type : TAst.typ; (* type of the assignment, used for code generation*)
   assignment_lval : TAst.lval option; (* lval of the assignment, used for code generation*)
+  stmt_no : int ref; (* number of statements in the action, used for code generation*)
 }
 
 let make_cg_env = {
   custom_types = [];
   state_variables = [];
-  state_symbols = ref @@ Queue.create (); 
   action_parameters = [];
   distributive_joins = [];
   assignment_type = TAst.ErrorType; (* This is reassigned before it is used*)
   assignment_lval = None;
+  stmt_no = ref 0;
 }
+
+let mutation_apostrophies n = 
+  String.make n '\''
 
 let fresh_symbol initial_counter =
   let c = ref initial_counter in
@@ -28,12 +31,8 @@ let fresh_symbol initial_counter =
     let n = !c in c := n + 1; Sym.symbol (initial ^ (string_of_int n))
 
 
-let prepend_state_symbol env (s : Sym.symbol) : Sym.symbol = 
-  if Queue.is_empty !(env.state_symbols) then 
-    Sym.symbol @@ "State." ^ Sym.name s
-  else
-  let top = Queue.top !(env.state_symbols) in
-  Sym.symbol @@ (Sym.name top ) ^ "." ^ (Sym.name s)
+let prepend_state_symbol (s : Sym.symbol) n  : Sym.symbol = 
+  Sym.symbol @@ "State." ^ Sym.name s ^ mutation_apostrophies n
 
 let sym_from_typ tp =
   let first_letter_of_sym (sym : Sym.symbol) = 
@@ -112,7 +111,7 @@ let rec typ_to_als = function
 let rec lval_to_als env = function 
 | TAst.Var {name;tp} -> 
   if List.mem (sym_from name) env.state_variables then 
-    Als.VarRef(prepend_state_symbol env (sym_from name))
+    Als.VarRef(prepend_state_symbol (sym_from name) !(env.stmt_no))
   (* check that type of lval  *)
   else if List.length env.distributive_joins <> 0 && tp <> env.assignment_type then (
     let str = List.fold_left (
@@ -152,7 +151,6 @@ let rec lval_to_als env = function
   (* Als.Relation({left = lval_to_als env left; right = lval_to_als env right;}) *)
      
 
-
 let rec trans_expr env expr =
   let _tr = trans_expr env in 
   begin match expr with
@@ -175,7 +173,7 @@ let rec trans_expr env expr =
         Als.Lval(lval_to_als env @@ Option.get env.assignment_lval)
       else 
         begin match left,right with 
-        | _ , TAst.Lval (TAst.Var{name;_}) -> Als.Call({func = prepend_state_symbol env (sym_from name); args = _tr left :: []})
+        | _ , TAst.Lval (TAst.Var{name;_}) -> Als.Call({func = prepend_state_symbol (sym_from name) !(env.stmt_no); args = _tr left :: []})
         | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
         end
     | TAst.In | TAst.NotIn -> 
@@ -227,7 +225,7 @@ let trans_stmt env = function
   let env = if List.length  lval_syms_without_last = 0 then {env with assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval;} 
   else {env with distributive_joins = lval_syms_without_last; assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval} in
   let right = trans_expr env rhs in  (*Do this before popping, such that the right state symbol is one value lower*)
-  let _ = Queue.pop !(env.state_symbols) in 
+  env.stmt_no := !(env.stmt_no) + 1;
   lval_sym, Als.Assignment{left = lval_to_als env lval; right}
 
 
@@ -252,7 +250,6 @@ let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{pa
       let fresh_sym = fresh_symbol 0 in
       let typ_list = List.rev @@ List.tl @@ List.rev @@ Utility.type_to_array_of_types typ in (*All but last *)
       let vars = List.map (fun tp -> fresh_sym @@ sym_from_typ tp, typ_to_als tp) typ_list in
-      
       let als_expr = Als.Assignment{left = Als.VarRef (Sym.symbol ("State." ^ Sym.name @@ sym_from name )); right = 
         trans_expr env_so_far e } in
       Als.Quantifier{qop = Als.All; vars; expr = als_expr}
@@ -272,43 +269,25 @@ let trans_concept_states env states =
 
 
 let trans_action env (TAst.Action{signature;cond;body}) = 
-  let fresh_sym = fresh_symbol 0 in 
   let TAst.ActionSignature{name;params;out} = signature in 
   let params, env = List.fold_left (
     fun (params_so_far, env_so_far) (TAst.NamedParameter{name;typ}) -> 
       (params_so_far @ [sym_from name, typ_to_als typ] , {env_so_far with action_parameters = sym_from name :: env_so_far.action_parameters} )
   ) ([], env) params in
-  
-  (* Currently number of statements in body (each is an assignment), corresponds to number of states we need - 1 *)
-  let state_no = if List.length body = 0 then 0 else List.length body + 1 in
-  let state_symbols = Queue.create () in
-  for _ = 0 to state_no do Queue.add (fresh_sym "s") state_symbols done;
-  let create_n_state_params n =
-    let rec create_n_state_params' n acc = 
-      if n = 0 then acc
-      else create_n_state_params' (n-1) (acc @ [Queue.pop state_symbols, Als.Sig(Sym.symbol "State", Als.Implicit)])
-    in create_n_state_params' n []
-  in
-  let env = {env with state_symbols = ref @@ Queue.copy state_symbols} in
-  let params = if state_no = 0 then params else params @ create_n_state_params state_no in
+  env.stmt_no := 0;
   let als_cond = begin match cond with 
   | None -> None
   | Some When{cond} -> Some (trans_expr env cond) 
   end in
   let body = List.fold_left (
     fun body_so_far stmt -> 
-      let top = Queue.top !(env.state_symbols) in
-      (* construct substring not including 1st character *)
-      (* symbol of the form s1,s2... I want the number as an integer *)
-      let top_str = Sym.name top in
-      let top_sub = String.sub top_str 1 (String.length top_str - 1) in (* remove first character*)
-      let top_no = int_of_string top_sub in
-
+      (* I want a function creating a string of ' that takes an integer and produce just as many *)
+      let stmt_no = !(env.stmt_no) in
       let lval_sym, t_stmt = trans_stmt env stmt in
       let state_syms = List.filter (fun sym -> sym <> lval_sym) env.state_variables in
       (* Construct a statement for all remaining symbols*)
-      let rhs_syms = List.map (fun sym -> Sym.symbol @@ "s" ^ (string_of_int top_no) ^ "." ^ Sym.name sym) state_syms in
-      let lhs_syms = List.map (fun sym -> Sym.symbol @@ "s" ^ (string_of_int (top_no + 1)) ^ "." ^ Sym.name sym) state_syms in
+      let rhs_syms = List.map (fun sym -> prepend_state_symbol sym stmt_no) state_syms in
+      let lhs_syms = List.map (fun sym -> prepend_state_symbol sym (stmt_no+1)) state_syms in
         
       (* create TAst.Statements for the rest... These are all assignments but where left  *)
       (* these are all of the form lhs_sym = rhs_sym *)

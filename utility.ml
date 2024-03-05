@@ -169,6 +169,14 @@ let ast_binop_to_tast = function
 | Ast.Join _ -> TAst.Join
 | Ast.MapsTo _ -> TAst.MapsTo
 
+let rec set_typ_mult tp mult = 
+  match tp with
+  | TAst.TInt _ -> TAst.TInt{mult}
+  | TAst.TBool _ -> TAst.TBool{mult}
+  | TAst.TString _ -> TAst.TString{mult}
+  | TAst.TCustom {tp;_} -> TAst.TCustom{tp;mult}
+  | TAst.TMap {left;right} -> TAst.TMap{left = set_typ_mult left mult; right = set_typ_mult right mult}
+  | _ -> tp
 
 let get_lval_or_expr_location = function
 | Ast.Lval l -> get_lval_location l
@@ -188,7 +196,7 @@ let construct_join_type env expr left_tp right_tp =
        Not the most efficient approach but relation should rarely but relations should rarely be long*)
   let left_history, right_history = type_to_array_of_types left_tp, type_to_array_of_types right_tp in
   let leftmost_type_of_right, rightmost_type_of_left = List.hd right_history, List.hd @@ List.rev left_history in
-  let unwrapped_left_tp, unwrapped_right_tp = leftmost_type_of_right, rightmost_type_of_left in
+  let unwrapped_left_tp, unwrapped_right_tp = set_typ_mult leftmost_type_of_right None, set_typ_mult rightmost_type_of_left None in
   if not (is_relation left_tp || is_relation right_tp) then (
     Env.insert_error env (Errors.IllFormedRelation{loc = get_lval_or_expr_location expr; left = left_tp; right = right_tp}); TAst.ErrorType
   ) else if unwrapped_left_tp <> unwrapped_right_tp then (

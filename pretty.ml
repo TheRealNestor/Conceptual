@@ -37,8 +37,24 @@ let rec typ_to_tree = function
 | TMap {left; right; _} -> PBox.tree (make_typ_line "Map") [typ_to_tree left; typ_to_tree right]
 | _ as t -> make_typ_line @@ typ_to_string t
 
+let binop_to_string = function
+| Plus _ -> "+"
+| Minus _ -> "-"
+| Land _ -> "&&"
+| Lor _ -> "||"
+| Eq _ -> "=="
+| Neq _ -> "!="
+| Lt _ -> "<"
+| Lte _ -> "<="
+| Gt _ -> ">"
+| Gte _ -> ">="
+| In _ -> "∈"
+| NotIn _ -> "∉"
+| Intersection _ -> "&"
+| Join _ -> "."
+| MapsTo _ -> "->"
 
-let binop_to_tree = function
+let binop_to_tree = function 
 | Plus _ -> make_keyword_line "Plus"
 | Minus _ -> make_keyword_line "Minus"
 | Land _ -> make_keyword_line "Land"

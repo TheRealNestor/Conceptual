@@ -10,6 +10,8 @@ let add_mult_to_typ mult = function
 | TCustom t -> TCustom{t with mult}
 | _ as t -> t
 
+exception ParserError
+
 %}
 
 %token EOF (*End of file*)
@@ -44,7 +46,6 @@ let add_mult_to_typ mult = function
 %type <Ast.state list> state
 %type <Ast.expr> expr op_expr
 %type <Ast.named_parameter list * Ast.named_parameter list> action_sig_param
-%type <Ast.lval * Ast.binop * Ast.expr> compound_assign
 %type <Ast.lval> lval
 %type <Ast.stmt> stmt
 %type <Ast.action> action
@@ -193,23 +194,19 @@ state:
 c_state:
 | STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
 
-compound_assign:
-| lval PLUSEQ expr { $1, Plus{loc = mk_loc $loc}, $3 }
-| lval MINUSEQ expr { $1, Minus{loc = mk_loc $loc}, $3 }
-| lval AMPEQ expr { $1, Intersection{loc = mk_loc $loc}, $3 }
 
 stmt:
-| lval EQ expr { Assignment{lval = $1; rhs = $3; loc = mk_loc $loc} }
-| compound_assign 
-  { let (lval, op, rhs) = $1 in
-    let loc = mk_loc $loc in
-    (* TODO: ? If lval is a relation, represent it as a join expression instead...*)
-    (* let left = match lval with 
-    | Relation{left; right; loc} -> Binop{left=Lval(left); op = Join{loc}; right=Lval(right); loc}
-    | Var _ -> Lval(lval)
-    in*)
-    Assignment{lval; rhs = Binop{left=Lval(lval); op; right = rhs; loc}; loc}
-  }
+| lval binop? EQ expr {
+  match $2 with
+  | None -> Assignment{lval = $1; rhs = $4; loc = mk_loc $loc}
+  | Some op -> 
+  let _ = match op with
+  | Plus _ | Minus _ | Intersection _ | Join _ -> ()
+  | _ -> Errors.print_error @@ Errors.InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op}; raise ParserError
+  in
+  Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; loc = mk_loc $loc} 
+}
+
 
 action_sig_param:
 | params OUT? {

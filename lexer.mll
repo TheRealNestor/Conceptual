@@ -78,9 +78,6 @@ rule token = parse
 | '&' { AMP } (* Set intersection *)
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
-| "+=" { PLUSEQ }
-| "-=" { MINUSEQ }
-| "&=" { AMPEQ }
 | "->" { ARROW }
 | "!=" { NEQ }
 | "{}" { EMPTY_SET }

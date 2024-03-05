@@ -28,11 +28,10 @@ type error =
 | UndeclaredType of {loc : Loc.location; tp : TAst.typ}
 | ActionAsLval of {loc : Loc.location; name : TAst.ident}
 | NotASet of {loc : Loc.location; tp : TAst.typ}
-(* Pretty print errors *)
+| InvalidCStyle of {loc : Loc.location; input : string}
 
 let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
 
-(* Useful for printing errors *)
 let print_error err =
   match err with
   | InvalidEscapeCharacter {loc; input} -> Printf.printf "InvalidEscapeCharacter. Illegal escape character %s \t" input; Loc.print_location loc;
@@ -55,6 +54,7 @@ let print_error err =
   | UndeclaredType {loc; tp} -> Printf.printf "UndeclaredType. The type %s is not declared \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | ActionAsLval {loc; name} -> Printf.printf "ActionAsLval. The name %s is an action \t" (string_of_t_ident name); Loc.print_location loc;
   | NotASet {loc; tp} -> Printf.printf "NotASet. The type %s is not a set \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+  | InvalidCStyle {loc; input} -> Printf.printf "InvalidShorthand. Invalid C-style shorthand: %s= \t" input; Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)
