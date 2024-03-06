@@ -6,6 +6,9 @@ let mult_to_string = function
 | None -> ""
 | Some One -> "One of "
 | Some Set -> "Set of "
+| Some Lone -> "Lone of "
+| Some Som -> "Some of "
+
 
 let rec typ_to_string = function 
 | TInt {mult} -> mult_to_string mult ^ "Int"
@@ -54,6 +57,7 @@ let unop_to_tree = function
 | Caret -> Pretty.make_keyword_line "Caret"
 | Star -> Pretty.make_keyword_line "Star"
 | IsEmpty -> Pretty.make_keyword_line "IsEmpty"
+| Card -> Pretty.make_keyword_line "Card"
 
 let rec lval_to_tree = function
 | Var {name;tp} -> PBox.tree ( Pretty.make_info_node_line "Var:";) [ident_to_tree name; typ_to_tree tp]

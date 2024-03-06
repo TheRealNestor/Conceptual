@@ -25,6 +25,8 @@ let mult_to_string = function
 | None -> ""
 | Some One -> "One of "
 | Some Set -> "Set of "
+| Some Lone -> "Lone of "
+| Some Som -> "Some of "
 
 let rec typ_to_string = function
 | TString {mult;_} -> mult_to_string mult ^ "String"
@@ -77,6 +79,7 @@ let unop_to_tree = function
 | Tilde _ -> make_keyword_line "Tilde"
 | Caret _ -> make_keyword_line "Caret"
 | IsEmpty _ -> make_keyword_line "IsEmpty"
+| Card _ -> make_keyword_line "Card"
   
 let rec expr_to_tree = function
 | EmptySet _ -> PBox.tree (make_info_node_line "EmptySet") [make_info_node_line "Empty"]
@@ -88,6 +91,7 @@ let rec expr_to_tree = function
 | Lval l -> PBox.tree (make_info_node_line "Lval") [lval_to_tree l]
 | Call {action; args; _ } -> PBox.tree (make_info_node_line "Call") [ident_to_tree action; PBox.tree (make_info_node_line "Arguments") (List.map expr_to_tree args)]
 | Can {call;_} -> PBox.tree (make_info_node_line "Can") [expr_to_tree call]
+
 
 and lval_to_tree = function
 | Var ident -> PBox.hlist ~bars:false [make_info_node_line "Var("; ident_to_tree ident; make_info_node_line ")"]

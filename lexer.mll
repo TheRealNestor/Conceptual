@@ -61,6 +61,7 @@ rule token = parse
 | '~' { TILDE }
 | '^' { CARET }
 | '*' { STAR }
+| '#' { CARD }
 | '(' { LPAR }
 | ')' { RPAR }
 | '[' { LBRACK }
@@ -87,6 +88,8 @@ rule token = parse
 | "not" | '!' { NOT }
 | "can" { CAN }
 | "set" { SET }
+| "lone" { LONE }
+| "some" { SOME }
 | "one" { ONE }
 | "string" { STRING }
 | "bool" { BOOL }
@@ -111,7 +114,6 @@ rule token = parse
 | "operational principle" { add_token_to_cache OP; OP }
 | ident as i { IDENT i }
 | ident as i '(' { add_token_to_cache LPAR; ACTION_START i } 
-(*TODO: Add newline here too? To more easily distinguish idents for action_signature vs idents used in statements*)
 | digits as i_lit { 
   (* Wrap in big int to do arithmetic/overflow computation *)
   let num = Z.big_int_of_string i_lit in 

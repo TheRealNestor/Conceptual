@@ -24,6 +24,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       | Ast.Tilde _ -> infer_and_check_relation TAst.Tilde
       | Ast.Caret _ -> infer_and_check_relation TAst.Caret
       | Ast.Star _ -> infer_and_check_relation TAst.Star
+      | Ast.Card _ -> infer_and_check_relation TAst.Card
     end in
     let operand = fst @@ infertype_expr env operand  in
     TAst.Unop{op;operand;tp}, tp

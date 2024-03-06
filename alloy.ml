@@ -17,14 +17,12 @@ type aModule = {
 
 
 (* type multiplicity = One | Lone | Some | None *)
-
 type qop = All | No | One | Some | Lone 
 
-(* TODO: Add the rest of these? *)
 type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | MapsTo
 
-type unop = Not | Tilde | Caret | Star | IsEmpty 
-type mul = One | Set | Implicit  
+type unop = Not | Tilde | Caret | Star | IsEmpty | Card
+type mul = One | Lone | Some | Set | Implicit   (*TODO: add lone, no, some? CHECK ON THIS*)
 
 type ty = 
 | Int of mul
@@ -156,6 +154,8 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
 let serializeMul = function
 | One -> "one "
 | Set -> "set "
+| Some -> "some "
+| Lone -> "lone "
 | Implicit -> ""
 
   let rec serializeType (t : ty) : string = 
@@ -269,7 +269,8 @@ let serializeExpr (e : expr) : string =
                           | Tilde -> "~" ^ serialize_expr' expr
                           | Caret -> "^" ^ serialize_expr' expr
                           | Star -> "*" ^ serialize_expr' expr
-                          | IsEmpty -> "no " ^ serialize_expr' expr)
+                          | IsEmpty -> "no " ^ serialize_expr' expr
+                          | Card -> "# " ^ serialize_expr' expr)
     | Binop {left; right; op} -> 
       let parenthesized_left = if needs_parentheses e left then parens @@ serialize_expr' left else serialize_expr' left in
       let parenthesized_right = if needs_parentheses e right then parens @@ serialize_expr' right else serialize_expr' right in
@@ -305,7 +306,8 @@ let serializeSignature (s : sigDecl) : string =
   let {sig_id; fields;mult} = s in
   if List.length fields = 0 then "sig " ^ S.name sig_id ^ " { } " else 
     let fieldsStr = mapcat ",\n\t" serializeField fields in
-    "sig " ^ S.name sig_id ^ " " ^ braceswnl fieldsStr 
+    let mult = serializeMul mult in
+    mult ^ "sig " ^ S.name sig_id ^ " " ^ braceswnl fieldsStr 
   
 
 let serializeSigs (env : cg_env) (s : sigDecl list) : string = 

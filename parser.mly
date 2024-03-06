@@ -18,17 +18,16 @@ exception ParserError
 %token EQEQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ ? *)
 %token PLUS MINUS AMP (*Binary operators*)
 %token EQ (* Mutators*)
-%token NOT TILDE CARET STAR (*Unaries*)
+%token NOT TILDE CARET STAR CARD (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
 %token LPAR RPAR LBRACK RBRACK (*Brackets and stuff*)
 %token WHEN CAN (*Precondition related*)
 %token OUT (*Output*)
-%token EMPTY (*Set-related predicates*)
-%token EMPTY_SET
+%token EMPTY EMPTY_SET (*Set-related predicates*)
 
 %token INT BOOL STRING (*Primitive types*)
 
-%token ARROW SET ONE IN (* Set-related tokens *)
+%token ARROW SET ONE IN LONE SOME (* Set-related tokens *)
 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 
@@ -81,10 +80,11 @@ exception ParserError
 
 %left EQEQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
 %left PLUS MINUS 
+%nonassoc CARD
 
 %left AMP
 %right ARROW 
-%nonassoc SET
+// %nonassoc SET LONE SOME ONE 
 %left DOT 
 %nonassoc TILDE CARET STAR (*Set and relation unary operators*)
 
@@ -100,6 +100,8 @@ prim_typ:
 mult: 
 | ONE { One }
 | SET { Set }
+| LONE { Lone }
+| SOME { Som }
 
 typ: 
 | ioption(mult) prim_typ { add_mult_to_typ $1 $2 }
@@ -145,6 +147,7 @@ expr:
 | TILDE { Tilde{loc = mk_loc $loc} }
 | CARET { Caret{loc = mk_loc $loc} }
 | STAR { Star{loc = mk_loc $loc} }
+| CARD { Card{loc = mk_loc $loc} }
 
 
 %inline binop: 

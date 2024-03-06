@@ -4,7 +4,7 @@ exception TODO
 
 type ident = Ident of {name: string; loc : Loc.location }
 
-type mult = One | Set 
+type mult = One | Set | Lone | Som
 
 type typ =
   | TString of { loc : Loc.location; mult : mult option }
@@ -40,7 +40,7 @@ type unop =
 | Caret of { loc : Loc.location }
 | Star of { loc : Loc.location }
 | IsEmpty of { loc : Loc.location }
-
+| Card of { loc : Loc.location }
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)

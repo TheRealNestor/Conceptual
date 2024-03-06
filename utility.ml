@@ -47,6 +47,9 @@ let token_to_string = function
   | Parser.EMPTY -> "IS_EMPTY"
   | Parser.ONE -> "ONE"
   | Parser.CAN -> "CAN"
+  | Parser.CARD -> "CARD"
+  | Parser.SOME -> "SOME"
+  | Parser.LONE -> "LONE"
 
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -196,15 +199,12 @@ let construct_join_type env expr left_tp right_tp =
     (* Construct the resulting type of the join  *)
     (* This includes everything in left_history except its last element, everything in right_history except for head *)
     let left_history_altered = List.rev @@ List.tl @@ List.rev left_history in
-
-    
     let right_history_altered = List.tl right_history in
     let resulting_type = left_history_altered @ right_history_altered in
     (* Convert from an array of types to a type *)
     if List.length resulting_type = 1 then (
       List.hd resulting_type
-    )
-    else
+    ) else
       List.fold_left (
         fun acc tp ->
           (* construct the map from list of types *)
@@ -257,9 +257,8 @@ let get_expr_type (expr : TAst.expr) : TAst.typ =
   | Boolean _ | Can _ -> TAst.TBool{mult = None}
 
 
-let get_lval_type = function
-| TAst.Var {tp;_} -> tp
-| TAst.Relation {tp;_} -> tp
+let get_lval_type = function 
+| TAst.Var {tp;_} | TAst.Relation {tp;_} -> tp
 
 let is_join_expr = function
 | TAst.Binop {op=TAst.Join;_} -> true

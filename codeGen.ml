@@ -74,6 +74,7 @@ let unop_to_als = function
 | TAst.Caret -> Als.Caret
 | TAst.Star -> Als.Star
 | TAst.IsEmpty -> Als.IsEmpty
+| TAst.Card -> Als.Card
 
 let binop_to_als = function
 | TAst.Plus -> Als.Plus
@@ -96,6 +97,8 @@ let mult_to_als = function
 | None -> Als.Implicit
 | Some TAst.One -> Als.One
 | Some TAst.Set -> Als.Set
+| Some TAst.Lone -> Als.Lone
+| Some TAst.Som -> Als.Some
 
 
 let rec typ_to_als = function
@@ -196,16 +199,13 @@ let rec trans_expr env expr =
         let qop = if op = TAst.In then Als.All else Als.No in
         let expr = Als.Binop{left = _tr left; right = _tr right; op = Als.In} in
         Als.Quantifier{qop; vars = quant_vars; expr}    
-      (* else if Utility.is_join_expr right then (
-        
-        failwith "TODO"
-      ) *)
       else
         Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
     | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
   end
-  | TAst.Call{action;args;_} -> Als.Call({func = sym_from action; args = List.map (fun arg -> _tr arg) args;})
   | TAst.Lval lval -> Als.Lval(lval_to_als env lval)
+  | TAst.Call{action;args;_} -> Als.Call({func = sym_from action; args = List.map (fun arg -> _tr arg) args;})
+  | TAst.Can{call} -> failwith "cg todo: CAN expression"
 end
 
 let trans_stmt env = function 
@@ -269,9 +269,9 @@ let trans_action env (TAst.Action{signature;cond;body}) =
       let lval_sym, t_stmt = trans_stmt env stmt in
       let state_syms = List.filter (fun sym -> sym <> lval_sym) env.state_variables in
       (* Construct a statement for all remaining symbols*)
+      (* TODO: Rather than doing this, finish processing the action, store the variables mutated, only AFTER should I add the extra? *)
       let rhs_syms = List.map (fun sym -> prepend_state_symbol sym stmt_no) state_syms in
       let lhs_syms = List.map (fun sym -> prepend_state_symbol sym (stmt_no+1)) state_syms in
-        
       (* create TAst.Statements for the rest... These are all assignments but where left  *)
       (* these are all of the form lhs_sym = rhs_sym *)
       let rest_stmts = List.map2 (fun lhs_sym rhs_sym -> 
@@ -301,7 +301,6 @@ let trans_concept c =
 
 let translate_program (prog : TAst.program) = 
   (* TODO: This is just testing for now... *)
-
   List.iter (fun c -> 
     let concept_name = Utility.get_concept_name c in 
     let alloy_prog = trans_concept c in 
