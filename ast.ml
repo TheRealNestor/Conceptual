@@ -71,6 +71,7 @@ type stmt =
 type state = State of {
   param : named_parameter;
   expr : expr option; 
+  const : bool;
   loc : Loc.location;
 }
 
@@ -125,4 +126,36 @@ type concept = Concept of {
   loc : Loc.location;
 }
 
-type program = concept list
+type generic = Generic of {
+  con : ident;
+  ty : typ;
+  loc : Loc.location;
+}
+
+type dependency = Dependency of {
+  name : ident; (*concept being included *)
+  generics: generic list; (*parameter instantiation of generics, other concept name and type from it.*)
+  loc : Loc.location;
+}
+
+
+type sync_call = SyncCall of {
+  name : ident; (*concept*)
+  call : expr; (*action, can check for valid expressions in semantic analysis...*)
+  loc : Loc.location;
+}
+
+type sync = Sync of {
+  cond : sync_call;
+  body : sync_call list;
+  loc : Loc.location;
+}
+
+type app = App of {
+  name : ident;
+  deps : dependency list;
+  syncs : sync list;
+  loc : Loc.location;
+}
+
+type program = concept list * app list

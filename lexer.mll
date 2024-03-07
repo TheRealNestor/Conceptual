@@ -86,20 +86,20 @@ rule token = parse
 | "when" { WHEN }
 | "in" { IN }
 | "not" | '!' { NOT }
-| "can" { CAN }
 | "set" { SET }
 | "lone" { LONE }
 | "some" { SOME }
+| "const" { CONST }
 | "one" { ONE }
-| "string" { STRING }
-| "bool" { BOOL }
-| "int" { INT }
+| "String" { STRING }
+| "Bool" { BOOL }
+| "Int" { INT }
 | "true" { BOOL_LIT(true) }
 | "false" { BOOL_LIT(false) }
 | "is empty" { EMPTY }
 (* Now operators for operational principles *)
-(* | "if" { IF } 
 | "can" { CAN }
+(* 
 | "after" { AFTER }
 | "until" { UNTIL }
 | "of" { OF } (*TODO: not sure about this one*)
@@ -112,6 +112,12 @@ rule token = parse
 (* | "state" { STATE } This is never actually run *)
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
 | "operational principle" { add_token_to_cache OP; OP }
+
+(* Composition of concepts  *)
+| "app" { APP }
+| "include" { INCLUDE }
+| "sync" { SYNC }
+
 | ident as i { IDENT i }
 | ident as i '(' { add_token_to_cache LPAR; ACTION_START i } 
 | digits as i_lit { 

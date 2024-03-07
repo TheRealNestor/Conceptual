@@ -79,9 +79,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       Env.insert_error env (Errors.NotAnAction{name = t_ident; loc = Utility.get_expr_location expr});
       TAst.Call{action = t_ident; args = t_args_from args; tp = TAst.ErrorType}, TAst.ErrorType
     | Some Act(act) ->
-      (* TODO: No self-recursion? Calling external actions?*)
       let TAst.ActionSignature{out; params;_} = act in
-      (* Return type can be inferred OUT field, which is a list of named parameters*)
       let return_type = List.map (fun (TAst.NamedParameter{typ;_}) -> typ) out in
       (* for now only support return of 1 value TODO: Is this the case for alloy? *)
       let return_type = begin match return_type with 
@@ -90,7 +88,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         | _ -> Env.insert_error env (Errors.UnsupportedMultipleReturnTypes{loc = Utility.get_expr_location expr}); TAst.ErrorType
       end in
       if List.length args <> List.length params then (
-        Env.insert_error env (Errors.ArgumentCountMismatch{expected = List.length params; actual = List.length args; loc = Utility.get_expr_location expr});
+        Env.insert_error env (Errors.LengthMismatch{expected = List.length params; actual = List.length args; loc = Utility.get_expr_location expr});
         TAst.Call{action = t_ident; args = t_args_from args; tp = TAst.ErrorType}, TAst.ErrorType
       ) else (
         let t_args = List.map2 (fun (TAst.NamedParameter{typ;_}) expr -> typecheck_expr env expr typ) params args in
@@ -100,7 +98,10 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
   | Ast.Can{call;_} -> 
     let t_call, _ = infertype_expr env call in
     match t_call with 
-    | TAst.Call _ -> 
+    | TAst.Call{action;_} -> 
+
+
+
     (* | TAst.Call{action;args;_} ->  *)
       (* check that the action is in the environment  *)
 
@@ -119,7 +120,7 @@ and infertype_lval env lval =
     let tp = begin match tp_opt with 
       | None -> Env.insert_error env (Errors.Undeclared{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType
       | Some Act(_) -> Env.insert_error env (Errors.ActionAsLval{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType (* TODO: Might be useful to do stuff like x.f = y *)
-      | Some Var(tp) -> tp    
+      | Some Var(tp,_) -> tp    
     end in
     TAst.Var{name = TAst.Ident{sym}; tp}, tp
   | Ast.Relation {left;right;_} as l -> 
@@ -140,33 +141,44 @@ and typecheck_expr env expr tp =
 
 (* I don't think we have anything that can modify the environment, no variable declarations for example, so does not return environment *)
 let typecheck_stmt env = function
-| Ast.Assignment {lval;rhs;_} -> 
+| Ast.Assignment {lval;rhs;loc} -> 
   let lval, tp = infertype_lval env lval in
   let rhs = typecheck_expr env rhs tp in  
+
+  (* TODO: Refactor this *)
+  begin match lval with 
+  | TAst.Var{name;_} -> 
+    let TAst.Ident{sym} = name in
+    let tp_opt = Env.lookup env sym in
+    begin match tp_opt with 
+      | Some Var(_,const) -> if const then Env.insert_error env (Errors.ConstAssignment{name = TAst.Ident{sym}; loc});
+      | _ -> ()
+    end;
+  | _ -> ()
+  end;
   TAst.Assignment{lval;rhs;tp}
 
-let add_named_param_to_env ?(insert_error = true) env (Ast.NamedParameter{name;typ;loc}) =
+let add_named_param_to_env ?(insert_error = true) ?(const = false) env (Ast.NamedParameter{name;typ;loc}) =
   let name = convert_ident name in
   let TAst.Ident{sym} = name in
   let typ = Utility.convert_type typ in
   if Env.is_declared env sym && insert_error then 
-    Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
+    Env.insert_error env (Errors.DuplicateDeclaration{name;loc;ns="variable/action"});
   (* let typ = if not (Utility.is_first_order_type env typ loc) then (
     Env.insert_error env (Errors.TypeNotFirstOrder{tp=typ;loc}); TAst.ErrorType
   ) else typ in  *)
-  Env.insert env sym (Var(typ)), TAst.NamedParameter{name = Ident{sym}; typ; }
+  Env.insert env sym (Var(typ,const)), TAst.NamedParameter{name = Ident{sym}; typ; }
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) = 
   let typ = Utility.convert_type typ in
   Env.insert_custom_type env typ, TAst.Parameter{typ} :: param_so_far 
 
-let add_state_param_to_env env (Ast.State{param;_}) = 
-  fst @@ add_named_param_to_env env param
+let add_state_param_to_env env (Ast.State{param;const;_}) = 
+  fst @@ add_named_param_to_env env param ~const
 
-let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) = 
+let typecheck_state (env, states_so_far) (Ast.State{param;expr;const;_}) = 
   let _, param = add_named_param_to_env ~insert_error:false env param in (*variables already inserted*)
   let tp = match param with TAst.NamedParameter{typ;_} -> typ in
-
   (* if type is map, add each type to environment if not already in environment*)
   let rec insert_map_types env = function
   | TAst.TMap{left;right} -> 
@@ -178,10 +190,10 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;_}) =
   in
   let env_with_type = insert_map_types env tp in
   begin match expr with
-  | None -> env_with_type, TAst.State{param; expr = None} :: states_so_far
+  | None -> env_with_type, TAst.State{param; expr = None;const} :: states_so_far
   | Some expr -> 
     let t_expr = typecheck_expr env_with_type expr tp in
-    env_with_type, TAst.State{param; expr = Some t_expr} :: states_so_far
+    env_with_type, TAst.State{param; expr = Some t_expr;const} :: states_so_far
   end
 
 let typecheck_action_signature env signature = 
@@ -202,7 +214,7 @@ let add_action_name_to_env env ((TAst.Action{signature;_}), loc) =
   let TAst.ActionSignature{name;_} = signature in
   let sym = sym_from_ident name in
   if Env.is_declared env sym then 
-    Env.insert_error env (Errors.DuplicateDeclaration{name;loc});
+    Env.insert_error env (Errors.DuplicateDeclaration{name;loc; ns = "variable/action"});
   Env.insert env sym (Env.Act(signature))
 
 
@@ -241,13 +253,78 @@ let typecheck_concept env (c : Ast.concept) =
 (* Only passing the environment (instead of constructing an empty one)
    so that I can accumulate all the errors, rest is empty *)
 let typecheck_concepts env concepts =  
-  List.fold_left (fun (env, t_concepts) concept -> 
+  List.fold_left (fun (env, t_concepts) concept ->
+    let Ast.Concept{loc;_} = concept in 
     let env, t_concept = typecheck_concept env concept in
-    {Env.make_env with errors = env.errors}, t_concept :: t_concepts
+    let TAst.Concept{signature; _} = t_concept in
+    let sym, no_generics = begin match signature with 
+      | TAst.Signature{name} -> sym_from_ident name, 0
+      | TAst.ParameterizedSignature{name;params} -> sym_from_ident name, List.length params
+    end in    
+    let is_decl = Sym.Table.find_opt sym env.con_dict in 
+    if is_decl <> None then Env.insert_error env (Errors.DuplicateDeclaration{name = TAst.Ident{sym}; loc; ns = "concept"});
+    let con_dict = Sym.Table.add sym (env, no_generics) env.con_dict in
+    let errors = env.errors in
+    {Env.make_env with errors = errors; con_dict = con_dict}, t_concept :: t_concepts
   ) (env, []) concepts
   
 
+let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;syncs;loc}) = 
+  let app_name = convert_ident name in
+  let t_deps = List.map (
+    fun (Ast.Dependency{name;generics;_}) -> 
+      let t_generics = List.map (
+        fun (Ast.Generic{con;ty;loc}) -> 
+          let t_con = convert_ident con in
+          let t_ty = Utility.convert_type ty in
+          let _ = try 
+            let (con_env, _) = Sym.Table.find (sym_from_ident t_con) (env.con_dict) in 
+            if not (List.mem t_ty con_env.valid_custom_types) then Env.insert_error env (Errors.UndeclaredType{tp = t_ty; loc});
+          with Not_found -> Env.insert_error env (Errors.Undeclared{name = t_con; loc}) 
+          in
+          TAst.Generic{con = t_con; ty = t_ty;}          
+      ) generics in       
+      let t_con = convert_ident name in
+      let sym = sym_from_ident t_con in
+      let (_, no_generics) = Sym.Table.find sym env.con_dict in
+      if List.length t_generics <> no_generics then 
+        Env.insert_error env (Errors.LengthMismatch{expected = no_generics; actual = List.length t_generics; loc});
+      TAst.Dependency{name = t_con; generics = t_generics;}
+  ) deps in 
+
+  let t_syncs = List.map (
+    fun (Ast.Sync{cond;body;_}) -> 
+      let typed_sync_call (env : Env.environment) call = 
+        let Ast.SyncCall{name;call;_} = call in
+        let name = convert_ident name in
+        let TAst.Ident{sym} = name in 
+        let (con_env, _) = Sym.Table.find sym env.con_dict in (*Find the environment for that concept*)
+        let con_env = {con_env with errors = ref []} in
+        let call = TAst.SyncCall{name; call = fst @@ infertype_expr con_env call;} in
+        (* check if con_env contains new errors *)
+        if List.length !(con_env.errors) > 0 then 
+          (* insert all those errors into env *)
+          env.errors := !(con_env.errors) @ !(env.errors);
+        call   
+      in   
+      let t_cond = typed_sync_call env cond in
+      let t_body = List.map (typed_sync_call env) body in
+      TAst.Sync{cond = t_cond; body = t_body;}
+  ) syncs in 
+  let t_app = TAst.App{name = app_name; deps = t_deps; syncs = t_syncs;} in
+  if List.mem app_name env.app_ns then 
+    Env.insert_error env (Errors.DuplicateDeclaration{name = app_name; loc; ns = "app"});
+  {env with app_ns = app_name :: env.app_ns}, t_app :: apps_so_far
+
+  
+let typecheck_apps env apps = 
+  List.fold_left (typecheck_app) (env, []) apps
+
 let typecheck_prog (prg : Ast.program) : Env.environment * TAst.program =
   let env = Env.make_env in 
-  typecheck_concepts env prg
+  let concepts, apps = prg in 
+  let env, t_cons = typecheck_concepts env concepts in 
+  let env, t_apps = typecheck_apps env apps in
+  let t_prog = (t_cons, t_apps) in
+  {Env.make_env with errors = env.errors}, t_prog
 

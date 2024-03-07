@@ -24,12 +24,11 @@ exception ParserError
 %token WHEN CAN (*Precondition related*)
 %token OUT (*Output*)
 %token EMPTY EMPTY_SET (*Set-related predicates*)
-
 %token INT BOOL STRING (*Primitive types*)
-
 %token ARROW SET ONE IN LONE SOME (* Set-related tokens *)
-
+%token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
+%token APP INCLUDE SYNC (*Composition related tokens*)
 
 (*ACTION_START: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
 %token <string> PURPOSE IDENT ACTION_START STR_LIT
@@ -78,7 +77,7 @@ exception ParserError
 %nonassoc NOT (*TODO: Should this be higher*)
 %nonassoc EMPTY (*Set-related predicates*) 
 
-%left EQEQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
+%nonassoc EQEQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
 %left PLUS MINUS 
 %nonassoc CARD
 
@@ -173,7 +172,7 @@ params:
 | separated_nonempty_list(COMMA, IDENT) COLON typ {
   let idents = List.map (fun id -> Ident{name = id; loc = mk_loc $loc}) $1 in
   List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) idents
-}
+  }
 
 
 c_sig:
@@ -193,10 +192,22 @@ c_purpose:
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 
-| params 
-  { List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc } ) $1 }
-| params EQ expr 
-  { List.map ( fun param -> State{param; expr = Some $3; loc = mk_loc $loc }  ) $1 }
+| CONST? params 
+  { 
+    (*TODO: refactor this*)
+    let const = match $1 with
+    | None -> false
+    | Some _ -> true
+    in
+    List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc; const } ) $2 }
+| CONST? params EQ expr { 
+    (* TODO: refactor this *)
+    let const = match $1 with
+    | None -> false
+    | Some _ -> true
+    in
+    List.map ( fun param -> State{param; expr = Some $4; loc = mk_loc $loc; const }  ) $2 
+  }
 
 c_state:
 | STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
@@ -212,26 +223,26 @@ stmt:
   | _ -> Errors.print_error @@ Errors.InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op}; raise ParserError
   in
   Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; loc = mk_loc $loc} 
-}
+  }
 
 
 action_sig_param:
-| params OUT? {
-  match $1, $2 with
+| OUT? params  {
+  match $2, $1 with
   | params, None -> params, []
   | params, Some _ -> params, params
-}
-| params OUT? COMMA action_sig_param {
-  match $1, $2, $4 with
+  }
+| OUT? params COMMA action_sig_param {
+  match $2, $1, $4 with
   | params, None, (params', out) -> params @ params', out
   | params, Some _, (params', out) -> params @ params', params @ out
-}
+  }
 
 action_sig:
 | ACTION_START LPAR action_sig_param* RPAR {
   let (params, out) = List.fold_left (fun (acc_params, acc_out) (params, out) -> (acc_params @ params, acc_out @ out)) ([], []) $3 in
   ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params; out; loc = mk_loc $loc} 
-}
+  }
 
 action_body:
 // TODO: Do we want to allow empty action bodies? Could potentially be useful?
@@ -239,7 +250,7 @@ action_body:
 
 action_firing_cond:
 | { None }
-| WHEN expr { Some (When{cond = $2; loc = mk_loc $loc }) }
+| WHEN expr { Some (When{cond = $2; loc = mk_loc $loc }) } 
 
 action:
 | action_sig action_firing_cond action_body 
@@ -262,6 +273,27 @@ concept:
 // | c_sig c_purpose c_state c_actions c_op
 //   { raise TODO }
 
+app_dep:
+| IDENT pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
+| IDENT delimited(LBRACK, separated_nonempty_list(COMMA, pair(IDENT, pair(DOT, IDENT))), RBRACK) { 
+  let generics = List.map (
+    fun (con_name, (_, ty)) -> 
+      let con = Ident{name=con_name; loc = mk_loc $loc} in
+      let ty = TCustom{tp = Ident{name = ty; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None} in
+      Generic{con; ty; loc = mk_loc $loc}
+  ) $2 in
+  Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics; loc = mk_loc $loc}
+  }
+
+sync_call: 
+| IDENT DOT call { SyncCall{name = Ident{name = $1; loc = mk_loc $loc}; call = $3; loc = mk_loc $loc} }
+
+sync:
+| SYNC sync_call sync_call* { Sync{cond = $2; body = $3; loc = mk_loc $loc} }
+
+app: 
+| APP IDENT INCLUDE app_dep* sync* { App{name = Ident{name = $2; loc = mk_loc $loc}; deps = $4; syncs = $5; loc = mk_loc $loc} }
+
 program: 
-| concept* EOF { $1 }
+| concept* app* EOF { $1, $2 }
 

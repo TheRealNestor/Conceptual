@@ -103,9 +103,10 @@ let signature_params_pretty = function
   | ParameterizedSignature {params; _} -> parameter_list_to_tree params
 
 (* Create function for pretty printing states of concept *)
-let state_to_tree (State {param; expr; _}) =
+let state_to_tree (State {param; expr; const}) =
   PBox.tree (Pretty.make_info_node_line "State") [
     PBox.tree (Pretty.make_info_node_line "Parameter") [named_parameter_to_tree param];
+    PBox.tree (Pretty.make_info_node_line "Const") [Pretty.make_info_node_line (string_of_bool const)];
     PBox.tree (Pretty.make_info_node_line "Expression") [match expr with Some e -> expr_to_tree e | None -> Pretty.make_info_node_line "None"]
   ]
 
@@ -138,7 +139,37 @@ let concept_to_tree (c : concept ) =
     (* PBox.tree (Pretty.make_info_node_line "Operational Principle") [Pretty.make_info_node_line c.op.doc_str] *)
   ]
 
+let prettify_generic (Generic{con;ty;_}) = 
+  PBox.tree (Pretty.make_info_node_line "Generic") [ident_to_tree con; typ_to_tree ty]
+
+let dependency_to_tree (Dependency{name;generics;_}) = 
+  PBox.tree (Pretty.make_info_node_line "Dependency") [ident_to_tree name; PBox.tree (Pretty.make_info_node_line "Generics") (List.map prettify_generic generics)]
+
+let sync_call_to_tree (SyncCall{name;call;_}) =
+  PBox.tree (Pretty.make_info_node_line "SyncCall") [ident_to_tree name; expr_to_tree call]
+
+let sync_to_tree (Sync{cond;body;_}) =
+  PBox.tree (Pretty.make_info_node_line "Sync") [sync_call_to_tree cond; PBox.tree (Pretty.make_info_node_line "Body") (List.map sync_call_to_tree body)]
+
+let app_to_tree app = 
+  let App{name; deps; syncs; _} = app in
+  PBox.tree (Pretty.make_info_node_line "App") [
+    ident_to_tree name;
+    PBox.tree (Pretty.make_info_node_line "Dependencies") (List.map dependency_to_tree deps);
+    PBox.tree (Pretty.make_info_node_line "Syncs") (List.map sync_to_tree syncs)
+  ]
+
+let apps_to_tree (apps : app list) =
+  if List.length apps = 0 then PBox.tree (Pretty.make_info_node_line "Apps") [Pretty.make_info_node_line "Empty"]
+  else PBox.tree (Pretty.make_info_node_line "Apps") (List.map app_to_tree apps)
+
 let program_to_tree (p : program) =
-  PBox.tree (Pretty.make_info_node_line "Program") (List.map concept_to_tree p) 
+  let concepts, apps = p in 
+
+  PBox.tree (Pretty.make_info_node_line "Program") [
+    PBox.tree (Pretty.make_info_node_line "Concepts") (List.map concept_to_tree concepts);
+    apps_to_tree apps
+  ]
+
 
 

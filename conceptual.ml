@@ -23,7 +23,6 @@ let compile_program (filepath : string) =
     (* print_endline ""; *)
 
     let env, typed_prog = Semant.typecheck_prog prog in
-
     let semant_errors = !(env.errors) in 
     if semant_errors <> [] then 
       begin

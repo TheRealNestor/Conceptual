@@ -50,6 +50,10 @@ let token_to_string = function
   | Parser.CARD -> "CARD"
   | Parser.SOME -> "SOME"
   | Parser.LONE -> "LONE"
+  | Parser.APP -> "APP"
+  | Parser.INCLUDE -> "INCLUDE"
+  | Parser.SYNC -> "SYNC"
+  | Parser.CONST -> "CONST"
 
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -134,10 +138,14 @@ and get_lval_location = function
 | Ast.Var(Ident { loc;_ }) -> loc
 | Ast.Relation {loc;_} -> loc
 
+
+(* TODO: Refactor this *)
 let ast_mult_to_tast = function
 | None -> None
 | Some Ast.One -> Some TAst.One
 | Some Ast.Set -> Some TAst.Set
+| Some Ast.Lone -> Some TAst.Lone
+| Some Ast.Som -> Some TAst.Som
 
 let rec convert_type = function
 | Ast.TInt {mult;_} -> TAst.TInt{mult = ast_mult_to_tast mult}

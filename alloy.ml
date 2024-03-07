@@ -31,10 +31,12 @@ type ty =
 | Sig of sigId * mul 
 | Rel of ty * ty
 
+(* variables to the state *)
 and fieldDecl = {
   id : fieldId;
   ty : ty;
-  expr : expr option; (*This is not currently used....*)
+  expr : expr option; 
+  const : bool; (*Check whether a variable is constant, i.e. whether to append var or not *)
 }
 
 and sigDecl = {
@@ -63,6 +65,7 @@ and expr =
 | Lval of lval 
 and lval = 
 | VarRef of S.symbol
+| BoolVarRef of S.symbol
 | Relation of {left : lval; right : lval;} 
 
 type pred = {
@@ -97,7 +100,7 @@ type cg_env = {
 }
 
 (*This is to remove signatures if the module is parameterized *)
-let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String";]} 
+let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String"; Symbol.symbol "Bool"]} 
 
 
 let rec compare_typ a b = match (a, b) with
@@ -252,6 +255,7 @@ let serializeExpr (e : expr) : string =
   let rec serializeLval (l : lval) : string = 
     match l with 
     | VarRef s -> S.name s
+    | BoolVarRef s -> S.name s ^ ".isTrue"
     | Relation {left; right;} -> 
         serializeLval left ^ "->" ^ serializeLval right        
   in
@@ -261,7 +265,7 @@ let serializeExpr (e : expr) : string =
     | Univ -> "univ"
     | None -> "none"
     | IntLit i -> Int64.to_string i
-    | BoolLit b -> if b then "1=1" else "4=2" (*TODO: Alloy does not have boolean literals?*)
+    | BoolLit b -> if b then "True" else "False" (*TODO: Alloy does not have boolean literals?*)  
     | StrLit s -> "\"" ^ s ^ "\""
     | Parenthesis e -> parens (serialize_expr' e)
     | Unop {op; expr} -> (match op with 
@@ -293,14 +297,14 @@ let serializeExpr (e : expr) : string =
   in
   serialize_expr' e  
 
-
 let serializeField (f : fieldDecl) : string =
-  let {id; ty; expr; } = f in 
+  let {id; ty; expr; const} = f in 
   let exprStr = match expr with 
     | None -> ""
     | Some e -> " = " ^ serializeExpr e
   in
-  "var " ^ S.name id ^ " : " ^ serializeType ty ^ exprStr (*"var" here works because State atom is only one with field in translation*)
+  let var = if const then "" else "var " in 
+  var ^ S.name id ^ " : " ^ serializeType ty ^ exprStr (*"var" here works because State atom is only one with field in translation*)
 
 let serializeSignature (s : sigDecl) : string = 
   let {sig_id; fields;mult} = s in
@@ -312,8 +316,20 @@ let serializeSignature (s : sigDecl) : string =
 
 let serializeSigs (env : cg_env) (s : sigDecl list) : string = 
   (* filter from the signature declaration list all the generic types *)
+  let contains_boolean = List.exists (
+    fun s -> 
+      let flds = s.fields in 
+      List.exists(
+      fun fld -> 
+        match fld.ty with 
+        | Bool _ -> true
+        | _ -> false
+      ) flds 
+  ) s in
+  let boolean_signatures = if contains_boolean then 
+    "open util/boolean\n\n" else "" in
   let s = List.filter (fun x -> not (List.mem x.sig_id !(env.generics))) s in
-  mapcat "\n\n" serializeSignature s
+  boolean_signatures ^ mapcat "\n\n" serializeSignature s
 
 let serializeFact (f : fact) : string = 
   let {fact_id; body} = f in 
@@ -342,7 +358,7 @@ let serializeFunction (f : func) : string =
     | None -> ""
     | Some e -> serializeExpr e ^ "\n\t"
   in
-  "fun " ^ S.name f.func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType f.out ^ braceswnl (condStr ^ bodyStr)
+  "fun " ^ S.name f.func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType f.out ^ " " ^ braceswnl (condStr ^ bodyStr)
 
 let serializeFunctionType (f : func_type) : string = 
   match f with 
