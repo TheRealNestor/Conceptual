@@ -18,7 +18,7 @@ type typ =
 (* set, mappings, custom types --> probably the ones i should have first??? *)
 
 type parameter = Parameter of { typ : typ } (*This is for the concept signature *)
-type named_parameter = NamedParameter of { name : ident; typ : typ } (*State declarations, action signatures*)
+type decl = Decl of { name : ident; typ : typ } (*State declarations, action signatures*)
   
 type binop = 
 | Plus  
@@ -60,6 +60,8 @@ type expr =
 | Lval of lval 
 | Unop of {op : unop; operand : expr; tp : typ}
 | Binop of {left : expr; op : binop; right : expr; tp : typ}
+| BoxJoin of {left : expr; right : expr list ; tp : typ}
+| SetComp of { decls : decl list; cond : expr; tp : typ}
 (* Move operational principle expressions? *)
 | Call of {action : ident; args : expr list; tp : typ}
 | Can of {call : expr; }
@@ -74,7 +76,7 @@ type stmt =
 
                                           
 type state = State of {
-  param : named_parameter;
+  param : decl;
   expr : expr option;
   const : bool;
 }
@@ -95,8 +97,8 @@ type concept_states = States of {
 
 type action_sig = ActionSignature of {
   name : ident; 
-  out : named_parameter list ; (* Subset of params of values to be returned *)
-  params : named_parameter list;
+  out : decl list ; (* Subset of params of values to be returned *)
+  params : decl list;
 }
 
 type action = Action of {

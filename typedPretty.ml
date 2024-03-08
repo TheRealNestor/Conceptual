@@ -62,6 +62,13 @@ let unop_to_tree = function
 let rec lval_to_tree = function
 | Var {name;tp} -> PBox.tree ( Pretty.make_info_node_line "Var:";) [ident_to_tree name; typ_to_tree tp]
 | Relation {left;right;tp} -> PBox.tree (Pretty.make_info_node_line "Relation:") [lval_to_tree left; lval_to_tree right; typ_to_tree tp]
+
+let decl_to_tree = function
+  | Decl {name; typ; _} -> PBox.tree (Pretty.make_info_node_line "Decl") 
+      [PBox.hlist ~bars:false [Pretty.make_info_node_line "Name: "; ident_to_tree name]; 
+      PBox.hlist ~bars:false [Pretty.make_info_node_line "Type: "; typ_to_tree typ]
+      ]
+
 let rec expr_to_tree = function
 | EmptySet {tp} -> PBox.tree (Pretty.make_info_node_line "EmptySet") [typ_to_tree tp]
 | Integer {int} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "IntLit("; PBox.line (Int64.to_string int); Pretty.make_info_node_line ")"]
@@ -70,6 +77,8 @@ let rec expr_to_tree = function
 | Lval l -> lval_to_tree l
 | Unop {op;operand;tp} -> PBox.tree (Pretty.make_info_node_line "Unop") [unop_to_tree op; expr_to_tree operand; typ_to_tree tp]
 | Binop {op;left;right;tp} -> PBox.tree (Pretty.make_info_node_line "Binop") [binop_to_tree op; expr_to_tree left; expr_to_tree right; typ_to_tree tp]
+| SetComp {decls; cond; tp} -> PBox.tree (Pretty.make_info_node_line "SetComp") [PBox.tree (Pretty.make_info_node_line "Decls") (List.map decl_to_tree decls); expr_to_tree cond; typ_to_tree tp]
+| BoxJoin {left;right;tp} -> PBox.tree (Pretty.make_info_node_line "BoxJoin") [expr_to_tree left; List.map expr_to_tree right |> PBox.tree (Pretty.make_info_node_line "Right"); typ_to_tree tp]
 | Call {action;args;tp} -> PBox.tree (Pretty.make_info_node_line "Call") [ident_to_tree action; PBox.tree (Pretty.make_info_node_line "Args") (List.map expr_to_tree args); typ_to_tree tp]
 | Can {call} -> PBox.tree (Pretty.make_info_node_line "Can") [expr_to_tree call]
 
@@ -88,13 +97,9 @@ and parameter_to_tree  = function
   | Parameter {typ; _} -> PBox.tree (Pretty.make_info_node_line "Parameter") [typ_to_tree typ]
 
 let rec named_parameter_list_to_tree parameters =
-  if List.length parameters = 0 then PBox.tree (Pretty.make_info_node_line "NamedParameterList") [Pretty.make_info_node_line "Empty"]
-  else PBox.tree (Pretty.make_info_node_line "NamedParameterList") (List.map named_parameter_to_tree parameters)
-and named_parameter_to_tree = function
-  | NamedParameter {name; typ; _} -> PBox.tree (Pretty.make_info_node_line "NamedParameter") 
-      [PBox.hlist ~bars:false [Pretty.make_info_node_line "Name: "; ident_to_tree name]; 
-      PBox.hlist ~bars:false [Pretty.make_info_node_line "Type: "; typ_to_tree typ]
-      ]
+  if List.length parameters = 0 then PBox.tree (Pretty.make_info_node_line "DeclList") [Pretty.make_info_node_line "Empty"]
+  else PBox.tree (Pretty.make_info_node_line "DeclList") (List.map decl_to_tree parameters)
+
 
 
 
@@ -105,7 +110,7 @@ let signature_params_pretty = function
 (* Create function for pretty printing states of concept *)
 let state_to_tree (State {param; expr; const}) =
   PBox.tree (Pretty.make_info_node_line "State") [
-    PBox.tree (Pretty.make_info_node_line "Parameter") [named_parameter_to_tree param];
+    PBox.tree (Pretty.make_info_node_line "Parameter") [decl_to_tree param];
     PBox.tree (Pretty.make_info_node_line "Const") [Pretty.make_info_node_line (string_of_bool const)];
     PBox.tree (Pretty.make_info_node_line "Expression") [match expr with Some e -> expr_to_tree e | None -> Pretty.make_info_node_line "None"]
   ]

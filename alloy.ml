@@ -19,7 +19,7 @@ type aModule = {
 (* type multiplicity = One | Lone | Some | None *)
 type qop = All | No | One | Some | Lone 
 
-type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | MapsTo
+type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Arrow
 
 type unop = Not | Tilde | Caret | Star | IsEmpty | Card
 type mul = One | Lone | Some | Set | Implicit   (*TODO: add lone, no, some? CHECK ON THIS*)
@@ -61,7 +61,9 @@ and expr =
 | Implication of {left : expr; right : expr; falseExpr : expr option}
 | Assignment of {left : lval ; right : expr}
 | Quantifier of {qop : qop; vars : (S.symbol * ty) list; expr : expr}
-| Call of {func : S.symbol; args : expr list}
+| SetComprehension of {cond : expr; vars : (S.symbol * ty) list;}
+| BoxJoin of {left : expr; right : expr list}
+| Call of {func : expr; args : expr list}
 | Lval of lval 
 and lval = 
 | VarRef of S.symbol
@@ -145,13 +147,16 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
   | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 1
   | Plus | Minus -> 2
   | Intersection -> 3
-  | MapsTo -> 4
+  | Arrow -> 4
   | Join -> 5
   in
   match outer, inner with 
   | Binop{op = outer_op; _}, Binop{op = inner_op; _} -> 
     binop_precedence inner_op < binop_precedence outer_op
   | _ -> false
+
+(* above should include unops *)
+
 
 
 let serializeMul = function
@@ -216,7 +221,7 @@ let serializeBinop = function
 | Join -> "."
 | In -> "in"
 | NotIn -> failwith "not in operation is not applied directly like this"
-| MapsTo -> "->"
+| Arrow -> "->"
 
 
 let serializeQop = function
@@ -281,18 +286,24 @@ let serializeExpr (e : expr) : string =
       begin match op with 
       | NotIn -> "not " ^ parenthesized_left ^ " in " ^ parenthesized_right
       | In -> parenthesized_left ^ " in " ^ parenthesized_right
-      | MapsTo | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
+      | Arrow | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
       | _ as bop -> (parenthesized_left) ^ " " ^ serializeBinop bop ^ " "  ^ (parenthesized_right)
       end
     | Implication {left; right; falseExpr} -> (serialize_expr' left) ^ " => " ^ (serialize_expr' right) ^ (match falseExpr with 
                                                                                                       | None -> ""
                                                                                                       | Some e -> " else " ^ serialize_expr' e)
     | Assignment {left; right} -> serializeLval left ^ " = " ^ serialize_expr' right
-    | Call {func; args} -> S.name func ^ brackets @@ mapcat ", " serialize_expr' args
+    | Call {func; args} -> serialize_expr' func ^ brackets @@ mapcat ", " serialize_expr' args
+    | BoxJoin {left; right} -> serialize_expr' left ^ brackets @@ mapcat ", " serialize_expr' right
     | Quantifier {qop; vars; expr} -> 
       serializeQuantify qop vars ^ serialize_expr' expr ^
       if List.length vars = 0 then "" else 
       brackets @@ mapcat ", " (fun (s, _) -> S.name s) vars
+    | SetComprehension{cond; vars} -> 
+      let vars = groupByType vars in
+      let varsStr = serializeVars vars in
+      let condStr = serialize_expr' cond in
+      braces (varsStr ^ " | " ^ condStr)
     | Lval l -> serializeLval l
   in
   serialize_expr' e  
@@ -352,6 +363,7 @@ let serializePredicate (p : pred) : string =
   "pred " ^ S.name p.pred_id ^ brackets paramsStr ^ " " ^ braceswnl (condStr ^ bodyStr)
 
 let serializeFunction (f : func) : string =
+  (* remove any output params from params (i.e. any param that also appears in f.out) *)
   let paramsStr = serializeParamList @@ groupByType f.params in
   let bodyStr = mapcat "\n\t" serializeExpr f.body in
   let condStr = match f.cond with 
@@ -390,7 +402,7 @@ let transitions funcs fields =
       S.name id ^ "[] or"
     else
     serializeQuantify Some params ^
-    serializeExpr (Call { func = id; args = List.map (fun (s, _) -> Lval (VarRef s)) params }) ^ " or"
+    serializeExpr (Call { func = Lval(VarRef(id)); args = List.map (fun (s, _) -> Lval (VarRef s)) params }) ^ " or"
     ) funcs
   in
   (* remove last occurrence of "or" *)
@@ -408,7 +420,8 @@ let serializeDynamicBehavior p =
   let state = List.find (fun x -> S.name x.sig_id = "State") sigs in
   let fields = state.fields in
   let stutter = serializeStutter fields in
-  let transitions = transitions p.preds_and_funcs fields in  
+  let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) p.preds_and_funcs in (*Remove queries*)
+  let transitions = transitions preds fields in  
   stutter ^ "\n\n" ^ transitions
 
 let serializeFunctionTypes (f : func_type list) : string =
@@ -416,14 +429,15 @@ let serializeFunctionTypes (f : func_type list) : string =
 
 (* TODO: Ensure the set of events is correctly formatted for a number of cases... Are extensions correctly added, etc... *)
 let serializeEvents (f : func_type list) : string = 
-  (* I need a list of records with the function name and variables respectively *)
-  let str = List.map (fun x -> 
+  (* filter the queries/functions as they are not events *)
+  let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) f in
+  let pred_events = List.map (fun x -> 
     match x with 
     | Pred p -> (S.name p.pred_id, p.params)
-    | Func f -> (S.name f.func_id, f.params)
-  ) f in
-  let str = ("alloy_stutter", []) :: str in
-  let names, _ = List.split str in
+    | Func _ -> failwith "CANNOT HAPPEN, was literally just filtered"
+  ) preds in
+  let pred_events = ("alloy_stutter", []) :: pred_events in
+  let names, _ = List.split pred_events in
 
   let enum_str = "enum Event " ^ braceswsp @@ mapcat ", " (fun x -> x) names  in
   let event_fun_str = mapcat "\n" (fun (name, vars) -> 
@@ -440,7 +454,7 @@ let serializeEvents (f : func_type list) : string =
       let args = mapcat ", " (fun s -> S.name s) args in
       let expr_str = braceswsp ( vars_type_str ^ " | " ^ name ^ brackets args ) in
       "fun _" ^ name ^ " : Event -> " ^ types ^ braceswsp (name ^ " -> " ^ expr_str)
-  ) str in
+  ) pred_events in
 
     
   let key_of_vars (vars : (paramId * ty) list) = 
@@ -460,7 +474,7 @@ let serializeEvents (f : func_type list) : string =
       ) list; 
     Hashtbl.fold (fun key names acc -> (key, names) :: acc) tbl []
   in
-  let partitioned = partition_and_group_by_vars str in
+  let partitioned = partition_and_group_by_vars pred_events in
 
   let event_set_str = "fun events : set Event " ^ braceswnl @@
   mapcat " + " (

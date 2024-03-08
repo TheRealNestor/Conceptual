@@ -15,7 +15,7 @@ type typ =
 
 
 type parameter = Parameter of {typ : typ; loc : Loc.location } (*This is for the concept signature *)
-type named_parameter = NamedParameter of {name : ident; typ : typ; loc : Loc.location } (*State declarations, action signatures*)
+type decl = Decl of {name : ident; typ : typ; loc : Loc.location } (*State declarations, action signatures*)
   
 type binop = 
 | Plus of { loc : Loc.location }
@@ -58,6 +58,8 @@ type expr =
 | Unop of {op : unop; operand : expr; loc : Loc.location;}
 | Binop of {left : expr; op : binop; right : expr; loc : Loc.location}
 | Call of {action : ident; args : expr list; loc : Loc.location }
+| BoxJoin of {left : expr; right : expr list; loc : Loc.location }
+| SetComp of {decls : decl list; cond : expr; loc : Loc.location }
 | Can of {call : expr ; loc : Loc.location } (*This only allows call currently*)
 and lval = 
 | Var of ident
@@ -69,7 +71,7 @@ type stmt =
 
                                           
 type state = State of {
-  param : named_parameter;
+  param : decl;
   expr : expr option; 
   const : bool;
   loc : Loc.location;
@@ -93,8 +95,8 @@ type concept_states = States of {
 
 type action_sig = ActionSignature of {
   name : ident; 
-  out : named_parameter list ; (* Subset of params of values to be returned *)
-  params : named_parameter list;
+  out : decl list ; (* Subset of params of values to be returned *)
+  params : decl list;
   loc : Loc.location;
 }
 

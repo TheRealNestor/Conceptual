@@ -7,9 +7,10 @@ type cg_env = {
   state_variables : Sym.symbol list; (* actually declared variable in state component of concept*)
   action_parameters : Sym.symbol list; (* parameters of the action, used for code generation*)
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
-  assignment_type : TAst.typ; (* type of the assignment, used for code generation*)
+  assignment_type : TAst.typ; (* type of the assignment in typed AST. *)
   assignment_lval : TAst.lval option; (* lval of the assignment, used for code generation*)
   is_left : bool; (* number of statements in the action, used for code generation*)
+  lhs_sym : Sym.symbol; (* symbol of the left hand side of the assignment, used for empty set expression*)
 }
 
 let make_cg_env = {
@@ -20,6 +21,7 @@ let make_cg_env = {
   assignment_type = TAst.ErrorType; (* This is reassigned before it is used*)
   assignment_lval = None;
   is_left = false;
+  lhs_sym = Sym.symbol "lhs"; (* This is reassigned before it is used*)
 }
 
 
@@ -32,20 +34,30 @@ let prepend_state_symbol ?(left = false) (s : Sym.symbol) : Sym.symbol =
   let apost = if left then "'" else "" in
   Sym.symbol @@ "(State." ^ Sym.name s ^ apost ^ ")" 
 
-let sym_from_typ tp =
+let fst_char_of_typ tp =
   let first_letter_of_sym (sym : Sym.symbol) = 
     let str = Sym.name sym in
     if String.length str = 0 then failwith "Empty symbol"
     else String.make 1 str.[0]
   in
-  let rec sym_from_type' = function
+  let fst_char_of_typ' = function
   | TAst.TCustom{tp= TAst.Ident{sym}; _} -> Sym.symbol @@ String.lowercase_ascii @@ Sym.name sym
   | TAst.TString _ -> Sym.symbol "string"
   | TAst.TInt _ -> Sym.symbol "int"
   | TAst.TBool _ -> Sym.symbol "bool"
   | _ -> failwith "Other types are not supported ..."    
 in
-first_letter_of_sym @@ sym_from_type' tp
+first_letter_of_sym @@ fst_char_of_typ' tp
+
+let symbol_from_type = function 
+| TAst.TCustom{tp= TAst.Ident{sym}; _} -> sym
+| TAst.TString _ -> Sym.symbol "String"
+| TAst.TInt _ -> Sym.symbol "Int"
+| TAst.TBool _ -> Sym.symbol "Bool"
+| _ -> failwith "Other types are not supported ..."
+
+
+ 
 
 let type_in_env env tp = 
   List.mem tp env.custom_types
@@ -73,6 +85,9 @@ let rec traverse_relation = function
   | TAst.Relation{left;right;_} ->
     traverse_relation left @ traverse_relation right
 
+let get_lval_sym lval = 
+  List.hd @@ List.rev @@ traverse_relation lval
+
 let unop_to_als = function 
 | TAst.Not -> Als.Not
 | TAst.Tilde -> Als.Tilde
@@ -96,7 +111,7 @@ let binop_to_als = function
 | TAst.Join -> Als.Join
 | TAst.In -> Als.In 
 | TAst.NotIn -> Als.NotIn
-| TAst.MapsTo -> Als.MapsTo
+| TAst.MapsTo -> Als.Arrow
 
 let mult_to_als = function
 | None -> Als.Implicit
@@ -114,6 +129,14 @@ let rec typ_to_als = function
 | TAst.TMap{left;right} -> Als.Rel(typ_to_als left, typ_to_als right)
 | _  -> failwith "Other types not supported"
 
+let get_dist_join_str ?(with_arrow = true) env =
+  List.fold_left (
+      fun str sym -> 
+        let arrow = if with_arrow then "->" else "" in
+        let str = str ^ (Sym.name sym) ^ arrow in
+        str
+    ) "" env.distributive_joins
+
 let rec lval_to_als env = function 
 | TAst.Var {name;tp} -> 
   if List.mem (sym_from name) env.state_variables then 
@@ -122,18 +145,13 @@ let rec lval_to_als env = function
       Als.BoolVarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
     else 
       Als.VarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
-  (* check that type of lval  *)
+  (* check that type of lval matches the assignment to figure out whether to distributively add join args  *)
   else if List.length env.distributive_joins <> 0 && tp <> env.assignment_type then (
-    let str = List.fold_left (
-      fun str sym -> 
-        let str = str ^ (Sym.name sym) ^ "->" in
-        str
-    ) "" env.distributive_joins in 
-    let str = str ^ (Sym.name @@ sym_from name) in
+    let str = get_dist_join_str env ^ (Sym.name @@ sym_from name) in
     if Utility.same_base_type tp (TAst.TBool{mult=Some TAst.One}) then 
       Als.BoolVarRef(Sym.symbol str)
     else
-    Als.VarRef(Sym.symbol str) (*TODO: Could perhaps use Als.relation too*)
+    Als.VarRef(Sym.symbol str)
   )
   else Als.VarRef(sym_from name)
 | TAst.Relation{right;_} -> 
@@ -165,11 +183,28 @@ let rec lval_to_als env = function
      
 let rec trans_expr env expr =
   let _tr = trans_expr env in 
+  let _mk_lit lit =   
+    if List.length env.distributive_joins <> 0 then
+      Als.Binop {op = Als.Arrow; left = Als.Lval(Als.VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); right = lit}
+    else lit 
+  in
+
   begin match expr with
-  | TAst.EmptySet _ -> Als.None
-  | TAst.String {str} -> Als.StrLit(str)
-  | TAst.Integer{int} -> Als.IntLit(int)
-  | TAst.Boolean{bool} -> Als.BoolLit(bool)
+  | TAst.EmptySet _ -> 
+    if List.length env.distributive_joins <> 0 then 
+      (*e.g. i.labels = {} 
+    should be translated to: (State.labels') = (State.labels') - i->Label *)
+    let right = Als.Binop{op = Als.Arrow; 
+    left = Als.Lval(Als.VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
+    right = Als.Lval(Als.VarRef(symbol_from_type env.assignment_type))
+    } in
+    let e = Als.Binop{op=Als.Minus; left = Als.Lval(Als.VarRef(prepend_state_symbol @@ env.lhs_sym)); right} in 
+    Als.Parenthesis e
+  else
+    Als.None
+  | TAst.String {str} -> _mk_lit (Als.StrLit(str))
+  | TAst.Integer{int} -> _mk_lit (Als.IntLit(int))
+  | TAst.Boolean{bool} -> _mk_lit (Als.BoolLit(bool))
   | TAst.Unop{op;operand;_} -> Als.Unop{op = unop_to_als op; expr = _tr operand}
   | TAst.Binop{op;left;right;_} -> 
     begin match op with   
@@ -185,7 +220,12 @@ let rec trans_expr env expr =
         Als.Lval(lval_to_als env @@ Option.get env.assignment_lval)
       else 
         begin match left,right with 
-        | _ , TAst.Lval (TAst.Var{name;_}) -> Als.Call({func = prepend_state_symbol ~left:env.is_left (sym_from name); args = _tr left :: []})
+        | _ , TAst.Lval (TAst.Var{name;_}) -> 
+          let sym = if List.mem (sym_from name) env.state_variables then 
+            prepend_state_symbol ~left:env.is_left (sym_from name)
+          else sym_from name in
+          Als.Binop{left = _tr left; right = Als.Lval(Als.VarRef(sym)); op = Als.Join}
+          (* Als.Call({func = sym; args = _tr left :: []}) Navigation.... *) (* <---- if we want navigation syntax ...*)
         | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
         end
     | TAst.In | TAst.NotIn -> 
@@ -206,7 +246,7 @@ let rec trans_expr env expr =
         let partitioned_type_list = Array.to_list @@ split_array type_array in
         let fresh_sym = fresh_symbol 0 in
         let quant_vars = List.map (
-          fun (tp : TAst.typ) -> fresh_sym @@ sym_from_typ tp, typ_to_als tp 
+          fun (tp : TAst.typ) -> fresh_sym @@ fst_char_of_typ tp, typ_to_als tp 
         ) partitioned_type_list in
         let qop = if op = TAst.In then Als.All else Als.No in
         let expr = Als.Binop{left = _tr left; right = _tr right; op = Als.In} in
@@ -216,8 +256,11 @@ let rec trans_expr env expr =
     | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
   end
   | TAst.Lval lval -> Als.Lval(lval_to_als env lval)
-  | TAst.Call{action;args;_} -> Als.Call({func = sym_from action; args = List.map (fun arg -> _tr arg) args;})
+  | TAst.BoxJoin{left;right;_} -> Als.BoxJoin({left = _tr left; right = List.map _tr right;})
+  | TAst.Call{action;args;_} -> Als.Call({func = Als.Lval(Als.VarRef(sym_from action)); args = List.map _tr args;})
   | TAst.Can{call} -> failwith "cg todo: CAN expression"
+  | TAst.SetComp{decls;cond;tp} -> 
+    failwith "TODO: cg set comprehension"
 end
 
 let trans_stmt env = function 
@@ -226,9 +269,9 @@ let trans_stmt env = function
   let lval_syms_reversed = List.rev @@ traverse_relation lval in
   let lval_sym = List.hd lval_syms_reversed in
   let lval_syms_without_last = List.rev @@ List.tl lval_syms_reversed in 
-  let env = if List.length  lval_syms_without_last = 0 then {env with assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval;} 
-  else {env with distributive_joins = lval_syms_without_last; assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval} in
-  let right = trans_expr env rhs in (*Do this before setting environment to left*)
+  let env = {env with assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval;lhs_sym = lval_sym} in 
+  let env = if List.length lval_syms_without_last = 0 then env else {env with distributive_joins = lval_syms_without_last} in    
+  let right = trans_expr env rhs in (*Do this before setting environment to left, which adds apostrophies *)
   lval_sym, Als.Assignment{left = lval_to_als {env with is_left = true} lval; right}
 
 
@@ -240,7 +283,7 @@ let trans_concept_signature = function
   {Als.name = sym_from name; parameters = Some syms;}, {make_cg_env with custom_types = syms}
 
 
-let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = TAst.NamedParameter{name;typ};expr;const}) = 
+let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = TAst.Decl{name;typ};expr;const}) = 
   let fact = match expr with
   | None -> None
   | Some e -> Some (Als.Assignment{left = Als.VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
@@ -257,7 +300,9 @@ let trans_concept_states env states =
 let trans_action env (TAst.Action{signature;cond;body}) = 
   let TAst.ActionSignature{name;params;out} = signature in 
   let params, env = List.fold_left (
-    fun (params_so_far, env_so_far) (TAst.NamedParameter{name;typ}) -> 
+    fun (params_so_far, env_so_far) (TAst.Decl{name;typ} as np) -> 
+      (* remove any parameter that also appears in out *)
+      if List.mem np out then (params_so_far, env_so_far) else
       (params_so_far @ [sym_from name, typ_to_als typ] , {env_so_far with action_parameters = sym_from name :: env_so_far.action_parameters} )
   ) ([], env) params in
   let als_cond = begin match cond with 
@@ -285,12 +330,12 @@ let trans_action env (TAst.Action{signature;cond;body}) =
   in  
   let body = List.map (
     fun lval -> 
-      let lval_sym = List.hd @@ List.rev @@ traverse_relation lval in
+      let lval_sym = get_lval_sym lval in
       let stmts = List.filter (
         fun stmt -> 
           match stmt with 
           | TAst.Assignment{lval;_} -> 
-            let lval_sym' = List.hd @@ List.rev @@ traverse_relation lval in
+            let lval_sym' = get_lval_sym lval in
             lval_sym = lval_sym'
       ) body in
 
@@ -317,22 +362,44 @@ let trans_action env (TAst.Action{signature;cond;body}) =
       ) (List.hd stmts) (List.tl stmts)
     ) left_syms in 
 
-  let body, syms_used = List.fold_left (
+    
+  let body = if List.length out > 0 then (
+    (* TODO: Currently semantic analysis ensures out has a length of 1 *)
+    let out_syms_types = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ) out in
+    let out_syms, out_types = List.split out_syms_types in
+      (* find output statement *)
+    let TAst.Assignment{rhs;_} = List.find (
+      fun stmt -> 
+        match stmt with 
+        | TAst.Assignment{lval;_} -> List.mem (get_lval_sym lval) out_syms
+    ) body in
+
+    (* if we end up allowing multiple returns, need to mangle here... *)
+    let compress_syms = List.map (fun sym -> 
+      Sym.symbol @@ String.sub (Sym.name sym) 0 1 ) out_syms
+    in
+    let als_in_binop = Als.Binop{op = Als.In; right = trans_expr env rhs; left = Als.Lval(Als.VarRef(List.hd compress_syms))} in
+    let vars = List.combine compress_syms (List.map (fun t -> typ_to_als t) out_types) 
+    in [Als.SetComprehension{vars; cond = als_in_binop}]
+  ) else (
+    let body, syms_used = List.fold_left (
     fun (body_so_far, syms_so_far) stmt -> 
       let lval_sym, t_stmt = trans_stmt env stmt in
       (t_stmt :: body_so_far, lval_sym :: syms_so_far)
-  ) ([],[]) body in
-  let remaining_syms = List.filter (fun sym -> not @@ List.mem sym syms_used) env.state_variables in
-  let remaining_stmts = List.map (fun sym -> 
-    let rhs_sym = prepend_state_symbol sym in
-    let lhs_sym = prepend_state_symbol ~left:true sym  in
-    Als.Assignment{left = Als.VarRef(lhs_sym); right = Als.Lval(Als.VarRef(rhs_sym))}
-  ) remaining_syms in
-  let body = body @ remaining_stmts in
+    ) ([],[]) body in
+    let remaining_syms = List.filter (fun sym -> not @@ List.mem sym syms_used) env.state_variables in
+    let remaining_stmts = List.map (fun sym -> 
+      let rhs_sym = prepend_state_symbol sym in
+      let lhs_sym = prepend_state_symbol ~left:true sym  in
+      Als.Assignment{left = Als.VarRef(lhs_sym); right = Als.Lval(Als.VarRef(rhs_sym))}
+    ) remaining_syms in
+    body @ remaining_stmts
+  ) in
+
   if List.length out = 0 then 
     Als.Pred{pred_id = sym_from name; cond = als_cond; params; body}
   else (
-    let out = List.hd @@ List.map (fun (TAst.NamedParameter{typ;_}) -> typ_to_als typ) out in
+    let out = List.hd @@ List.map (fun (TAst.Decl{typ;_}) -> typ_to_als typ) out in
     Als.Func{func_id = sym_from name; cond = als_cond; params; out; body}
   )
 
@@ -353,7 +420,7 @@ let trans_concept c =
 
 let trans_app app =
 
-  
+
   failwith "TODO" 
 
 

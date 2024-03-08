@@ -81,6 +81,12 @@ let unop_to_tree = function
 | IsEmpty _ -> make_keyword_line "IsEmpty"
 | Card _ -> make_keyword_line "Card"
   
+let decl_to_tree = function
+| Decl {name; typ; _} -> PBox.tree (make_info_node_line "NamedParameter") 
+    [PBox.hlist ~bars:false [make_info_node_line "Name: "; ident_to_tree name]; 
+    PBox.hlist ~bars:false [make_info_node_line "Type: "; typ_to_tree typ]
+    ]
+
 let rec expr_to_tree = function
 | EmptySet _ -> PBox.tree (make_info_node_line "EmptySet") [make_info_node_line "Empty"]
 | String {str; _} -> PBox.hlist ~bars:false [make_info_node_line "StringLit("; PBox.line str; make_info_node_line ")"]
@@ -89,8 +95,11 @@ let rec expr_to_tree = function
 | Binop {left; op; right; _} -> PBox.tree (make_info_node_line "BinOp") [expr_to_tree left; binop_to_tree op; expr_to_tree right]
 | Unop {op; operand; _} -> PBox.tree (make_info_node_line "UnOp") [unop_to_tree op; expr_to_tree operand]
 | Lval l -> PBox.tree (make_info_node_line "Lval") [lval_to_tree l]
+| SetComp{decls; cond; _} -> PBox.tree (make_info_node_line "SetComp") [PBox.tree (make_info_node_line "Decls") (List.map decl_to_tree decls); expr_to_tree cond]
+| BoxJoin {left;right;_} -> PBox.tree (make_info_node_line "BoxJoin") [expr_to_tree left; List.map expr_to_tree right |> PBox.tree (make_info_node_line "Right")] 
 | Call {action; args; _ } -> PBox.tree (make_info_node_line "Call") [ident_to_tree action; PBox.tree (make_info_node_line "Arguments") (List.map expr_to_tree args)]
 | Can {call;_} -> PBox.tree (make_info_node_line "Can") [expr_to_tree call]
+
 
 
 and lval_to_tree = function
@@ -110,12 +119,8 @@ and parameter_to_tree  = function
 
 let rec named_parameter_list_to_tree parameters =
   if List.length parameters = 0 then PBox.tree (make_info_node_line "NamedParameterList") [make_info_node_line "Empty"]
-  else PBox.tree (make_info_node_line "NamedParameterList") (List.map named_parameter_to_tree parameters)
-and named_parameter_to_tree = function
-  | NamedParameter {name; typ; _} -> PBox.tree (make_info_node_line "NamedParameter") 
-      [PBox.hlist ~bars:false [make_info_node_line "Name: "; ident_to_tree name]; 
-      PBox.hlist ~bars:false [make_info_node_line "Type: "; typ_to_tree typ]
-      ]
+  else PBox.tree (make_info_node_line "NamedParameterList") (List.map decl_to_tree parameters)
+
 
 
 
@@ -126,7 +131,7 @@ let signature_params_pretty = function
 (* Create function for pretty printing states of concept *)
 let state_to_tree (State {param; expr; const;_}) =
   PBox.tree (make_info_node_line "State") [
-    PBox.tree (make_info_node_line "Parameter") [named_parameter_to_tree param];
+    PBox.tree (make_info_node_line "Parameter") [decl_to_tree param];
     PBox.tree (make_info_node_line "Const") [make_info_node_line (if const then "True" else "False")];
     PBox.tree (make_info_node_line "Expression") [match expr with Some e -> expr_to_tree e | None -> make_info_node_line "None"]
   ]
@@ -144,7 +149,6 @@ let action_to_tree = function
       PBox.tree (make_info_node_line "Firing Condition") [match cond with Some When{cond; _} -> expr_to_tree cond | None -> make_info_node_line "None"];
       PBox.tree (make_info_node_line "Statements") (statement_seq_to_forest body)
       ]
-
 
 let actions_to_tree (actions : action list) =
   if List.length actions = 0 then PBox.tree (make_info_node_line "Actions") [make_info_node_line "Empty"]

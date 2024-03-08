@@ -3,7 +3,7 @@ module TAst = TypedAst
 module Sym = Symbol
 
 type env_object =
-| Var of TAst.typ * bool
+| Var of TAst.typ * bool (*The type of variable and whether the variable is a const or not...*)
 | Act of TAst.action_sig
 
 type environment = {env_objects : env_object Sym.Table.t; 
@@ -11,7 +11,10 @@ type environment = {env_objects : env_object Sym.Table.t;
                     valid_custom_types : TAst.typ list;
                     con_dict : (environment * int ) Sym.Table.t; (*The environment for that concept, in addition to the number of generic types *)
                     app_ns : TAst.ident list; (* The namespace for apps, ensures no apps with the same name is declared simultaneously. This is an EDGE case*)
+                    check_for_declared : bool; (* This is used to check if the environment is being used to check for declared variables, or to insert them. *)
+                    
                     }
+
    
 (* create an initial environment with the given functions defined *)
 let make_env =
@@ -19,7 +22,9 @@ let make_env =
   errors = ref []; 
   valid_custom_types = [];
   con_dict = Sym.Table.empty;
-  app_ns = [];} 
+  app_ns = [];
+  check_for_declared = true; 
+  } 
 
 let insert env sym obj =
   let {env_objects; _} = env in

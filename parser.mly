@@ -20,7 +20,7 @@ exception ParserError
 %token EQ (* Mutators*)
 %token NOT TILDE CARET STAR CARD (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
-%token LPAR RPAR LBRACK RBRACK (*Brackets and stuff*)
+%token LPAR RPAR LBRACK RBRACK LBRACE RBRACE PIPE (*Brackets and stuff*)
 %token WHEN CAN (*Precondition related*)
 %token OUT (*Output*)
 %token EMPTY EMPTY_SET (*Set-related predicates*)
@@ -38,12 +38,12 @@ exception ParserError
 
 // __________________
 // Explicit rule types go here, in case we want to use -ml as opposed to table-driven
-%type <Ast.named_parameter list> params
+%type <Ast.decl list> decl
 %type <Ast.typ> typ
 
 %type <Ast.state list> state
 %type <Ast.expr> expr op_expr
-%type <Ast.named_parameter list * Ast.named_parameter list> action_sig_param
+%type <Ast.decl list * Ast.decl list> action_sig_param
 %type <Ast.lval> lval
 %type <Ast.stmt> stmt
 %type <Ast.action> action
@@ -62,7 +62,7 @@ exception ParserError
 %type <Ast.state list list> state*
 %type <Ast.action list> action+
 %type <unit option> OUT?
-%type <(Ast.named_parameter list * Ast.named_parameter list) list> action_sig_param*
+%type <(Ast.decl list * Ast.decl list) list> action_sig_param*
 %type <Ast.expr list> separated_nonempty_list(COMMA, expr) loption(separated_nonempty_list(COMMA, expr))
 
 
@@ -84,6 +84,7 @@ exception ParserError
 %left AMP
 %right ARROW 
 // %nonassoc SET LONE SOME ONE 
+%left LBRACK RBRACK
 %left DOT 
 %nonassoc TILDE CARET STAR (*Set and relation unary operators*)
 
@@ -131,6 +132,7 @@ const:
   }
 // TODO: might have to check for precedence of MINUS in particular, as that symbol is used elsewhere too 
 
+
 expr:
 | const { $1 }
 | LPAR expr RPAR { $2 }
@@ -138,7 +140,9 @@ expr:
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
 | expr EMPTY { Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
-
+| lval LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = Lval($1); right = $3; loc = mk_loc $loc} }
+// set comprehension
+| LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
 
 
 %inline unary:
@@ -168,10 +172,10 @@ expr:
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
-params:
+decl:
 | separated_nonempty_list(COMMA, IDENT) COLON typ {
   let idents = List.map (fun id -> Ident{name = id; loc = mk_loc $loc}) $1 in
-  List.map (fun id -> NamedParameter{name = id; typ = $3; loc = mk_loc $loc}) idents
+  List.map (fun id -> Decl{name = id; typ = $3; loc = mk_loc $loc}) idents
   }
 
 
@@ -192,7 +196,7 @@ c_purpose:
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 
-| CONST? params 
+| CONST? decl 
   { 
     (*TODO: refactor this*)
     let const = match $1 with
@@ -200,7 +204,7 @@ state:
     | Some _ -> true
     in
     List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc; const } ) $2 }
-| CONST? params EQ expr { 
+| CONST? decl EQ expr { 
     (* TODO: refactor this *)
     let const = match $1 with
     | None -> false
@@ -210,7 +214,7 @@ state:
   }
 
 c_state:
-| STATE state* ACTIONS { States{ states = List.flatten $2; loc = mk_loc $loc } }
+| STATE flatten(state*) ACTIONS { States{ states = $2; loc = mk_loc $loc } }
 
 
 stmt:
@@ -227,12 +231,12 @@ stmt:
 
 
 action_sig_param:
-| OUT? params  {
+| OUT? decl  {
   match $2, $1 with
   | params, None -> params, []
   | params, Some _ -> params, params
   }
-| OUT? params COMMA action_sig_param {
+| OUT? decl COMMA action_sig_param {
   match $2, $1, $4 with
   | params, None, (params', out) -> params @ params', out
   | params, Some _, (params', out) -> params @ params', params @ out
@@ -245,7 +249,6 @@ action_sig:
   }
 
 action_body:
-// TODO: Do we want to allow empty action bodies? Could potentially be useful?
 | stmt* { $1 }
 
 action_firing_cond:

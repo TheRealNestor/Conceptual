@@ -54,7 +54,10 @@ let token_to_string = function
   | Parser.INCLUDE -> "INCLUDE"
   | Parser.SYNC -> "SYNC"
   | Parser.CONST -> "CONST"
-
+  | Parser.LBRACE -> "LBRACE"
+  | Parser.RBRACE -> "RBRACE"
+  | Parser.PIPE -> "PIPE"
+  
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
         let token = tokenizer lexbuf in
@@ -131,8 +134,8 @@ let get_concept_name (TAst.Concept{signature;_}) =
 
 let rec get_expr_location = function 
 | Ast.Lval l -> get_lval_location l
-| Ast.EmptySet {loc} | Ast.String {loc;_} | Ast.Integer {loc;_} | Ast.Boolean {loc;_} -> loc
-| Ast.Binop {loc;_} | Ast.Unop {loc;_} | Ast.Call {loc;_} | Ast.Can {loc;_} -> loc
+| Ast.EmptySet {loc} | Ast.String {loc;_} | Ast.Integer {loc;_} | Ast.Boolean {loc;_} | Ast.Binop {loc;_} | Ast.Unop {loc;_} 
+| Ast.Call {loc;_} | Ast.Can {loc;_} | Ast.BoxJoin{loc;_} | Ast.SetComp {loc;_} -> loc
 
 and get_lval_location = function
 | Ast.Var(Ident { loc;_ }) -> loc
@@ -259,10 +262,12 @@ let change_expr_type (expr : TAst.expr) typ : TAst.expr =
 
 let get_expr_type (expr : TAst.expr) : TAst.typ = 
   match expr with
-  | EmptySet {tp} | Binop {tp;_} | Unop {tp;_} | Call {tp;_} | Lval(Var {tp;_}) | Lval(Relation {tp;_}) -> tp
+  | EmptySet {tp} | Binop {tp;_} | Unop {tp;_} | Call {tp;_} | Lval(Var {tp;_}) | Lval(Relation {tp;_}) | BoxJoin{tp;_} 
+  | SetComp {tp;_} -> tp
   | String _ -> TAst.TString{mult = None}
   | Integer _ -> TAst.TInt{mult = None}
   | Boolean _ | Can _ -> TAst.TBool{mult = None}
+
 
 
 let get_lval_type = function 
@@ -271,3 +276,4 @@ let get_lval_type = function
 let is_join_expr = function
 | TAst.Binop {op=TAst.Join;_} -> true
 | _ -> false
+

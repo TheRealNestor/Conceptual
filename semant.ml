@@ -67,6 +67,17 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         Utility.change_expr_type t_right left_tp else t_right in  
       TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
   | Ast.Lval lval -> let lval, tp = infertype_lval env lval in TAst.Lval(lval), tp
+  | Ast.SetComp {decls; cond; loc} -> 
+    failwith "TODO implement set comprehension"
+  | Ast.BoxJoin{left;right;_} -> 
+    let t_left, left_tp = infertype_expr env left in
+    let t_exprs, t_tp = List.fold_left (
+      fun (t_exprs, t_tp) expr ->
+        let t_expr, expr_tp = infertype_expr env expr in
+        let t_tp = Utility.construct_join_type env expr t_tp expr_tp in (*TODO: verify that this is correct order *)
+        t_expr :: t_exprs, t_tp
+    ) ([], left_tp) right in 
+    TAst.BoxJoin{left = t_left; right = List.rev t_exprs; tp = t_tp}, t_tp    
   | Ast.Call {action;args;_} ->
     let t_ident = convert_ident action in
     let act_opt = Env.lookup env (sym_from_ident t_ident) in
@@ -80,7 +91,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       TAst.Call{action = t_ident; args = t_args_from args; tp = TAst.ErrorType}, TAst.ErrorType
     | Some Act(act) ->
       let TAst.ActionSignature{out; params;_} = act in
-      let return_type = List.map (fun (TAst.NamedParameter{typ;_}) -> typ) out in
+      let return_type = List.map (fun (TAst.Decl{typ;_}) -> typ) out in
       (* for now only support return of 1 value TODO: Is this the case for alloy? *)
       let return_type = begin match return_type with 
         | [] -> TAst.TVoid
@@ -91,7 +102,8 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         Env.insert_error env (Errors.LengthMismatch{expected = List.length params; actual = List.length args; loc = Utility.get_expr_location expr});
         TAst.Call{action = t_ident; args = t_args_from args; tp = TAst.ErrorType}, TAst.ErrorType
       ) else (
-        let t_args = List.map2 (fun (TAst.NamedParameter{typ;_}) expr -> typecheck_expr env expr typ) params args in
+        (* TODO: not sure typechecking like this is ideal...... *)
+        let t_args = List.map2 (fun (TAst.Decl{typ;_}) expr -> typecheck_expr env expr typ) params args in
         TAst.Call{action = t_ident; args = t_args; tp = return_type}, return_type
       ) 
     end
@@ -99,25 +111,21 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     let t_call, _ = infertype_expr env call in
     match t_call with 
     | TAst.Call{action;_} -> 
+      (* find the action in the environment *)
+      (* TODO: implement this       *)
 
-
-
-    (* | TAst.Call{action;args;_} ->  *)
-      (* check that the action is in the environment  *)
-
-      (* check that the number of arguments match the signature in the environment *)
       (* the value used as argument should be preserved somehow, e.g. "after create(x), delete(x), x not in pool" *)
       (* this should extract the pre- / firing condition of the action AND evaluate to a boolean *)
       failwith "TODO: semant CAN expression"
     | _ -> failwith "CAN only applies to calls. Parser excludes all other expressions"
   end
-
 and infertype_lval env lval = 
   begin match lval with 
   | Ast.Var i -> 
     let TAst.Ident{sym} = convert_ident i in
     let tp_opt = Env.lookup env sym in
-    let tp = begin match tp_opt with 
+    let tp = if not (env.check_for_declared) then TAst.TVoid else
+    begin match tp_opt with 
       | None -> Env.insert_error env (Errors.Undeclared{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType
       | Some Act(_) -> Env.insert_error env (Errors.ActionAsLval{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType (* TODO: Might be useful to do stuff like x.f = y *)
       | Some Var(tp,_) -> tp    
@@ -127,7 +135,7 @@ and infertype_lval env lval =
     (* Check that the relation is well-formed *)    
     let left, left_tp = infertype_lval env left in
     let right, right_tp = infertype_lval env right in
-    let tp = Utility.construct_join_type env (Ast.Lval(l)) left_tp right_tp in 
+    let tp = Utility.construct_join_type env (Ast.Lval(l)) left_tp right_tp in (*TODO: if we allow joins here, then we need to handle this for app/princple cases, dont think we want to allow all expressions...*)
     TAst.Relation{left;right;tp}, tp
   end
 
@@ -144,7 +152,6 @@ let typecheck_stmt env = function
 | Ast.Assignment {lval;rhs;loc} -> 
   let lval, tp = infertype_lval env lval in
   let rhs = typecheck_expr env rhs tp in  
-
   (* TODO: Refactor this *)
   begin match lval with 
   | TAst.Var{name;_} -> 
@@ -158,7 +165,7 @@ let typecheck_stmt env = function
   end;
   TAst.Assignment{lval;rhs;tp}
 
-let add_named_param_to_env ?(insert_error = true) ?(const = false) env (Ast.NamedParameter{name;typ;loc}) =
+let add_named_param_to_env ?(insert_error = true) ?(const = false) env (Ast.Decl{name;typ;loc}) =
   let name = convert_ident name in
   let TAst.Ident{sym} = name in
   let typ = Utility.convert_type typ in
@@ -167,7 +174,7 @@ let add_named_param_to_env ?(insert_error = true) ?(const = false) env (Ast.Name
   (* let typ = if not (Utility.is_first_order_type env typ loc) then (
     Env.insert_error env (Errors.TypeNotFirstOrder{tp=typ;loc}); TAst.ErrorType
   ) else typ in  *)
-  Env.insert env sym (Var(typ,const)), TAst.NamedParameter{name = Ident{sym}; typ; }
+  Env.insert env sym (Var(typ,const)), TAst.Decl{name = Ident{sym}; typ; }
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) = 
   let typ = Utility.convert_type typ in
@@ -178,7 +185,7 @@ let add_state_param_to_env env (Ast.State{param;const;_}) =
 
 let typecheck_state (env, states_so_far) (Ast.State{param;expr;const;_}) = 
   let _, param = add_named_param_to_env ~insert_error:false env param in (*variables already inserted*)
-  let tp = match param with TAst.NamedParameter{typ;_} -> typ in
+  let tp = match param with TAst.Decl{typ;_} -> typ in
   (* if type is map, add each type to environment if not already in environment*)
   let rec insert_map_types env = function
   | TAst.TMap{left;right} -> 
@@ -199,14 +206,14 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;const;_}) =
 let typecheck_action_signature env signature = 
   let Ast.ActionSignature{name;out;params;_} = signature in
   let env, t_params = List.fold_left (
-    fun (env_so_far, t_params_so_far) (Ast.NamedParameter{loc;_} as param) -> 
+    fun (env_so_far, t_params_so_far) (Ast.Decl{loc;_} as param) -> 
       let env, t_param = add_named_param_to_env env_so_far param in
-      let TAst.NamedParameter{typ; _} = t_param in
+      let TAst.Decl{typ; _} = t_param in
       if not (Env.type_is_defined env typ) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
       env, t_param :: t_params_so_far
   ) (env, []) params in
-  let t_out = List.map (fun (Ast.NamedParameter{name;typ;_}) -> 
-    TAst.NamedParameter{name = convert_ident name; typ = Utility.convert_type typ}
+  let t_out = List.map (fun (Ast.Decl{name;typ;_}) -> 
+    TAst.Decl{name = convert_ident name; typ = Utility.convert_type typ}
   ) out in
   env, TAst.ActionSignature{name = convert_ident name; out = t_out; params = t_params}
 
@@ -271,6 +278,23 @@ let typecheck_concepts env concepts =
 
 let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;syncs;loc}) = 
   let app_name = convert_ident name in
+
+  (* TODO: Fix this
+     
+    Some observations:
+
+    parameterized types must match
+    trigger action declares variables for subsequent response actions (with a type)
+    response actions may use the variables declared in the trigger action    
+    response actions be defined not only by the arguments of the trigger, but also by the state...
+
+    sync email.receive(todo-user, m)
+      todo.add(m.content)
+
+    above example uses the content variable of emails. This is possible because 
+    m is a variable belonging to the email concept. Hence it can use the email state variables.
+  *)
+
   let t_deps = List.map (
     fun (Ast.Dependency{name;generics;_}) -> 
       let t_generics = List.map (
@@ -299,7 +323,7 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
         let name = convert_ident name in
         let TAst.Ident{sym} = name in 
         let (con_env, _) = Sym.Table.find sym env.con_dict in (*Find the environment for that concept*)
-        let con_env = {con_env with errors = ref []} in
+        let con_env = {con_env with errors = ref []; check_for_declared = false} in
         let call = TAst.SyncCall{name; call = fst @@ infertype_expr con_env call;} in
         (* check if con_env contains new errors *)
         if List.length !(con_env.errors) > 0 then 

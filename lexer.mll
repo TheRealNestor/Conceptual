@@ -66,6 +66,9 @@ rule token = parse
 | ')' { RPAR }
 | '[' { LBRACK }
 | ']' { RBRACK }
+| '{' { LBRACE }
+| '|' { PIPE }
+| '}' { RBRACE }
 | '"' { Buffer.clear string_buf; string lexbuf; STR_LIT (Buffer.contents string_buf)}  (*Clear current buffer, do the string rule, return contents of buffer afterwards as a STRING token *)
 | whitespace+ { token lexbuf } (* Skip whitespace *)
 | '\n' { Lexing.new_line lexbuf; token lexbuf} (* Increment line number *)
@@ -75,13 +78,13 @@ rule token = parse
 | '>' { GT }
 | "<=" { LTE }
 | ">=" { GTE }
-| "==" { EQEQ }
+| "==" | "is"  { EQEQ }
 | '&' { AMP } (* Set intersection *)
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
 | "->" { ARROW }
 | "!=" { NEQ }
-| "{}" { EMPTY_SET }
+| "none" | "{}" { EMPTY_SET }
 | "out" { OUT }
 | "when" { WHEN }
 | "in" { IN }

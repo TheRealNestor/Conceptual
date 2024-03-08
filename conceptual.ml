@@ -32,7 +32,7 @@ let compile_program (filepath : string) =
     else 
       begin
         print_endline "No semantic errors";
-        (* pretty_print_t_program typed_prog; *)
+        pretty_print_t_program typed_prog;
         let code = CodeGen.translate_program typed_prog in 
         ()
       end;
