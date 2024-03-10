@@ -9,7 +9,7 @@ type env_object =
 type environment = {env_objects : env_object Sym.Table.t; 
                     errors : Errors.error list ref;
                     valid_custom_types : TAst.typ list;
-                    con_dict : (environment * int ) Sym.Table.t; (*The environment for that concept, in addition to the number of generic types *)
+                    con_dict : (environment * TAst.typ list ) Sym.Table.t; (*The environment for that concept, in addition to the generic types *)
                     app_ns : TAst.ident list; (* The namespace for apps, ensures no apps with the same name is declared simultaneously. This is an EDGE case*)
                     set_comp_type : TAst.typ option; (* Type of set comprehensions cannot be inferred without context... This is context from state or stmt *)
                     }

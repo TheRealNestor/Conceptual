@@ -274,8 +274,8 @@ let typecheck_concepts env concepts =
     let env, t_concept = typecheck_concept env concept in
     let TAst.Concept{signature; _} = t_concept in
     let sym, no_generics = begin match signature with 
-      | TAst.Signature{name} -> sym_from_ident name, 0
-      | TAst.ParameterizedSignature{name;params} -> sym_from_ident name, List.length params
+      | TAst.Signature{name} -> sym_from_ident name, []
+      | TAst.ParameterizedSignature{name;params} -> sym_from_ident name, List.map (fun (TAst.Parameter{typ;_}) -> typ) params
     end in    
     let is_decl = Sym.Table.find_opt sym env.con_dict in 
     if is_decl <> None then Env.insert_error env (Errors.DuplicateDeclaration{name = TAst.Ident{sym}; loc; ns = "concept"});
@@ -285,7 +285,7 @@ let typecheck_concepts env concepts =
   ) (env, []) concepts
   
 
-let typecheck_dependency (env : Env.environment) (Ast.Dependency{name;generics;loc}) = 
+let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;generics;loc}) = 
   let t_generics = List.map (
         fun (Ast.Generic{con;ty;loc}) -> 
           let t_con = convert_ident con in
@@ -298,15 +298,40 @@ let typecheck_dependency (env : Env.environment) (Ast.Dependency{name;generics;l
           if t_con = convert_ident name then Env.insert_error env (Errors.SelfDependency{name = t_con; loc});
           TAst.Generic{con = t_con; ty = t_ty;}          
       ) generics in       
-      let t_con = convert_ident name in
+      let TAst.Ident{sym} as t_con = convert_ident name in
       let sym = sym_from_ident t_con in
       let _ = try 
-      let (_, no_generics) = Sym.Table.find sym env.con_dict in 
-      if List.length t_generics <> no_generics then 
-        Env.insert_error env (Errors.LengthMismatch{expected = no_generics; actual = List.length t_generics; loc});
+      let (_, con_generics) = Sym.Table.find sym env.con_dict in 
+      if List.length t_generics <> List.length con_generics then 
+        Env.insert_error env (Errors.LengthMismatch{expected = List.length con_generics; actual = List.length t_generics; loc});
       with Not_found -> Env.insert_error env (Errors.Undeclared{name = t_con; loc});
       in 
-      TAst.Dependency{name = t_con; generics = t_generics;}
+
+      (* It would be a good idea to update the actions in the environment of that concept, with actions that have new types *)
+      
+      (* get the concept associated with the concept *)
+      let (con_env, con_generics) = Sym.Table.find sym env.con_dict in
+      (* iterate over all actions *)
+      let con_env = Sym.Table.fold (fun _ obj con_env ->
+        match obj with
+        | Env.Act(ActionSignature{params;name=TAst.Ident{sym} as name;out}) ->
+          (* iterate over all parameters, and change it to be the new generic type *)
+          let new_params = List.map (fun (TAst.Decl{name;typ;} as decl)  ->
+            if List.mem typ con_generics then
+              let new_type = List.nth t_generics (List.index typ con_generics) in
+              TAst.Decl{name; typ = List.find (fun gen_t -> gen_t = typ) con_generics }
+            else
+              decl
+          ) params in
+          (* replace the action in the environment with this newly typed one *)
+          Env.insert con_env sym (Env.Act(TAst.ActionSignature{name; out; params=new_params}))
+        | _ -> con_env
+      ) con_env.env_objects con_env in
+
+      (* update the environment with the new concept environment *)
+      let new_con_dict = Sym.Table.add sym (con_env, con_generics) env.con_dict in
+      
+      {env with con_dict = new_con_dict}, TAst.Dependency{name = t_con; generics = t_generics;} :: deps
 
 let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;syncs;loc}) = 
   let app_name = convert_ident name in
@@ -327,8 +352,7 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
     m is a variable belonging to the email concept. Hence it can use the email state variables.
   *)
 
-  (* TODO: This needs to be a fold_left if we do not use concept dictionary.  *)
-  let t_deps = List.map (typecheck_dependency env) deps in
+  let env, t_deps = List.fold_left typecheck_dependency (env, []) deps in
 
   let t_syncs = List.map (
     fun (Ast.Sync{cond;body;_}) -> 
@@ -337,15 +361,15 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
         let Ast.SyncCall{name;call;_} = call in
         let TAst.Ident{sym} as name = convert_ident name in (* get symbol name of concept st. env can be accessed*)
         let (con_env, _) = Sym.Table.find sym env.con_dict in (*Find the environment for that concept*)
+        (* get symbol of the action being called (from call) *)
+        let TAst.Ident{sym} = match call with
+        | Ast.Call{action;_} -> convert_ident action
+        | _ -> failwith "This wont happen, parser should have caught this already."
+        in
+        (* lookup the action in environment *)
+        let act_opt = Env.lookup con_env sym in
         let error_happened = ref false in (*This is so we don't cascade errors*)
         if add_to_env then (
-          (* get symbol of the action being called (from call) *)
-          let TAst.Ident{sym} = match call with
-          | Ast.Call{action;_} -> convert_ident action
-          | _ -> failwith "This wont happen, parser should have caught this already."
-          in
-          (* lookup the action in environment *)
-          let act_opt = Env.lookup con_env sym in
           match act_opt with
           | Some Act(ActionSignature{params;_}) ->
             (* Find new variables not in environment *)
@@ -362,7 +386,7 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
             ) params;
           | _ -> error_happened := true; Env.insert_error env (Errors.UndeclaredAction{name=TAst.Ident{sym}; loc = Utility.get_expr_location call});
         ) ;
-
+          
         (* Add new variables to con_env symbol table *)
         let con_env = List.fold_left (fun (env : Env.environment) (sym, typ) -> 
           Env.insert env sym (Var(typ, false))
@@ -377,7 +401,6 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
       in   
       let t_cond = typed_sync_call ~add_to_env:true env cond in (*trigger action may define new variables*)
       let t_body = List.map (typed_sync_call env) body in
-           (* print current errors and failwith *)
       TAst.Sync{cond = t_cond; body = t_body;}
   ) syncs in 
   let t_app = TAst.App{name = app_name; deps = t_deps; syncs = t_syncs;} in
