@@ -435,7 +435,6 @@ let trans_app (TAst.App{name;deps;syncs}) =
     preds_and_funcs = []
   }
 
-
 let translate_program (prog : TAst.program) = 
   let concepts, apps = prog in 
   List.iter (fun c -> 

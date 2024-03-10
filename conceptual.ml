@@ -17,7 +17,6 @@ let compile_program (filepath : string) =
     (* Utility.lex_and_print_tokens tokenizer lex_buf;  *)
 
     let prog = Parser.program tokenizer lex_buf in 
-
     (* print AST *)
     pretty_print_program prog;
     (* print_endline ""; *)

@@ -299,7 +299,6 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
           TAst.Generic{con = t_con; ty = t_ty;}          
       ) generics in       
       let TAst.Ident{sym} as t_con = convert_ident name in
-      let sym = sym_from_ident t_con in
       let _ = try 
       let (_, con_generics) = Sym.Table.find sym env.con_dict in 
       if List.length t_generics <> List.length con_generics then 
@@ -307,10 +306,16 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
       with Not_found -> Env.insert_error env (Errors.Undeclared{name = t_con; loc});
       in 
 
-      (* It would be a good idea to update the actions in the environment of that concept, with actions that have new types *)
+      let con_opt = Sym.Table.find_opt sym env.con_dict in
+      let (con_env, con_generics) = match con_opt with
+      | Some con -> con
+      | None -> Env.insert_error env (Errors.Undeclared{name = t_con; loc}); env, []
+      in
+      if List.length t_generics <> List.length con_generics then 
+        Env.insert_error env (Errors.LengthMismatch{expected = List.length con_generics; actual = List.length t_generics; loc});
       
+      (* It would be a good idea to update the actions in the environment of that concept, with actions that have new types *)
       (* get the concept associated with the concept *)
-      let (con_env, con_generics) = Sym.Table.find sym env.con_dict in
       (* iterate over all actions *)
       let con_env = Sym.Table.fold (fun _ obj con_env ->
         match obj with
@@ -318,8 +323,12 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
           (* iterate over all parameters, and change it to be the new generic type *)
           let new_params = List.map (fun (TAst.Decl{name;typ;} as decl)  ->
             if List.mem typ con_generics then
-              let new_type = List.nth t_generics (List.index typ con_generics) in
-              TAst.Decl{name; typ = List.find (fun gen_t -> gen_t = typ) con_generics }
+              (* find the concrete type used *)
+              let new_type = 
+                let index = List.find (fun i -> List.nth con_generics i = typ) (List.init (List.length con_generics) (fun i -> i)) in
+                let TAst.Generic{ty;_} = List.nth t_generics index in ty
+              in
+              TAst.Decl{name; typ = new_type; }
             else
               decl
           ) params in
