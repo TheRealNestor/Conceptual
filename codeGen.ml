@@ -259,8 +259,10 @@ let rec trans_expr env expr =
   | TAst.BoxJoin{left;right;_} -> Als.BoxJoin({left = _tr left; right = List.map _tr right;})
   | TAst.Call{action;args;_} -> Als.Call({func = Als.Lval(Als.VarRef(sym_from action)); args = List.map _tr args;})
   | TAst.Can{call} -> failwith "cg todo: CAN expression"
-  | TAst.SetComp{decls;cond;tp} -> 
-    failwith "TODO: cg set comprehension"
+  | TAst.SetComp{decls;cond;_} -> 
+    let als_decls = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ_to_als typ) decls in
+    let als_cond = _tr cond in
+    Als.SetComprehension{vars = als_decls; cond = als_cond}
 end
 
 let trans_stmt env = function 
@@ -274,13 +276,12 @@ let trans_stmt env = function
   let right = trans_expr env rhs in (*Do this before setting environment to left, which adds apostrophies *)
   lval_sym, Als.Assignment{left = lval_to_als {env with is_left = true} lval; right}
 
-
 let trans_concept_signature = function 
-| TAst.Signature{name} -> {Als.name = sym_from name; parameters = None;}, make_cg_env
+| TAst.Signature{name} -> Als.Module{name = sym_from name; parameters = None;}, make_cg_env
 | TAst.ParameterizedSignature{params; name} -> 
   (* Add params to environment of "primitive types" *)
   let syms = List.map (fun p -> get_sym_from_parameter p) params in
-  {Als.name = sym_from name; parameters = Some syms;}, {make_cg_env with custom_types = syms}
+  Als.Module{name = sym_from name; parameters = Some syms;}, {make_cg_env with custom_types = syms}
 
 
 let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = TAst.Decl{name;typ};expr;const}) = 
@@ -289,8 +290,8 @@ let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{pa
   | Some e -> Some (Als.Assignment{left = Als.VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
   in 
   let fact = if fact = None then [] else 
-  [{Als.fact_id = sym_from name; body = fact}] in 
-  {Als.id = sym_from name; ty = typ_to_als typ; expr = None;const} :: fields_so_far, 
+  [Als.Fact{fact_id = sym_from name; body = fact}] in 
+  Als.FldDecl{id = sym_from name; ty = typ_to_als typ; expr = None;const} :: fields_so_far, 
   fact @ facts_so_far,
   add_tp_to_env {env_so_far with state_variables = sym_from name :: env_so_far.state_variables} typ
 
@@ -395,38 +396,48 @@ let trans_action env (TAst.Action{signature;cond;body}) =
     ) remaining_syms in
     body @ remaining_stmts
   ) in
-
   if List.length out = 0 then 
-    Als.Pred{pred_id = sym_from name; cond = als_cond; params; body}
+    Als.Pred(Als.Predicate{pred_id = sym_from name; cond = als_cond; params; body})
   else (
     let out = List.hd @@ List.map (fun (TAst.Decl{typ;_}) -> typ_to_als typ) out in
-    Als.Func{func_id = sym_from name; cond = als_cond; params; out; body}
+    Als.Func(Als.Function{func_id = sym_from name; cond = als_cond; params; out; body})
   )
 
 let trans_actions env actions = 
   List.map (trans_action env) actions 
 
-let trans_concept c = 
-  let TAst.Concept{signature; purpose=Purpose{doc_str};states=States{states};actions = Actions{actions}} = c in
+let trans_concept (TAst.Concept{signature; purpose=Purpose{doc_str};states=States{states};actions = Actions{actions}}) = 
   let als_header, env = trans_concept_signature signature in
   let als_states, als_facts, cg_env = trans_concept_states env states in 
   (* need a list of signatures, first from the primitive types stored in cg_env *)
-  let primitive_sigs = List.map (fun sym -> {Als.sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
+  let primitive_sigs = List.map (fun sym -> Als.SigDecl{sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
   (* TODO: Booleans should be added here when needed.... *)
-  let sigs = List.rev @@ {Als.sig_id = Sym.symbol "State"; fields = List.rev @@ als_states; mult = Als.One} :: primitive_sigs in
+  let sigs = List.rev @@ Als.SigDecl{sig_id = Sym.symbol "State"; fields = List.rev @@ als_states; mult = Als.One} :: primitive_sigs in
   let preds_and_funcs = trans_actions cg_env actions in  
-  {Als.module_header = Some als_header; facts = als_facts; purpose = doc_str; sigs; preds_and_funcs}
+  Als.Program{module_header = als_header; facts = als_facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs}
 
 
-let trans_app app =
 
 
-  failwith "TODO" 
+let trans_app (TAst.App{name;deps;syncs}) =
+  let als_header = Als.Module{name = sym_from name; parameters = None;} in
+  let als_deps = List.map (fun (TAst.Dependency{name;generics}) -> 
+    let als_generics = List.map (fun (TAst.Generic{con;ty}) -> sym_from con, typ_to_als ty) generics in
+    Als.Dependency{id = sym_from name; generics = als_generics}
+    ) deps in
+  
+  Als.Program{
+    module_header = als_header;
+    facts = [];
+    deps = als_deps;
+    purpose = None;
+    sigs = [];
+    preds_and_funcs = []
+  }
 
 
 let translate_program (prog : TAst.program) = 
   let concepts, apps = prog in 
-  (* TODO: This is just testing for now... *)
   List.iter (fun c -> 
     let concept_name = Utility.get_concept_name c in 
     let alloy_prog = trans_concept c in 

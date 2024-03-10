@@ -141,14 +141,12 @@ and get_lval_location = function
 | Ast.Var(Ident { loc;_ }) -> loc
 | Ast.Relation {loc;_} -> loc
 
-
-(* TODO: Refactor this *)
-let ast_mult_to_tast = function
-| None -> None
-| Some Ast.One -> Some TAst.One
-| Some Ast.Set -> Some TAst.Set
-| Some Ast.Lone -> Some TAst.Lone
-| Some Ast.Som -> Some TAst.Som
+let ast_mult_to_tast = Option.map (function
+  | Ast.One -> TAst.One
+  | Ast.Set -> TAst.Set
+  | Ast.Lone -> TAst.Lone
+  | Ast.Som -> TAst.Som
+)
 
 let rec convert_type = function
 | Ast.TInt {mult;_} -> TAst.TInt{mult = ast_mult_to_tast mult}
@@ -201,10 +199,13 @@ let construct_join_type env expr left_tp right_tp =
        Not the most efficient approach but relation should rarely but relations should rarely be long*)
   let left_history, right_history = type_to_array_of_types left_tp, type_to_array_of_types right_tp in
   let leftmost_type_of_right, rightmost_type_of_left = List.hd right_history, List.hd @@ List.rev left_history in
-  let unwrapped_left_tp, unwrapped_right_tp = set_typ_mult leftmost_type_of_right None, set_typ_mult rightmost_type_of_left None in
+  let unwrapped_right_tp, unwrapped_left_tp = set_typ_mult leftmost_type_of_right None, set_typ_mult rightmost_type_of_left None in
   if not (is_relation left_tp || is_relation right_tp) then (
     Env.insert_error env (Errors.IllFormedRelation{loc = get_lval_or_expr_location expr; left = left_tp; right = right_tp}); TAst.ErrorType
-  ) else if unwrapped_left_tp <> unwrapped_right_tp then (
+  ) else if unwrapped_right_tp <> unwrapped_left_tp then (
+    (* print values of types *)
+    print_endline @@ "Left type: " ^ (TypedPretty.typ_to_string unwrapped_left_tp);
+    print_endline @@ "Right type: " ^ (TypedPretty.typ_to_string unwrapped_right_tp);
     Env.insert_error env (Errors.DisjointRelation{loc = get_lval_or_expr_location expr; left = unwrapped_left_tp; right = unwrapped_right_tp}); TAst.ErrorType
   ) else (
     (* Construct the resulting type of the join  *)
@@ -222,6 +223,10 @@ let construct_join_type env expr left_tp right_tp =
           TAst.TMap{left = acc; right = tp}
       ) (List.hd resulting_type) (List.tl resulting_type)  
   )
+
+let rec reverse_relation_tp = function
+| TAst.TMap{left;right} -> TAst.TMap{left = reverse_relation_tp right; right = reverse_relation_tp left}
+| tp -> tp
 
 (* As we are using typed ast, we must explicitly provide location in case errors happen *)
 

@@ -11,8 +11,7 @@ type environment = {env_objects : env_object Sym.Table.t;
                     valid_custom_types : TAst.typ list;
                     con_dict : (environment * int ) Sym.Table.t; (*The environment for that concept, in addition to the number of generic types *)
                     app_ns : TAst.ident list; (* The namespace for apps, ensures no apps with the same name is declared simultaneously. This is an EDGE case*)
-                    check_for_declared : bool; (* This is used to check if the environment is being used to check for declared variables, or to insert them. *)
-                    
+                    set_comp_type : TAst.typ option; (* Type of set comprehensions cannot be inferred without context... This is context from state or stmt *)
                     }
 
    
@@ -23,7 +22,7 @@ let make_env =
   valid_custom_types = [];
   con_dict = Sym.Table.empty;
   app_ns = [];
-  check_for_declared = true; 
+  set_comp_type = None;
   } 
 
 let insert env sym obj =

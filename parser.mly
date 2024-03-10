@@ -112,7 +112,7 @@ lval:
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
 call: 
-| IDENT LPAR separated_list(COMMA, expr) RPAR 
+| ACTION_START LPAR separated_list(COMMA, expr) RPAR 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc} }
 
 // This is simply to prevent calls from happening in simple expressions (calls only allowed in lvals)
@@ -197,25 +197,12 @@ c_purpose:
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 
 | CONST? decl 
-  { 
-    (*TODO: refactor this*)
-    let const = match $1 with
-    | None -> false
-    | Some _ -> true
-    in
-    List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc; const } ) $2 }
-| CONST? decl EQ expr { 
-    (* TODO: refactor this *)
-    let const = match $1 with
-    | None -> false
-    | Some _ -> true
-    in
-    List.map ( fun param -> State{param; expr = Some $4; loc = mk_loc $loc; const }  ) $2 
-  }
+  { List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc; const = Option.is_some $1} ) $2 }
+| CONST? decl EQ expr 
+  { List.map ( fun param -> State{param; expr = Some $4; loc = mk_loc $loc; const = Option.is_some $1}  ) $2 }
 
 c_state:
 | STATE flatten(state*) ACTIONS { States{ states = $2; loc = mk_loc $loc } }
-
 
 stmt:
 | lval binop? EQ expr {
@@ -228,7 +215,6 @@ stmt:
   in
   Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; loc = mk_loc $loc} 
   }
-
 
 action_sig_param:
 | OUT? decl  {
@@ -265,6 +251,7 @@ c_actions:
 | ACTIONS action+ { Actions{actions = $2; loc = mk_loc $loc} } (*TODO: Temporary untill OP is actually implemented*)
 
 
+
 // c_op: 
 // | OP {
 //   failwith "got to op"
@@ -295,7 +282,7 @@ sync:
 | SYNC sync_call sync_call* { Sync{cond = $2; body = $3; loc = mk_loc $loc} }
 
 app: 
-| APP IDENT INCLUDE app_dep* sync* { App{name = Ident{name = $2; loc = mk_loc $loc}; deps = $4; syncs = $5; loc = mk_loc $loc} }
+| APP IDENT INCLUDE app_dep+ sync* { App{name = Ident{name = $2; loc = mk_loc $loc}; deps = $4; syncs = $5; loc = mk_loc $loc} }
 
 program: 
 | concept* app* EOF { $1, $2 }

@@ -6,6 +6,18 @@ exception TODO
 let convert_ident (Ast.Ident{name;_}) = TAst.Ident{sym = Sym.symbol name;}
 let sym_from_ident (TAst.Ident{sym}) = sym
 
+let add_decl_to_env ?(insert_error = true) ?(const = false) env (Ast.Decl{name;typ;loc}) =
+  let name = convert_ident name in
+  let TAst.Ident{sym} = name in
+  let typ = Utility.convert_type typ in
+  if Env.is_declared env sym && insert_error then 
+    Env.insert_error env (Errors.DuplicateDeclaration{name;loc;ns="variable/action"});
+  (* let typ = if not (Utility.is_first_order_type env typ loc) then (
+    Env.insert_error env (Errors.TypeNotFirstOrder{tp=typ;loc}); TAst.ErrorType
+  ) else typ in  *) 
+  (* TODO: Above may be needed in set comprehensions.... *)
+  Env.insert env sym (Var(typ,const)), TAst.Decl{name = Ident{sym}; typ; }
+
 let rec infertype_expr env expr : TAst.expr * TAst.typ = 
   begin match expr with 
   | Ast.EmptySet _ -> TAst.EmptySet{tp=TAst.NullSet{tp=None}}, TAst.NullSet{tp = None}
@@ -13,20 +25,17 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
   | Ast.Integer {int;_} -> TAst.Integer{int}, TAst.TInt{mult = None}
   | Ast.Boolean {bool;_} -> TAst.Boolean{bool}, TAst.TBool{mult = None}
   | Ast.Unop {op;operand;loc} ->
-    let infer_and_check_relation op = 
-      let _, expr_tp = infertype_expr env operand in
-      if not (Utility.is_relation expr_tp) then Env.insert_error env (Errors.NotARelation{tp=expr_tp;loc});
-      op, expr_tp
+    let operand, operand_tp = infertype_expr env operand  in
+    let check_relation e = if not (Utility.is_relation e) then Env.insert_error env (Errors.NotARelation{tp=e;loc});
     in
     let op, tp = begin match op with 
       | Ast.Not _ -> TAst.Not, TAst.TBool{mult = None}
       | Ast.IsEmpty _ -> TAst.IsEmpty, TAst.TBool{mult = None}
-      | Ast.Tilde _ -> infer_and_check_relation TAst.Tilde
-      | Ast.Caret _ -> infer_and_check_relation TAst.Caret
-      | Ast.Star _ -> infer_and_check_relation TAst.Star
-      | Ast.Card _ -> infer_and_check_relation TAst.Card
+      | Ast.Tilde _ -> check_relation operand_tp;  TAst.Tilde, Utility.reverse_relation_tp operand_tp
+      | Ast.Caret _ -> check_relation operand_tp; TAst.Caret, operand_tp
+      | Ast.Star _ -> check_relation operand_tp; TAst.Star, operand_tp
+      | Ast.Card _ ->  TAst.Card, TAst.TInt{mult = None}
     end in
-    let operand = fst @@ infertype_expr env operand  in
     TAst.Unop{op;operand;tp}, tp
   | Ast.Binop {op;left;right;loc} ->
     let t_left, left_tp = infertype_expr env left in
@@ -67,8 +76,19 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         Utility.change_expr_type t_right left_tp else t_right in  
       TAst.Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
   | Ast.Lval lval -> let lval, tp = infertype_lval env lval in TAst.Lval(lval), tp
-  | Ast.SetComp {decls; cond; loc} -> 
-    failwith "TODO implement set comprehension"
+  | Ast.SetComp {decls; cond; _} ->
+    let env, t_decls = List.fold_left (
+      fun (env, t_decls) (Ast.Decl{name;typ;loc}) -> 
+        let env, t_decl = add_decl_to_env env (Ast.Decl{name;typ;loc}) in
+        env, t_decl :: t_decls
+    ) (env, []) decls in
+    let t_cond = typecheck_expr env cond (TAst.TBool{mult=None}) in 
+    (* To infertype we need to have information in the environment  *)
+    let tp = begin match env.set_comp_type with 
+    | Some t -> t
+    | None -> Env.insert_error env (Errors.CannotInferSetCompType{loc = Utility.get_expr_location expr}); TAst.ErrorType
+    end in 
+    TAst.SetComp{decls = List.rev t_decls; cond = t_cond; tp}, tp
   | Ast.BoxJoin{left;right;_} -> 
     let t_left, left_tp = infertype_expr env left in
     let t_exprs, t_tp = List.fold_left (
@@ -111,9 +131,9 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     let t_call, _ = infertype_expr env call in
     match t_call with 
     | TAst.Call{action;_} -> 
+      (* extracts the precondition, should return true if no precondition i guess. *)
       (* find the action in the environment *)
       (* TODO: implement this       *)
-
       (* the value used as argument should be preserved somehow, e.g. "after create(x), delete(x), x not in pool" *)
       (* this should extract the pre- / firing condition of the action AND evaluate to a boolean *)
       failwith "TODO: semant CAN expression"
@@ -124,7 +144,7 @@ and infertype_lval env lval =
   | Ast.Var i -> 
     let TAst.Ident{sym} = convert_ident i in
     let tp_opt = Env.lookup env sym in
-    let tp = if not (env.check_for_declared) then TAst.TVoid else
+    let tp = 
     begin match tp_opt with 
       | None -> Env.insert_error env (Errors.Undeclared{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType
       | Some Act(_) -> Env.insert_error env (Errors.ActionAsLval{name = TAst.Ident{sym}; loc = Utility.get_lval_location lval}); TAst.ErrorType (* TODO: Might be useful to do stuff like x.f = y *)
@@ -151,40 +171,30 @@ and typecheck_expr env expr tp =
 let typecheck_stmt env = function
 | Ast.Assignment {lval;rhs;loc} -> 
   let lval, tp = infertype_lval env lval in
+  let env = match env.set_comp_type with | None -> {env with set_comp_type = Some tp} | Some _ -> env in
   let rhs = typecheck_expr env rhs tp in  
-  (* TODO: Refactor this *)
   begin match lval with 
-  | TAst.Var{name;_} -> 
-    let TAst.Ident{sym} = name in
+  | TAst.Var{name=TAst.Ident{sym} as name;_} -> 
     let tp_opt = Env.lookup env sym in
     begin match tp_opt with 
-      | Some Var(_,const) -> if const then Env.insert_error env (Errors.ConstAssignment{name = TAst.Ident{sym}; loc});
+      | Some Var(_,const) -> if const then Env.insert_error env (Errors.ConstAssignment{name; loc});
       | _ -> ()
     end;
   | _ -> ()
   end;
   TAst.Assignment{lval;rhs;tp}
 
-let add_named_param_to_env ?(insert_error = true) ?(const = false) env (Ast.Decl{name;typ;loc}) =
-  let name = convert_ident name in
-  let TAst.Ident{sym} = name in
-  let typ = Utility.convert_type typ in
-  if Env.is_declared env sym && insert_error then 
-    Env.insert_error env (Errors.DuplicateDeclaration{name;loc;ns="variable/action"});
-  (* let typ = if not (Utility.is_first_order_type env typ loc) then (
-    Env.insert_error env (Errors.TypeNotFirstOrder{tp=typ;loc}); TAst.ErrorType
-  ) else typ in  *)
-  Env.insert env sym (Var(typ,const)), TAst.Decl{name = Ident{sym}; typ; }
+
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) = 
   let typ = Utility.convert_type typ in
   Env.insert_custom_type env typ, TAst.Parameter{typ} :: param_so_far 
 
 let add_state_param_to_env env (Ast.State{param;const;_}) = 
-  fst @@ add_named_param_to_env env param ~const
+  fst @@ add_decl_to_env env param ~const
 
 let typecheck_state (env, states_so_far) (Ast.State{param;expr;const;_}) = 
-  let _, param = add_named_param_to_env ~insert_error:false env param in (*variables already inserted*)
+  let _, param = add_decl_to_env ~insert_error:false env param in (*variables already inserted*)
   let tp = match param with TAst.Decl{typ;_} -> typ in
   (* if type is map, add each type to environment if not already in environment*)
   let rec insert_map_types env = function
@@ -199,7 +209,7 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;const;_}) =
   begin match expr with
   | None -> env_with_type, TAst.State{param; expr = None;const} :: states_so_far
   | Some expr -> 
-    let t_expr = typecheck_expr env_with_type expr tp in
+    let t_expr = typecheck_expr {env_with_type with set_comp_type = Some tp} expr tp in
     env_with_type, TAst.State{param; expr = Some t_expr;const} :: states_so_far
   end
 
@@ -207,7 +217,7 @@ let typecheck_action_signature env signature =
   let Ast.ActionSignature{name;out;params;_} = signature in
   let env, t_params = List.fold_left (
     fun (env_so_far, t_params_so_far) (Ast.Decl{loc;_} as param) -> 
-      let env, t_param = add_named_param_to_env env_so_far param in
+      let env, t_param = add_decl_to_env env_so_far param in
       let TAst.Decl{typ; _} = t_param in
       if not (Env.type_is_defined env typ) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
       env, t_param :: t_params_so_far
@@ -218,8 +228,7 @@ let typecheck_action_signature env signature =
   env, TAst.ActionSignature{name = convert_ident name; out = t_out; params = t_params}
 
 let add_action_name_to_env env ((TAst.Action{signature;_}), loc) =
-  let TAst.ActionSignature{name;_} = signature in
-  let sym = sym_from_ident name in
+  let TAst.ActionSignature{name=TAst.Ident{sym} as name;_} = signature in
   if Env.is_declared env sym then 
     Env.insert_error env (Errors.DuplicateDeclaration{name;loc; ns = "variable/action"});
   Env.insert env sym (Env.Act(signature))
@@ -276,6 +285,29 @@ let typecheck_concepts env concepts =
   ) (env, []) concepts
   
 
+let typecheck_dependency (env : Env.environment) (Ast.Dependency{name;generics;loc}) = 
+  let t_generics = List.map (
+        fun (Ast.Generic{con;ty;loc}) -> 
+          let t_con = convert_ident con in
+          let t_ty = Utility.convert_type ty in
+          let _ = try 
+            let (con_env, _) = Sym.Table.find (sym_from_ident t_con) (env.con_dict) in 
+            if not (List.mem t_ty con_env.valid_custom_types) then Env.insert_error env (Errors.UndeclaredType{tp = t_ty; loc});
+          with Not_found -> Env.insert_error env (Errors.Undeclared{name = t_con; loc}) 
+          in
+          if t_con = convert_ident name then Env.insert_error env (Errors.SelfDependency{name = t_con; loc});
+          TAst.Generic{con = t_con; ty = t_ty;}          
+      ) generics in       
+      let t_con = convert_ident name in
+      let sym = sym_from_ident t_con in
+      let _ = try 
+      let (_, no_generics) = Sym.Table.find sym env.con_dict in 
+      if List.length t_generics <> no_generics then 
+        Env.insert_error env (Errors.LengthMismatch{expected = no_generics; actual = List.length t_generics; loc});
+      with Not_found -> Env.insert_error env (Errors.Undeclared{name = t_con; loc});
+      in 
+      TAst.Dependency{name = t_con; generics = t_generics;}
+
 let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;syncs;loc}) = 
   let app_name = convert_ident name in
 
@@ -295,44 +327,57 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
     m is a variable belonging to the email concept. Hence it can use the email state variables.
   *)
 
-  let t_deps = List.map (
-    fun (Ast.Dependency{name;generics;_}) -> 
-      let t_generics = List.map (
-        fun (Ast.Generic{con;ty;loc}) -> 
-          let t_con = convert_ident con in
-          let t_ty = Utility.convert_type ty in
-          let _ = try 
-            let (con_env, _) = Sym.Table.find (sym_from_ident t_con) (env.con_dict) in 
-            if not (List.mem t_ty con_env.valid_custom_types) then Env.insert_error env (Errors.UndeclaredType{tp = t_ty; loc});
-          with Not_found -> Env.insert_error env (Errors.Undeclared{name = t_con; loc}) 
-          in
-          TAst.Generic{con = t_con; ty = t_ty;}          
-      ) generics in       
-      let t_con = convert_ident name in
-      let sym = sym_from_ident t_con in
-      let (_, no_generics) = Sym.Table.find sym env.con_dict in
-      if List.length t_generics <> no_generics then 
-        Env.insert_error env (Errors.LengthMismatch{expected = no_generics; actual = List.length t_generics; loc});
-      TAst.Dependency{name = t_con; generics = t_generics;}
-  ) deps in 
+  (* TODO: This needs to be a fold_left if we do not use concept dictionary.  *)
+  let t_deps = List.map (typecheck_dependency env) deps in
 
   let t_syncs = List.map (
     fun (Ast.Sync{cond;body;_}) -> 
-      let typed_sync_call (env : Env.environment) call = 
+      let new_vars = ref [] in (*synchronizations can introduce new variables ...*)
+      let typed_sync_call ?(add_to_env = false) (env : Env.environment) call = 
         let Ast.SyncCall{name;call;_} = call in
-        let name = convert_ident name in
-        let TAst.Ident{sym} = name in 
+        let TAst.Ident{sym} as name = convert_ident name in (* get symbol name of concept st. env can be accessed*)
         let (con_env, _) = Sym.Table.find sym env.con_dict in (*Find the environment for that concept*)
-        let con_env = {con_env with errors = ref []; check_for_declared = false} in
+        let error_happened = ref false in (*This is so we don't cascade errors*)
+        if add_to_env then (
+          (* get symbol of the action being called (from call) *)
+          let TAst.Ident{sym} = match call with
+          | Ast.Call{action;_} -> convert_ident action
+          | _ -> failwith "This wont happen, parser should have caught this already."
+          in
+          (* lookup the action in environment *)
+          let act_opt = Env.lookup con_env sym in
+          match act_opt with
+          | Some Act(ActionSignature{params;_}) ->
+            (* Find new variables not in environment *)
+            List.iter (fun (TAst.Decl{name=TAst.Ident{sym} as name;typ;_}) -> 
+              (* lookup the symbol in environment *)
+              let obj_opt = Env.lookup con_env sym in
+              match obj_opt with
+              (* TODO: possibly mangle name here "_sync_" or do this in code gen *)
+              | None -> new_vars := (sym, typ) :: !new_vars;
+              | Some obj -> 
+                match obj with 
+                | Var _ -> ()  (*State variable, do not need to do anything....*)
+                | Act _ -> error_happened := true; Env.insert_error env (Errors.FirstClassFunction{loc;name});
+            ) params;
+          | _ -> error_happened := true; Env.insert_error env (Errors.UndeclaredAction{name=TAst.Ident{sym}; loc = Utility.get_expr_location call});
+        ) ;
+
+        (* Add new variables to con_env symbol table *)
+        let con_env = List.fold_left (fun (env : Env.environment) (sym, typ) -> 
+          Env.insert env sym (Var(typ, false))
+        ) {con_env with errors = ref []} !new_vars in
+
         let call = TAst.SyncCall{name; call = fst @@ infertype_expr con_env call;} in
-        (* check if con_env contains new errors *)
-        if List.length !(con_env.errors) > 0 then 
+        (* check if con_env contains new errors, don't cascade errors though *)
+        if List.length !(con_env.errors) > 0 && not (!error_happened) then 
           (* insert all those errors into env *)
           env.errors := !(con_env.errors) @ !(env.errors);
         call   
       in   
-      let t_cond = typed_sync_call env cond in
+      let t_cond = typed_sync_call ~add_to_env:true env cond in (*trigger action may define new variables*)
       let t_body = List.map (typed_sync_call env) body in
+           (* print current errors and failwith *)
       TAst.Sync{cond = t_cond; body = t_body;}
   ) syncs in 
   let t_app = TAst.App{name = app_name; deps = t_deps; syncs = t_syncs;} in

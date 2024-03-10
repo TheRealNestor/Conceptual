@@ -6,11 +6,14 @@ type uid = S.symbol (* Unique identifiers *)
 type funcId = S.symbol (* Functions and predicates *)
 type predId = S.symbol (* Predicates *)
 type paramId = S.symbol (* Parameters *)
+type appId = S.symbol (* Application names *)
+type depId = S.symbol (* Dependencies *)
+type genericId = S.symbol (* Parameterized dependencies *)
 
 (* A concept should probably be mapped to an Alloy module *)
 (* module reserved keyword in ocaml *)
 
-type aModule = {
+type aModule = Module of {
   name : uid;
   parameters : uid list option;
 }
@@ -31,21 +34,26 @@ type ty =
 | Sig of sigId * mul 
 | Rel of ty * ty
 
+type dep = Dependency of {
+  id : depId;
+  generics : (depId * ty) list;
+}
+
 (* variables to the state *)
-and fieldDecl = {
+and fieldDecl = FldDecl of {
   id : fieldId;
   ty : ty;
   expr : expr option; 
   const : bool; (*Check whether a variable is constant, i.e. whether to append var or not *)
 }
 
-and sigDecl = {
+and sigDecl = SigDecl of {
   sig_id : sigId;
   mult : mul;
   fields : fieldDecl list;
 }
 
-and fact = {
+and fact = Fact of {
   fact_id : uid;
   body : expr option;
 }
@@ -70,14 +78,14 @@ and lval =
 | BoolVarRef of S.symbol
 | Relation of {left : lval; right : lval;} 
 
-type pred = {
+type pred = Predicate of {
   pred_id : predId;
   cond : expr option;
   params : (S.symbol * ty) list;
   body : expr list ;
 }
 
-type func = {
+type func = Function of {
   func_id : funcId;
   cond : expr option;
   params : (S.symbol * ty) list;
@@ -89,13 +97,15 @@ type func_type =
 | Pred of pred 
 | Func of func
 
-type prog = {
-  module_header : aModule option; 
-  purpose : string;
+type prog = Program of{
+  module_header : aModule; 
+  purpose : string option;
+  deps : dep list;
   sigs : sigDecl list;
   facts : fact list;
   preds_and_funcs : func_type list;
 }
+
 
 type cg_env = {
   generics : S.symbol list ref;
@@ -233,15 +243,13 @@ let serializeQop = function
 
 
 (* Serialization of module *)
-let serializeModule (env : cg_env ) (m : aModule option) : string = 
-  match m with 
-    | None -> ""
-    | Some m -> let name = S.name m.name in 
-                match m.parameters with 
-                  | None -> "module " ^ name
-                  | Some params -> 
-                    env.generics := params @ !(env.generics);
-                    "module " ^ name ^ brackets @@ mapcat ", " S.name params
+let serializeModule (env : cg_env ) (Module{name;parameters}) : string = 
+  let s_name = S.name name in
+  match parameters with 
+    | None -> "module " ^ s_name
+    | Some params -> 
+      env.generics := params @ !(env.generics);
+      "module " ^ s_name ^ brackets @@ mapcat ", " S.name params
 
 let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
 
@@ -308,8 +316,7 @@ let serializeExpr (e : expr) : string =
   in
   serialize_expr' e  
 
-let serializeField (f : fieldDecl) : string =
-  let {id; ty; expr; const} = f in 
+let serializeField (FldDecl{id;ty;expr;const}) : string =
   let exprStr = match expr with 
     | None -> ""
     | Some e -> " = " ^ serializeExpr e
@@ -317,8 +324,7 @@ let serializeField (f : fieldDecl) : string =
   let var = if const then "" else "var " in 
   var ^ S.name id ^ " : " ^ serializeType ty ^ exprStr (*"var" here works because State atom is only one with field in translation*)
 
-let serializeSignature (s : sigDecl) : string = 
-  let {sig_id; fields;mult} = s in
+let serializeSignature (SigDecl{sig_id;fields;mult}) : string = 
   if List.length fields = 0 then "sig " ^ S.name sig_id ^ " { } " else 
     let fieldsStr = mapcat ",\n\t" serializeField fields in
     let mult = serializeMul mult in
@@ -328,22 +334,20 @@ let serializeSignature (s : sigDecl) : string =
 let serializeSigs (env : cg_env) (s : sigDecl list) : string = 
   (* filter from the signature declaration list all the generic types *)
   let contains_boolean = List.exists (
-    fun s -> 
-      let flds = s.fields in 
+    fun (SigDecl{fields;_}) ->
       List.exists(
-      fun fld -> 
-        match fld.ty with 
+      fun (FldDecl{ty;_}) -> 
+        match ty with 
         | Bool _ -> true
         | _ -> false
-      ) flds 
+      ) fields 
   ) s in
   let boolean_signatures = if contains_boolean then 
     "open util/boolean\n\n" else "" in
-  let s = List.filter (fun x -> not (List.mem x.sig_id !(env.generics))) s in
+  let s = List.filter (fun (SigDecl{sig_id;_}) -> not (List.mem sig_id !(env.generics))) s in
   boolean_signatures ^ mapcat "\n\n" serializeSignature s
 
-let serializeFact (f : fact) : string = 
-  let {fact_id; body} = f in 
+let serializeFact (Fact{fact_id;body}) : string = 
   let bodyStr = match body with 
     | None -> ""
     | Some e -> serializeExpr e
@@ -353,24 +357,24 @@ let serializeFact (f : fact) : string =
 let serializeFacts (f : fact list) : string =
   mapcat "\n\n" serializeFact f
 
-let serializePredicate (p : pred) : string = 
-  let paramsStr = serializeParamList @@ groupByType p.params in
-  let condStr = match p.cond with 
+let serializePredicate (Predicate{pred_id;params;cond;body}) : string = 
+  let paramsStr = serializeParamList @@ groupByType params in
+  let condStr = match cond with 
     | None -> ""
     | Some e -> serializeExpr e ^ "\n\t"
   in
-  let bodyStr = mapcat "\n\t" serializeExpr p.body in
-  "pred " ^ S.name p.pred_id ^ brackets paramsStr ^ " " ^ braceswnl (condStr ^ bodyStr)
+  let bodyStr = mapcat "\n\t" serializeExpr body in
+  "pred " ^ S.name pred_id ^ brackets paramsStr ^ " " ^ braceswnl (condStr ^ bodyStr)
 
-let serializeFunction (f : func) : string =
+let serializeFunction (Function{func_id;params;body;cond;out} : func) : string =
   (* remove any output params from params (i.e. any param that also appears in f.out) *)
-  let paramsStr = serializeParamList @@ groupByType f.params in
-  let bodyStr = mapcat "\n\t" serializeExpr f.body in
-  let condStr = match f.cond with 
+  let paramsStr = serializeParamList @@ groupByType params in
+  let bodyStr = mapcat "\n\t" serializeExpr body in
+  let condStr = match cond with 
     | None -> ""
     | Some e -> serializeExpr e ^ "\n\t"
   in
-  "fun " ^ S.name f.func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType f.out ^ " " ^ braceswnl (condStr ^ bodyStr)
+  "fun " ^ S.name func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType out ^ " " ^ braceswnl (condStr ^ bodyStr)
 
 let serializeFunctionType (f : func_type) : string = 
   match f with 
@@ -381,21 +385,21 @@ let serializeFunctionType (f : func_type) : string =
 let serializeInit flds = 
   (* create a fact, should contain each field in the State *)
   (* for each field write "no " ^ name*)
-  let exprs = List.map (fun x -> "no " ^ S.name x.id) flds in
+  let exprs = List.map (fun (FldDecl{id;_}) -> "no " ^ S.name id) flds in
   let exprs = String.concat "\n\t" exprs in
   exprs
 
 let serializeStutter flds =
-  let assignments = mapcat "\n\t" (fun x -> 
-    serializeExpr (Assignment {left = VarRef(S.symbol @@  S.name x.id ^ "'"); right = Lval(VarRef(S.symbol @@ S.name x.id))})
+  let assignments = mapcat "\n\t" (fun (FldDecl{id;_}) -> 
+    serializeExpr (Assignment {left = VarRef(S.symbol @@  S.name id ^ "'"); right = Lval(VarRef(S.symbol @@ S.name id))})
   ) flds in
   "pred alloy_stutter " ^ braceswnl assignments
 
 let transitions funcs fields =
   let func_str_list = mapcat "\n\t\t" (fun x -> 
     let (id, params) = match x with
-    | Pred p -> (p.pred_id, p.params)
-    | Func f -> (f.func_id, f.params)
+    | Pred Predicate{pred_id;params;_} -> (pred_id, params)
+    | Func Function{func_id;params;_} -> (func_id, params)
     in
     let params = List.fast_sort (fun (a, _) (b, _) -> String.compare (S.name a) (S.name b)) params in
     if List.length params = 0 then 
@@ -415,14 +419,16 @@ let transitions funcs fields =
      doing this indentation by hand is fine (for the few cases where it is needed) *)
   "always (\n\t\talloy_stutter or\n\t\t" ^ func_str_list ^ "\n\t)")
   
-let serializeDynamicBehavior p = 
-  let sigs = p.sigs in
-  let state = List.find (fun x -> S.name x.sig_id = "State") sigs in
-  let fields = state.fields in
-  let stutter = serializeStutter fields in
-  let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) p.preds_and_funcs in (*Remove queries*)
-  let transitions = transitions preds fields in  
-  stutter ^ "\n\n" ^ transitions
+let serializeDynamicBehavior (Program{sigs;preds_and_funcs;_}) = 
+  let sigs = sigs in
+  let val_opt = List.find_opt (fun (SigDecl{sig_id;_}) -> S.name sig_id = "State") sigs in (*All concepts have State*)
+  match val_opt with 
+  | None -> ""
+  | Some (SigDecl{fields;_}) ->
+    let stutter = serializeStutter fields in
+    let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) preds_and_funcs in (*Remove queries*)
+    let transitions = transitions preds fields in  
+    stutter ^ "\n\n" ^ transitions
 
 let serializeFunctionTypes (f : func_type list) : string =
   mapcat "\n\n" serializeFunctionType f
@@ -433,7 +439,7 @@ let serializeEvents (f : func_type list) : string =
   let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) f in
   let pred_events = List.map (fun x -> 
     match x with 
-    | Pred p -> (S.name p.pred_id, p.params)
+    | Pred Predicate{pred_id;params;_} -> (S.name pred_id, params)
     | Func _ -> failwith "CANNOT HAPPEN, was literally just filtered"
   ) preds in
   let pred_events = ("alloy_stutter", []) :: pred_events in
@@ -488,22 +494,36 @@ let serializeEvents (f : func_type list) : string =
   ) partitioned in
   enum_str ^ "\n\n" ^ event_fun_str ^ "\n\n" ^ event_set_str
 
-let string_of_program (p : prog) : string = 
+
+let serializeDependencies (deps : dep list) : string = 
+  mapcat "\n" (
+    fun (Dependency{id;generics}) ->
+      let genericsStr = mapcat ", " (fun (id, ty) -> S.name id ^ "/" ^ serializeType ty) generics in
+      "open " ^ S.name id ^ if genericsStr = "" then "" else brackets genericsStr
+  ) deps
+
+let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;deps} as p) : string = 
   let env = make_cg_env in 
-  let module_str = serializeModule env p.module_header ^ "\n\n" in (*This is to ensure that it is run first,
+  let module_str = serializeModule env module_header ^ "\n\n" in (*This is to ensure that it is run first,
                                                                    to populate the environment with generics*)
-  module_str ^
-  serializePurpose p.purpose ^ "\n\n" ^ 
-  serializeSigs env p.sigs ^ "\n\n" ^
-  serializeFacts p.facts ^ "\n\n" ^
-  serializeFunctionTypes p.preds_and_funcs ^ "\n\n" ^
+  let purpose = match purpose with | None -> "" | Some p -> serializePurpose p in
+  module_str ^ purpose ^ "\n" ^ 
+  serializeDependencies deps ^ "\n" ^
+  serializeSigs env sigs ^ "\n" ^
+  serializeFacts facts ^ "\n" ^
+  serializeFunctionTypes preds_and_funcs ^ "\n" ^
+  (* if this is an app, we don't want this event stuff TODO: we might in the future to distinguish between events,
+    only concepts have 0 dependencies, apps have at least one dependency *)
+  if List.length deps <> 0 then (
+    ""
+  (*  *)
 
-  "-------------------------------------------" ^ "\n\n" ^
-  serializeDynamicBehavior p ^ "\n\n" ^
-  serializeEvents p.preds_and_funcs ^ "\n\n" ^
-  "-------------------------------------------" ^ "\n\n" 
-
-  
+  ) else (
+  "-------------------------------------------" ^ "\n" ^
+  serializeDynamicBehavior p ^ "\n" ^
+  serializeEvents preds_and_funcs ^ "\n" ^
+  "-------------------------------------------" ^ "\n" 
+  )
 
 
 

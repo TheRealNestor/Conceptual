@@ -19,10 +19,10 @@ let compile_program (filepath : string) =
     let prog = Parser.program tokenizer lex_buf in 
 
     (* print AST *)
-    (* pretty_print_program prog; *)
+    pretty_print_program prog;
     (* print_endline ""; *)
-
     let env, typed_prog = Semant.typecheck_prog prog in
+    pretty_print_t_program typed_prog;
     let semant_errors = !(env.errors) in 
     if semant_errors <> [] then 
       begin
@@ -32,7 +32,6 @@ let compile_program (filepath : string) =
     else 
       begin
         print_endline "No semantic errors";
-        pretty_print_t_program typed_prog;
         let code = CodeGen.translate_program typed_prog in 
         ()
       end;

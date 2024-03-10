@@ -30,6 +30,10 @@ type error =
 | NotASet of {loc : Loc.location; tp : TAst.typ}
 | InvalidCStyle of {loc : Loc.location; input : string}
 | ConstAssignment of {loc : Loc.location; name : TAst.ident}
+| CannotInferSetCompType of {loc : Loc.location}
+| SelfDependency of {loc : Loc.location; name : TAst.ident}
+| FirstClassFunction of {loc : Loc.location; name : TAst.ident}
+| UndeclaredAction of {loc : Loc.location; name : TAst.ident}
 
 
 let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
@@ -58,6 +62,10 @@ let print_error err =
   | NotASet {loc; tp} -> Printf.printf "NotASet. The type %s is not a set \t" (TPretty.typ_to_string tp); Loc.print_location loc;
   | InvalidCStyle {loc; input} -> Printf.printf "InvalidShorthand. Invalid C-style shorthand: %s= \t" input; Loc.print_location loc;
   | ConstAssignment {loc; name} -> Printf.printf "ConstAssignment. The name %s is a constant and cannot be mutated \t" (string_of_t_ident name); Loc.print_location loc;
+  | CannotInferSetCompType {loc} -> Printf.printf "CannotInferSetCompType. Cannot infer the type of the set comprehension \t"; Loc.print_location loc;
+  | SelfDependency {loc; name} -> Printf.printf "SelfDependency. The name %s is self-dependent \t" (string_of_t_ident name); Loc.print_location loc;
+  | FirstClassFunction {loc; name} -> Printf.printf "FirstClassFunction. The name %s is a first-class function. Not supported. \t" (string_of_t_ident name); Loc.print_location loc;
+  | UndeclaredAction {loc; name} -> Printf.printf "UndeclaredAction. The action \"%s\" is not declared \t" (string_of_t_ident name); Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)
