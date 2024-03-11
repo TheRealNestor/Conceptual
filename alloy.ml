@@ -1,5 +1,6 @@
 module S = Symbol
 
+(* for good measure, readability and in case we need to change just one of them... *)
 type sigId = S.symbol (* Signatures *)
 type fieldId = S.symbol (* Fields *)
 type uid = S.symbol (* Unique identifiers *)
@@ -18,14 +19,15 @@ type aModule = Module of {
   parameters : uid list option;
 }
 
-
-(* type multiplicity = One | Lone | Some | None *)
 type qop = All | No | One | Some | Lone 
+
+(* could possibly add the rest *)
+type top = Always | Eventually | Until | Before | After 
 
 type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Arrow
 
 type unop = Not | Tilde | Caret | Star | IsEmpty | Card
-type mul = One | Lone | Some | Set | Implicit   (*TODO: add lone, no, some? CHECK ON THIS*)
+type mul = One | Lone | Some | Set | Implicit 
 
 type ty = 
 | Int of mul
@@ -55,7 +57,7 @@ and sigDecl = SigDecl of {
 
 and fact = Fact of {
   fact_id : uid;
-  body : expr option;
+  body : expr;
 }
 
 and expr =
@@ -69,6 +71,7 @@ and expr =
 | Implication of {left : expr; right : expr; falseExpr : expr option}
 | Assignment of {left : lval ; right : expr}
 | Quantifier of {qop : qop; vars : (S.symbol * ty) list; expr : expr}
+| Temporal of {top : top; expr : expr}
 | SetComprehension of {cond : expr; vars : (S.symbol * ty) list;}
 | BoxJoin of {left : expr; right : expr list}
 | Call of {func : expr; args : expr list}
@@ -109,11 +112,14 @@ type prog = Program of{
 
 type cg_env = {
   generics : S.symbol list ref;
+  indent : int ref;
 }
 
 (*This is to remove signatures if the module is parameterized *)
-let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String"; Symbol.symbol "Bool"]} 
+let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String"; Symbol.symbol "Bool"];
+                   indent = ref 0}
 
+(* -------------------------- Helper functions --------------------------   *)  
 
 let rec compare_typ a b = match (a, b) with
 (* same as below but for als  *)
@@ -145,6 +151,7 @@ let prefix p f a = p ^ f a
 let concwsp = String.concat " "
 
 let parens s = "(" ^ s ^ ")"
+let parnswnl s = "(\n\t" ^ s ^ "\n)"
 let braces s = "{" ^ s ^ "}"
 let braceswsp s = "{ " ^ s ^ " }"
 let braceswnl s = "{\n\t" ^ s ^ "\n}"
@@ -184,31 +191,24 @@ let serializeMul = function
     | Sig (s,m)-> serializeMul m ^ S.name s
     | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
   
-let groupByType (l : (S.symbol * ty) list) = 
-  (* This is definitely not the most optimal way of doing this, but w/e let's not prematurely optimize *)
-  if List.length l = 0 then [] else
-  let table = Hashtbl.create @@ List.length l in
-  List.iter (fun (s, ty) -> 
-    let symbols = 
-      try Hashtbl.find table ty 
-      with Not_found -> []
-    in
-    Hashtbl.replace table ty (s :: symbols)
-  ) l;
+  let groupByType (l : (S.symbol * ty) list) =
+    (* do the same as the function above, but using the symbol table (extends Map.Make) *)
+    let tbl = S.Table.empty in  (* Initialize an empty map *)
+    let l = List.map (fun (s, ty) -> (s, S.symbol @@ serializeType @@ ty)) l in
+    (* fold over the list, adding the symbols to the list of symbols for the type *)
+    let tbl = List.fold_left (fun acc (s, ty) ->
+      let key = ty in  (* Use `symbol` function to create a symbol for the key *)
+      match S.Table.find_opt key acc with
+      | Some symbols -> S.Table.add key (s :: symbols) acc  (* If key exists, prepend the new name to the list *)
+      | None -> S.Table.add key [s] acc  (* Otherwise, create a new entry with the key *)
+    ) tbl l in
 
-  (* Sort the symbols for each key in lexiographic order*)
-  Hashtbl.iter (fun ty symbols -> 
-    Hashtbl.replace table ty (List.fast_sort (fun a b -> String.compare (S.name a) (S.name b)) symbols)
-  ) table;
+    (* fold over the table, converting it to a list *)
+    let l = S.Table.fold (fun key symbols acc -> (symbols, key) :: acc) tbl [] in
+    List.map (fun (symbols, ty) -> (List.fast_sort (fun a b -> String.compare (S.name a) (S.name b)) symbols, Sig(ty, Implicit))) l 
 
-  (* Convert to list with the key and all values 
-     the order of hashtable is random when folding so we convert it to a list first*)
-  let list = Hashtbl.fold (fun ty symbols acc -> 
-    (symbols, ty) :: acc
-  ) table [] in 
 
-  (* Sort the list by the type ( largely lexiographically), keeping the values *)
-  List.fast_sort (fun (_, ty1) (_, ty2) -> compare_typ ty1 ty2) list
+
 
 let serializeParamList l = 
   mapcat ", " (fun (symbols, ty) -> 
@@ -241,6 +241,13 @@ let serializeQop = function
 | Some -> "some"
 | Lone -> "lone"
 
+let serializeTop = function 
+| Always -> "always"
+| Eventually -> "eventually"
+| Until -> "until"
+| Before -> "before"
+| After -> "after"
+
 
 (* Serialization of module *)
 let serializeModule (env : cg_env ) (Module{name;parameters}) : string = 
@@ -256,6 +263,7 @@ let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
 let serializeVars (vars : (paramId list * ty) list) = 
   mapcat ", " (fun (symbols, ty) -> 
     let symbolsStr = mapcat ", " (fun s -> S.name s) symbols in
+    (* symbolsStr ^ " : " ^ serializeType ty *)
     symbolsStr ^ " : " ^ serializeType ty
   ) vars
 
@@ -303,10 +311,8 @@ let serializeExpr (e : expr) : string =
     | Assignment {left; right} -> serializeLval left ^ " = " ^ serialize_expr' right
     | Call {func; args} -> serialize_expr' func ^ brackets @@ mapcat ", " serialize_expr' args
     | BoxJoin {left; right} -> serialize_expr' left ^ brackets @@ mapcat ", " serialize_expr' right
-    | Quantifier {qop; vars; expr} -> 
-      serializeQuantify qop vars ^ serialize_expr' expr ^
-      if List.length vars = 0 then "" else 
-      brackets @@ mapcat ", " (fun (s, _) -> S.name s) vars
+    | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ serialize_expr' expr 
+    | Temporal {top; expr} -> serializeTop top ^ " " ^ parnswnl @@ serialize_expr' expr
     | SetComprehension{cond; vars} -> 
       let vars = groupByType vars in
       let varsStr = serializeVars vars in
@@ -348,11 +354,7 @@ let serializeSigs (env : cg_env) (s : sigDecl list) : string =
   boolean_signatures ^ mapcat "\n\n" serializeSignature s
 
 let serializeFact (Fact{fact_id;body}) : string = 
-  let bodyStr = match body with 
-    | None -> ""
-    | Some e -> serializeExpr e
-  in
-  "fact _state_" ^ S.name fact_id ^ " " ^ braceswnl bodyStr
+  "fact _state_" ^ S.name fact_id ^ " " ^ braceswnl @@ serializeExpr body
 
 let serializeFacts (f : fact list) : string =
   mapcat "\n\n" serializeFact f
@@ -415,8 +417,7 @@ let transitions funcs fields =
   wrap_in_comment "The initial state" ^ "\n\t" ^
   serializeInit fields ^ "\n\n\t" ^
   wrap_in_comment "The state transitions" ^ "\n\t" ^
-  (* Could obviously do this smarter, but as we don't generally allow nesting structure,
-     doing this indentation by hand is fine (for the few cases where it is needed) *)
+  (* Could obviously do this smarter *)
   "always (\n\t\talloy_stutter or\n\t\t" ^ func_str_list ^ "\n\t)")
   
 let serializeDynamicBehavior (Program{sigs;preds_and_funcs;_}) = 
@@ -469,22 +470,22 @@ let serializeEvents (f : func_type list) : string =
     String.concat "." (List.rev tps) 
   in
 
-  let partition_and_group_by_vars list = 
-    let tbl = Hashtbl.create 8 in (*8 is arbitrary, will likely rarely get more than 8 at once*)
-    List.iter (fun (name, vars) -> 
-      let key = key_of_vars vars in
-        try 
-          let names = Hashtbl.find tbl key in 
-          Hashtbl.replace tbl key (name :: names)
-        with Not_found -> Hashtbl.add tbl key [name]        
-      ) list; 
-    Hashtbl.fold (fun key names acc -> (key, names) :: acc) tbl []
-  in
+  let partition_and_group_by_vars list =
+    let tbl = S.Table.empty in  (* Initialize an empty map *)
+    let tbl = List.fold_left (fun acc (name, vars) ->
+      let key = S.symbol (key_of_vars vars) in  (* Use `symbol` function to create a symbol for the key *)
+      match S.Table.find_opt key acc with
+      | Some names -> S.Table.add key (name :: names) acc  (* If key exists, prepend the new name to the list *)
+      | None -> S.Table.add key [name] acc  (* Otherwise, create a new entry with the key *)
+    ) tbl list in
+    S.Table.fold (fun key names acc -> (key, names) :: acc) tbl []
+    in
   let partitioned = partition_and_group_by_vars pred_events in
 
   let event_set_str = "fun events : set Event " ^ braceswnl @@
   mapcat " + " (
     fun (key, names) ->
+      let key = S.name key in
       let action_str = mapcat " + " (fun x -> "_"^x) names in
       let key = if key = "" then "" else "."^key in
       if List.length names = 1 then 
@@ -501,6 +502,10 @@ let serializeDependencies (deps : dep list) : string =
       let genericsStr = mapcat ", " (fun (id, ty) -> S.name id ^ "/" ^ serializeType ty) generics in
       "open " ^ S.name id ^ if genericsStr = "" then "" else brackets genericsStr
   ) deps
+
+let get_prog_name (Program{module_header;_}) = 
+  match module_header with 
+  | Module{name;_} -> S.name name
 
 let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;deps} as p) : string = 
   let env = make_cg_env in 

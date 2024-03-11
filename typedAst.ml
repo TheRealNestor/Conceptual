@@ -144,6 +144,7 @@ type sync_call = SyncCall of {
 type sync = Sync of {
   cond : sync_call;
   body : sync_call list;
+  tmps : decl list; (* This is just to make things simpler in code generation, we already construct this list in semant as is...*)
 }
 
 type app = App of {

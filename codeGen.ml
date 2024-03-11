@@ -5,23 +5,23 @@ module Sym = Symbol
 type cg_env = {
   custom_types : Sym.symbol list;
   state_variables : Sym.symbol list; (* actually declared variable in state component of concept*)
-  action_parameters : Sym.symbol list; (* parameters of the action, used for code generation*)
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
-  assignment_type : TAst.typ; (* type of the assignment in typed AST. *)
-  assignment_lval : TAst.lval option; (* lval of the assignment, used for code generation*)
+  assignment_type : TAst.typ; (* type of the assignment in typed AST, used with distributive join to add things if it does not match*)
+  assignment_lval : TAst.lval option; (* lval of the assignment, used for code generation to translate non-compound assignments...*)
   is_left : bool; (* number of statements in the action, used for code generation*)
   lhs_sym : Sym.symbol; (* symbol of the left hand side of the assignment, used for empty set expression*)
+  con_dict : (Symbol.symbol list) Sym.Table.t; (* concept name to list of state variables *)
 }
 
 let make_cg_env = {
   custom_types = [];
   state_variables = [];
-  action_parameters = [];
   distributive_joins = [];
   assignment_type = TAst.ErrorType; (* This is reassigned before it is used*)
   assignment_lval = None;
   is_left = false;
   lhs_sym = Sym.symbol "lhs"; (* This is reassigned before it is used*)
+  con_dict = Sym.Table.empty;
 }
 
 
@@ -137,6 +137,7 @@ let get_dist_join_str ?(with_arrow = true) env =
         str
     ) "" env.distributive_joins
 
+
 let rec lval_to_als env = function 
 | TAst.Var {name;tp} -> 
   if List.mem (sym_from name) env.state_variables then 
@@ -181,6 +182,8 @@ let rec lval_to_als env = function
   lval_to_als env right
   (* Als.Relation({left = lval_to_als env left; right = lval_to_als env right;}) *)
      
+
+  
 let rec trans_expr env expr =
   let _tr = trans_expr env in 
   let _mk_lit lit =   
@@ -250,7 +253,8 @@ let rec trans_expr env expr =
         ) partitioned_type_list in
         let qop = if op = TAst.In then Als.All else Als.No in
         let expr = Als.Binop{left = _tr left; right = _tr right; op = Als.In} in
-        Als.Quantifier{qop; vars = quant_vars; expr}    
+        let box_right_syms = List.map (fun (sym,_) -> Als.Lval(Als.VarRef(sym))) quant_vars in
+        Als.Quantifier{qop; vars = quant_vars; expr=BoxJoin{left = expr; right = box_right_syms}}    
       else
         Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
     | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
@@ -286,11 +290,11 @@ let trans_concept_signature = function
 
 let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = TAst.Decl{name;typ};expr;const}) = 
   let fact = match expr with
-  | None -> None
-  | Some e -> Some (Als.Assignment{left = Als.VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
+  | None -> []
+  | Some e ->  
+    let body = (Als.Assignment{left = Als.VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
+    in [Als.Fact{fact_id = sym_from name; body}]
   in 
-  let fact = if fact = None then [] else 
-  [Als.Fact{fact_id = sym_from name; body = fact}] in 
   Als.FldDecl{id = sym_from name; ty = typ_to_als typ; expr = None;const} :: fields_so_far, 
   fact @ facts_so_far,
   add_tp_to_env {env_so_far with state_variables = sym_from name :: env_so_far.state_variables} typ
@@ -298,20 +302,20 @@ let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{pa
 let trans_concept_states env states = 
   List.fold_left trans_concept_state ([], [], env) states
 
-let trans_action env (TAst.Action{signature;cond;body}) = 
+let trans_action (env, funcs) (TAst.Action{signature;cond;body}) = 
   let TAst.ActionSignature{name;params;out} = signature in 
-  let params, env = List.fold_left (
-    fun (params_so_far, env_so_far) (TAst.Decl{name;typ} as np) -> 
+  let params = List.fold_left (
+    fun (params_so_far) (TAst.Decl{name;typ} as np) -> 
       (* remove any parameter that also appears in out *)
-      if List.mem np out then (params_so_far, env_so_far) else
-      (params_so_far @ [sym_from name, typ_to_als typ] , {env_so_far with action_parameters = sym_from name :: env_so_far.action_parameters} )
-  ) ([], env) params in
+      if List.mem np out then params_so_far else
+      params_so_far @ [sym_from name, typ_to_als typ]
+  ) [] params in
   let als_cond = begin match cond with 
   | None -> None
   | Some When{cond} -> Some (trans_expr env cond) 
   end in
-  (* TODO: Accumulate multiple expressions that mutate the same variable? Do this is semantic analysis? *)
 
+  (* TODO: Accumulate multiple expressions that mutate the same variable? Do this is semantic analysis? *)
   (* get a list of all lval symbols used in body (without apostrophy from left) *)
   let left_syms = List.map (
     fun stmt -> 
@@ -329,7 +333,16 @@ let trans_action env (TAst.Action{signature;cond;body}) =
     | _ -> false
     in lval_in_expr' exp
   in  
-  let body = List.map (
+
+  (* same as below but fold left, so we can remove things from the body *)
+  (* let body = List.fold_left (
+    fun body_so_far stmt -> 
+
+      failwith "TODO"
+  ) body body in  *)
+
+  let body = 
+    List.map (
     fun lval -> 
       let lval_sym = get_lval_sym lval in
       let stmts = List.filter (
@@ -337,8 +350,11 @@ let trans_action env (TAst.Action{signature;cond;body}) =
           match stmt with 
           | TAst.Assignment{lval;_} -> 
             let lval_sym' = get_lval_sym lval in
+            (* print both syms *)
+            print_endline @@ Sym.name lval_sym ^ " " ^ Sym.name lval_sym';
             lval_sym = lval_sym'
       ) body in
+      (* remove all matches from body *)
 
       (* traverse list of stmts *)
       (* if left hand side symbol is not present on the right hand side, discard the list up until now and start from this stmt *)
@@ -347,12 +363,10 @@ let trans_action env (TAst.Action{signature;cond;body}) =
           let TAst.Assignment{rhs;_} = stmt in
           if sym_in_expr lval_sym rhs then stmts_so_far @ [stmt] else [stmt]
           ) [] stmts in
-      
-          if List.length stmts = 0 then failwith "This should never happen";
-          
+                
       (* traverse stmt list and convert into a single statement, folding on rhs *)
-      List.fold_left (
-        fun stmt_so_far (TAst.Assignment{rhs;tp;_}) -> 
+      let res = List.fold_left (
+        fun stmt_so_far (TAst.Assignment{rhs;tp;lval}) -> 
           let TAst.Assignment{lval=lval_so_far;rhs=rhs_so_far;_} = stmt_so_far in 
           (* TODO: Could possibly filter the lval here in compound assingments so no duplicates *)
           TAst.Assignment{
@@ -361,11 +375,15 @@ let trans_action env (TAst.Action{signature;cond;body}) =
             tp
           }
       ) (List.hd stmts) (List.tl stmts)
+      in
+      (* remove all occurrences of subsequent statements that has the same lval sym *)
+      res
+
     ) left_syms in 
 
     
   let body = if List.length out > 0 then (
-    (* TODO: Currently semantic analysis ensures out has a length of 1 *)
+    (* TODO: Currently semantic analysis ensures out has a length of 1 at most *)
     let out_syms_types = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ) out in
     let out_syms, out_types = List.split out_syms_types in
       (* find output statement *)
@@ -396,59 +414,117 @@ let trans_action env (TAst.Action{signature;cond;body}) =
     ) remaining_syms in
     body @ remaining_stmts
   ) in
-  if List.length out = 0 then 
+  let func = if List.length out = 0 then 
     Als.Pred(Als.Predicate{pred_id = sym_from name; cond = als_cond; params; body})
   else (
     let out = List.hd @@ List.map (fun (TAst.Decl{typ;_}) -> typ_to_als typ) out in
     Als.Func(Als.Function{func_id = sym_from name; cond = als_cond; params; out; body})
-  )
+  ) in 
+  env, func :: funcs
 
 let trans_actions env actions = 
-  List.map (trans_action env) actions 
+  List.fold_left trans_action (env, []) (actions)
 
-let trans_concept (TAst.Concept{signature; purpose=Purpose{doc_str};states=States{states};actions = Actions{actions}}) = 
+let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{doc_str};states=States{states};actions = Actions{actions}} as c) = 
   let als_header, env = trans_concept_signature signature in
   let als_states, als_facts, cg_env = trans_concept_states env states in 
   (* need a list of signatures, first from the primitive types stored in cg_env *)
   let primitive_sigs = List.map (fun sym -> Als.SigDecl{sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
   (* TODO: Booleans should be added here when needed.... *)
   let sigs = List.rev @@ Als.SigDecl{sig_id = Sym.symbol "State"; fields = List.rev @@ als_states; mult = Als.One} :: primitive_sigs in
-  let preds_and_funcs = trans_actions cg_env actions in  
-  Als.Program{module_header = als_header; facts = als_facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs}
+  let env, preds_and_funcs = trans_actions cg_env actions in  
+  let preds_and_funcs = List.rev preds_and_funcs in (*reverse due to fold left, messes up order*)
+  {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) env.state_variables env_so_far.con_dict}, 
+  Als.Program{module_header = als_header; facts = als_facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs} :: progs
 
 
 
 
-let trans_app (TAst.App{name;deps;syncs}) =
+let trans_app env apps (TAst.App{name;deps;syncs}) =
   let als_header = Als.Module{name = sym_from name; parameters = None;} in
   let als_deps = List.map (fun (TAst.Dependency{name;generics}) -> 
     let als_generics = List.map (fun (TAst.Generic{con;ty}) -> sym_from con, typ_to_als ty) generics in
     Als.Dependency{id = sym_from name; generics = als_generics}
     ) deps in
+
+
+  let emit_fresh_symbol = fresh_symbol 0 in
+
+  (* mangling, do this after... *)
+  let als_syncs = List.map (
+    fun (TAst.Sync{cond;body;tmps} as sync) ->  
+      let _tr_sync (TAst.SyncCall{name=TAst.Ident{sym=con_sym};call}) =
+        match call with 
+        | TAst.Call{action=TAst.Ident{sym};args;tp} -> 
+          let mangle_sym sym = Sym.symbol @@ (Sym.name con_sym) ^ "/" ^ (Sym.name sym) in
+          let args = List.map (fun arg ->
+            let rec check_arg = function
+            | TAst.Lval TAst.Var{name=TAst.Ident{sym};tp} as l -> 
+              let con_vars = Sym.Table.find con_sym env.con_dict in
+              let is_state = List.mem sym con_vars in
+              if is_state then 
+                TAst.Lval(TAst.Var{name=TAst.Ident{sym=prepend_state_symbol @@ mangle_sym sym};tp})
+              else l
+            | TAst.Lval TAst.Relation{left;right;tp} -> 
+              let left = Utility.expr_to_lval @@ check_arg @@ Lval left in
+              let right = Utility.expr_to_lval @@ check_arg @@ Lval right in
+              TAst.Lval(TAst.Relation{left; right; tp})
+            | _ as e -> e
+            in
+            check_arg arg
+          ) args in 
+          trans_expr env (TAst.Call{action=TAst.Ident{sym=mangle_sym sym};args;tp})
+
+        | _ -> failwith "CG: synchronization of non call, not supported, ruled out by semant"
+        in
+      (* TODO: this somehow adds an additional call [t] *)
+      let als_expression = Als.Implication{
+        left = _tr_sync cond;
+        right = Temporal{top = Eventually; 
+                        expr = List.fold_left (fun expr_so_far expr ->
+                            Als.Binop{
+                              left = expr_so_far;
+                              right = _tr_sync expr;
+                              op = Als.And
+                            }
+                          ) (_tr_sync @@ List.hd body) (List.tl body)
+        };
+        falseExpr = None;
+      }
+      in
+      (* TODO: this adds extra call, remove that in serialization, and change above uses to manually add the call (in for instance) *)
+      let fact_expr = Als.Quantifier{
+        qop = All; 
+        vars = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ_to_als typ) tmps;
+        expr = Temporal{top = Always; expr = als_expression};
+      } in 
+      let fact_id = emit_fresh_symbol @@ "_sync_" ^ Utility.get_sync_name sync in 
+      Als.Fact{fact_id; body = fact_expr}
+  ) syncs in 
   
   Als.Program{
     module_header = als_header;
-    facts = [];
+    facts = als_syncs;
     deps = als_deps;
     purpose = None;
     sigs = [];
     preds_and_funcs = []
-  }
+  } :: apps
 
 let translate_program (prog : TAst.program) = 
   let concepts, apps = prog in 
-  List.iter (fun c -> 
-    let concept_name = Utility.get_concept_name c in 
-    let alloy_prog = trans_concept c in 
-    let string_prog = Als.string_of_program alloy_prog in
-    let oc = open_out ("alloy/" ^concept_name ^ ".als") in
+
+  let env, concepts = List.fold_left trans_concept (make_cg_env, []) concepts in 
+  List.iter (fun c_prog -> 
+    let string_prog = Als.string_of_program c_prog in
+    let oc = open_out ("alloy/" ^ Als.get_prog_name c_prog ^ ".als") in
     Printf.fprintf oc "%s\n" string_prog;
   ) concepts;
 
+  let apps = List.fold_left (trans_app env) [] apps in
   List.iter (
-    fun (TAst.App{name=TAst.Ident{sym};_} as a) ->
-      let alloy_prog = trans_app a in 
-      let string_prog = Als.string_of_program alloy_prog in
-      let oc = open_out ("alloy/" ^ Symbol.name sym ^ ".als") in
+    fun app_prog ->
+      let string_prog = Als.string_of_program app_prog in
+      let oc = open_out ("alloy/" ^ Als.get_prog_name app_prog ^ ".als") in
       Printf.fprintf oc "%s\n" string_prog;
   ) apps;

@@ -127,10 +127,13 @@ let expr_to_lval = function
 | TAst.Lval l -> l
 | _ -> failwith "Not an lval"
 
-let get_concept_name (TAst.Concept{signature;_}) = 
+
+let get_concept_sym (TAst.Concept{signature;_}) = 
   match signature with
-  | Signature{name=TAst.Ident{sym}} -> Symbol.name sym
-  | ParameterizedSignature{name=TAst.Ident{sym};_} -> Symbol.name sym
+  | Signature{name=TAst.Ident{sym}} -> sym
+  | ParameterizedSignature{name=TAst.Ident{sym};_} -> sym
+  
+let get_concept_name c = Symbol.name @@ get_concept_sym c
 
 let rec get_expr_location = function 
 | Ast.Lval l -> get_lval_location l
@@ -282,3 +285,12 @@ let is_join_expr = function
 | TAst.Binop {op=TAst.Join;_} -> true
 | _ -> false
 
+
+let get_sync_name (TAst.Sync{cond;_}) = 
+  let con_of_sync_call (TAst.SyncCall{name = TAst.Ident{sym};_}) = Symbol.name sym in
+  let action_of_sync_call (TAst.SyncCall{call;_}) = 
+    match call with 
+    | TAst.Call{action=TAst.Ident{sym};_} -> Symbol.name sym
+    | _ -> failwith "Not a call"
+  in
+  con_of_sync_call cond ^ "_" ^ action_of_sync_call cond

@@ -155,7 +155,7 @@ and infertype_lval env lval =
     (* Check that the relation is well-formed *)    
     let left, left_tp = infertype_lval env left in
     let right, right_tp = infertype_lval env right in
-    let tp = Utility.construct_join_type env (Ast.Lval(l)) left_tp right_tp in (*TODO: if we allow joins here, then we need to handle this for app/princple cases, dont think we want to allow all expressions...*)
+    let tp = Utility.construct_join_type env (Ast.Lval(l)) left_tp right_tp in 
     TAst.Relation{left;right;tp}, tp
   end
 
@@ -170,7 +170,7 @@ and typecheck_expr env expr tp =
 (* I don't think we have anything that can modify the environment, no variable declarations for example, so does not return environment *)
 let typecheck_stmt env = function
 | Ast.Assignment {lval;rhs;loc} -> 
-  let lval, tp = infertype_lval env lval in
+  let lval, tp = infertype_lval env lval in 
   let env = match env.set_comp_type with | None -> {env with set_comp_type = Some tp} | Some _ -> env in
   let rhs = typecheck_expr env rhs tp in  
   begin match lval with 
@@ -410,7 +410,8 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
       in   
       let t_cond = typed_sync_call ~add_to_env:true env cond in (*trigger action may define new variables*)
       let t_body = List.map (typed_sync_call env) body in
-      TAst.Sync{cond = t_cond; body = t_body;}
+      let tmps = List.map (fun (sym, typ) -> TAst.Decl{name = TAst.Ident{sym}; typ;}) !new_vars in
+      TAst.Sync{cond = t_cond; body = t_body; tmps;}
   ) syncs in 
   let t_app = TAst.App{name = app_name; deps = t_deps; syncs = t_syncs;} in
   if List.mem app_name env.app_ns then 
@@ -424,8 +425,8 @@ let typecheck_apps env apps =
 let typecheck_prog (prg : Ast.program) : Env.environment * TAst.program =
   let env = Env.make_env in 
   let concepts, apps = prg in 
-  let env, t_cons = typecheck_concepts env concepts in 
-  let env, t_apps = typecheck_apps env apps in
+  let concept_env, t_cons = typecheck_concepts env concepts in 
+  let app_env, t_apps = typecheck_apps concept_env apps in
   let t_prog = (t_cons, t_apps) in
-  {Env.make_env with errors = env.errors}, t_prog
+  {Env.make_env with errors = app_env.errors}, t_prog
 
