@@ -112,12 +112,12 @@ type prog = Program of{
 
 type cg_env = {
   generics : S.symbol list ref;
-  indent : int ref;
+  indent_level : int;
 }
 
 (*This is to remove signatures if the module is parameterized *)
 let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String"; Symbol.symbol "Bool"];
-                   indent = ref 0}
+                   indent_level = 0}
 
 (* -------------------------- Helper functions --------------------------   *)  
 
@@ -139,6 +139,18 @@ and tag_of_typ = function
 
 (* -------------------------- Serialization --------------------------   *)
 
+let increase_indent env =
+  {env with indent_level = env.indent_level + 1}
+
+let decrease_indent env =
+  {env with indent_level = max 0 (env.indent_level - 1)} (* prevent negative indentation levels *)
+
+let get_indent env =
+  String.make (env.indent_level) '\t' (* Assuming a tab per indentation level *)
+
+let nl env = "\n" ^ get_indent env
+
+(* Concatenates a list of strings with a separator *)
 (* s : separator, f : function to apply, l : list to work on --> results concatenated *)
 let mapcat s f l = (String.concat s) (Stdlib.List.map f l) 
 
@@ -151,10 +163,13 @@ let prefix p f a = p ^ f a
 let concwsp = String.concat " "
 
 let parens s = "(" ^ s ^ ")"
-let parnswnl s = "(\n\t" ^ s ^ "\n)"
+let parenswnl env s = "(\n" ^ get_indent env ^ s ^ "\n" ^ (get_indent @@ decrease_indent env) ^ ")"
 let braces s = "{" ^ s ^ "}"
 let braceswsp s = "{ " ^ s ^ " }"
-let braceswnl s = "{\n\t" ^ s ^ "\n}"
+
+let braceswnl env s =  
+  "{\n"^get_indent env ^ s ^ "\n" ^ (get_indent @@ decrease_indent env) ^ "}"
+
 let brackets s = "[" ^ s ^ "]"
 let wrap_in_comment s = "/* " ^ s ^ " */"
 
@@ -171,9 +186,6 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
   | Binop{op = outer_op; _}, Binop{op = inner_op; _} -> 
     binop_precedence inner_op < binop_precedence outer_op
   | _ -> false
-
-(* above should include unops *)
-
 
 
 let serializeMul = function
@@ -263,7 +275,6 @@ let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
 let serializeVars (vars : (paramId list * ty) list) = 
   mapcat ", " (fun (symbols, ty) -> 
     let symbolsStr = mapcat ", " (fun s -> S.name s) symbols in
-    (* symbolsStr ^ " : " ^ serializeType ty *)
     symbolsStr ^ " : " ^ serializeType ty
   ) vars
 
@@ -312,7 +323,7 @@ let serializeExpr (e : expr) : string =
     | Call {func; args} -> serialize_expr' func ^ brackets @@ mapcat ", " serialize_expr' args
     | BoxJoin {left; right} -> serialize_expr' left ^ brackets @@ mapcat ", " serialize_expr' right
     | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ serialize_expr' expr 
-    | Temporal {top; expr} -> serializeTop top ^ " " ^ parnswnl @@ serialize_expr' expr
+    | Temporal {top; expr} -> serializeTop top ^ " " ^ parens @@ serialize_expr' expr
     | SetComprehension{cond; vars} -> 
       let vars = groupByType vars in
       let varsStr = serializeVars vars in
@@ -330,12 +341,13 @@ let serializeField (FldDecl{id;ty;expr;const}) : string =
   let var = if const then "" else "var " in 
   var ^ S.name id ^ " : " ^ serializeType ty ^ exprStr (*"var" here works because State atom is only one with field in translation*)
 
-let serializeSignature (SigDecl{sig_id;fields;mult}) : string = 
-  if List.length fields = 0 then "sig " ^ S.name sig_id ^ " { } " else 
-    let fieldsStr = mapcat ",\n\t" serializeField fields in
+let serializeSignature env (SigDecl{sig_id;fields;mult}) : string = 
+  if List.length fields = 0 then "sig " ^ S.name sig_id ^ " { } " else (
+    let env = increase_indent env in
+    let fieldsStr = mapcat ("," ^ nl env) serializeField fields in
     let mult = serializeMul mult in
-    mult ^ "sig " ^ S.name sig_id ^ " " ^ braceswnl fieldsStr 
-  
+    mult ^ "sig " ^ S.name sig_id ^ " " ^ (braceswnl env) fieldsStr 
+  )
 
 let serializeSigs (env : cg_env) (s : sigDecl list) : string = 
   (* filter from the signature declaration list all the generic types *)
@@ -351,37 +363,38 @@ let serializeSigs (env : cg_env) (s : sigDecl list) : string =
   let boolean_signatures = if contains_boolean then 
     "open util/boolean\n\n" else "" in
   let s = List.filter (fun (SigDecl{sig_id;_}) -> not (List.mem sig_id !(env.generics))) s in
-  boolean_signatures ^ mapcat "\n\n" serializeSignature s
+  boolean_signatures ^ mapcat "\n\n" (serializeSignature env) s
 
-let serializeFact (Fact{fact_id;body}) : string = 
-  "fact _state_" ^ S.name fact_id ^ " " ^ braceswnl @@ serializeExpr body
+let serializeFact env (Fact{fact_id;body}) : string = 
+  "fact _state_" ^ S.name fact_id ^ " " ^ (braceswnl env) @@ serializeExpr body
 
-let serializeFacts (f : fact list) : string =
-  mapcat "\n\n" serializeFact f
+let serializeFacts env (f : fact list) : string =
+  mapcat "\n\n" (serializeFact env) f
 
-let serializePredicate (Predicate{pred_id;params;cond;body}) : string = 
+let serializePredicate env (Predicate{pred_id;params;cond;body}) : string = 
   let paramsStr = serializeParamList @@ groupByType params in
+  let env = increase_indent env in 
   let condStr = match cond with 
     | None -> ""
-    | Some e -> serializeExpr e ^ "\n\t"
+    | Some e -> serializeExpr e ^ nl env
   in
-  let bodyStr = mapcat "\n\t" serializeExpr body in
-  "pred " ^ S.name pred_id ^ brackets paramsStr ^ " " ^ braceswnl (condStr ^ bodyStr)
+  let bodyStr = mapcat (nl env) serializeExpr body in
+  "pred " ^ S.name pred_id ^ brackets paramsStr ^ " " ^ (braceswnl env) (condStr ^ bodyStr)
 
-let serializeFunction (Function{func_id;params;body;cond;out} : func) : string =
+let serializeFunction env (Function{func_id;params;body;cond;out} : func) : string =
   (* remove any output params from params (i.e. any param that also appears in f.out) *)
   let paramsStr = serializeParamList @@ groupByType params in
-  let bodyStr = mapcat "\n\t" serializeExpr body in
+  let bodyStr = mapcat (nl env) serializeExpr body in
   let condStr = match cond with 
     | None -> ""
-    | Some e -> serializeExpr e ^ "\n\t"
+    | Some e -> serializeExpr e ^ (nl env)
   in
-  "fun " ^ S.name func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType out ^ " " ^ braceswnl (condStr ^ bodyStr)
+  "fun " ^ S.name func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType out ^ " " ^ (braceswnl env) (condStr ^ bodyStr)
 
-let serializeFunctionType (f : func_type) : string = 
+let serializeFunctionType env (f : func_type) : string = 
   match f with 
-  | Pred p -> serializePredicate p
-  | Func f -> serializeFunction f
+  | Pred p -> serializePredicate env p
+  | Func f -> serializeFunction env f
 
 
 let serializeInit flds = 
@@ -391,14 +404,28 @@ let serializeInit flds =
   let exprs = String.concat "\n\t" exprs in
   exprs
 
-let serializeStutter flds =
-  let assignments = mapcat "\n\t" (fun (FldDecl{id;_}) -> 
+let serializeStutter env flds =
+  if List.length flds = 0 then 
+    "pred alloy_stutter { }"
+  else
+  let env = increase_indent env in
+  let assignments = mapcat (nl env) (fun (FldDecl{id;_}) -> 
     serializeExpr (Assignment {left = VarRef(S.symbol @@  S.name id ^ "'"); right = Lval(VarRef(S.symbol @@ S.name id))})
   ) flds in
-  "pred alloy_stutter " ^ braceswnl assignments
+  "pred alloy_stutter " ^ (braceswnl env) assignments
 
-let transitions funcs fields =
-  let func_str_list = mapcat "\n\t\t" (fun x -> 
+let transitions env funcs fields =
+  let env = increase_indent env in
+  "fact alloy_behavior " ^ (braceswnl env) (
+  wrap_in_comment "The initial state" ^ (nl env) ^
+  serializeInit fields ^ ("\n\n"^get_indent env) ^
+  wrap_in_comment "The state transitions" ^ (nl env) ^
+
+  let increased_env = increase_indent env in
+  (* Could obviously do this smarter *)
+  "always " ^ parenswnl increased_env @@ "alloy_stutter or" ^ nl increased_env ^ 
+  
+  let func_str_list = mapcat (nl increased_env) (fun x -> 
     let (id, params) = match x with
     | Pred Predicate{pred_id;params;_} -> (pred_id, params)
     | Func Function{func_id;params;_} -> (func_id, params)
@@ -413,29 +440,24 @@ let transitions funcs fields =
   in
   (* remove last occurrence of "or" *)
   let func_str_list = String.sub func_str_list 0 (String.length func_str_list - 3) in
-  "fact alloy_behavior " ^ braceswnl(
-  wrap_in_comment "The initial state" ^ "\n\t" ^
-  serializeInit fields ^ "\n\n\t" ^
-  wrap_in_comment "The state transitions" ^ "\n\t" ^
-  (* Could obviously do this smarter *)
-  "always (\n\t\talloy_stutter or\n\t\t" ^ func_str_list ^ "\n\t)")
+  func_str_list) ^ "\n"
   
-let serializeDynamicBehavior (Program{sigs;preds_and_funcs;_}) = 
+let serializeDynamicBehavior env (Program{sigs;preds_and_funcs;_}) = 
   let sigs = sigs in
   let val_opt = List.find_opt (fun (SigDecl{sig_id;_}) -> S.name sig_id = "State") sigs in (*All concepts have State*)
   match val_opt with 
   | None -> ""
   | Some (SigDecl{fields;_}) ->
-    let stutter = serializeStutter fields in
+    let stutter = serializeStutter env fields in
     let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) preds_and_funcs in (*Remove queries*)
-    let transitions = transitions preds fields in  
+    let transitions = transitions env preds fields in  
     stutter ^ "\n\n" ^ transitions
 
-let serializeFunctionTypes (f : func_type list) : string =
-  mapcat "\n\n" serializeFunctionType f
+let serializeFunctionTypes env (f : func_type list) : string =
+  mapcat "\n\n" (serializeFunctionType env) f
 
 (* TODO: Ensure the set of events is correctly formatted for a number of cases... Are extensions correctly added, etc... *)
-let serializeEvents (f : func_type list) : string = 
+let serializeEvents env (f : func_type list) : string = 
   (* filter the queries/functions as they are not events *)
   let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) f in
   let pred_events = List.map (fun x -> 
@@ -482,7 +504,8 @@ let serializeEvents (f : func_type list) : string =
     in
   let partitioned = partition_and_group_by_vars pred_events in
 
-  let event_set_str = "fun events : set Event " ^ braceswnl @@
+  let env = increase_indent env in
+  let event_set_str = "fun events : set Event " ^ (braceswnl env) @@ 
   mapcat " + " (
     fun (key, names) ->
       let key = S.name key in
@@ -513,10 +536,11 @@ let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;
                                                                    to populate the environment with generics*)
   let purpose = match purpose with | None -> "" | Some p -> serializePurpose p in
   module_str ^ purpose ^ "\n" ^ 
+
   serializeDependencies deps ^ "\n" ^
   serializeSigs env sigs ^ "\n" ^
-  serializeFacts facts ^ "\n" ^
-  serializeFunctionTypes preds_and_funcs ^ "\n" ^
+  serializeFacts env facts ^ "\n" ^
+  serializeFunctionTypes env preds_and_funcs ^ "\n" ^
   (* if this is an app, we don't want this event stuff TODO: we might in the future to distinguish between events,
     only concepts have 0 dependencies, apps have at least one dependency *)
   if List.length deps <> 0 then (
@@ -525,8 +549,8 @@ let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;
 
   ) else (
   "-------------------------------------------" ^ "\n" ^
-  serializeDynamicBehavior p ^ "\n" ^
-  serializeEvents preds_and_funcs ^ "\n" ^
+  serializeDynamicBehavior env p ^ "\n" ^
+  serializeEvents env preds_and_funcs ^ "\n" ^
   "-------------------------------------------" ^ "\n" 
   )
 

@@ -207,13 +207,13 @@ c_state:
 stmt:
 | lval binop? EQ expr {
   match $2 with
-  | None -> Assignment{lval = $1; rhs = $4; loc = mk_loc $loc}
+  | None -> Assignment{lval = $1; rhs = $4; is_compound = false; loc = mk_loc $loc}
   | Some op -> 
   let _ = match op with
   | Plus _ | Minus _ | Intersection _ | Join _ -> ()
   | _ -> Errors.print_error @@ Errors.InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op}; raise ParserError
   in
-  Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; loc = mk_loc $loc} 
+  Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; is_compound = true; loc = mk_loc $loc} 
   }
 
 action_sig_param:

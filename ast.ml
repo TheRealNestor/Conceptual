@@ -67,7 +67,7 @@ and lval =
 
 
 type stmt = 
-| Assignment of {lval : lval; rhs : expr; loc : Loc.location}
+| Assignment of {lval : lval; rhs : expr; is_compound : bool; loc : Loc.location}
 
                                           
 type state = State of {

@@ -169,8 +169,23 @@ and typecheck_expr env expr tp =
 
 (* I don't think we have anything that can modify the environment, no variable declarations for example, so does not return environment *)
 let typecheck_stmt env = function
-| Ast.Assignment {lval;rhs;loc} -> 
+| Ast.Assignment {lval;rhs;loc; is_compound} -> 
   let lval, tp = infertype_lval env lval in 
+
+  (* check that we dont have a combination of compound assignments and non-compound, or simply multiple non-compound *)
+  let val_opt = Hashtbl.find_opt env.pure_assigns lval in 
+  let error_already_inserted = ref false in
+  match val_opt with
+  | None -> Hashtbl.add env.pure_assigns lval false
+  | Some false -> ()
+  | Some true -> error_already_inserted := true; Env.insert_error env (Errors.NonDeterministicAction{loc; name = Utility.get_lval_name lval;});
+  ;
+  if not is_compound then 
+    match val_opt with 
+    | None -> Hashtbl.add env.pure_assigns lval true
+    | Some _ -> if not !error_already_inserted then Env.insert_error env (Errors.NonDeterministicAction{loc; name = Utility.get_lval_name lval;});
+  ;
+  
   let env = match env.set_comp_type with | None -> {env with set_comp_type = Some tp} | Some _ -> env in
   let rhs = typecheck_expr env rhs tp in  
   begin match lval with 
@@ -183,8 +198,6 @@ let typecheck_stmt env = function
   | _ -> ()
   end;
   TAst.Assignment{lval;rhs;tp}
-
-
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) = 
   let typ = Utility.convert_type typ in

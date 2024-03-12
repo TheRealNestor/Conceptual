@@ -294,3 +294,7 @@ let get_sync_name (TAst.Sync{cond;_}) =
     | _ -> failwith "Not a call"
   in
   con_of_sync_call cond ^ "_" ^ action_of_sync_call cond
+
+let rec get_lval_name = function
+| TAst.Var {name;_} -> name 
+| TAst.Relation {right;_} -> get_lval_name right

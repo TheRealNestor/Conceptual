@@ -34,6 +34,7 @@ type error =
 | SelfDependency of {loc : Loc.location; name : TAst.ident}
 | FirstClassFunction of {loc : Loc.location; name : TAst.ident}
 | UndeclaredAction of {loc : Loc.location; name : TAst.ident}
+| NonDeterministicAction of {loc : Loc.location; name : TAst.ident }
 
 
 let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
@@ -66,6 +67,7 @@ let print_error err =
   | SelfDependency {loc; name} -> Printf.printf "SelfDependency. The name %s is self-dependent \t" (string_of_t_ident name); Loc.print_location loc;
   | FirstClassFunction {loc; name} -> Printf.printf "FirstClassFunction. The name %s is a first-class function. Not supported. \t" (string_of_t_ident name); Loc.print_location loc;
   | UndeclaredAction {loc; name} -> Printf.printf "UndeclaredAction. The action \"%s\" is not declared \t" (string_of_t_ident name); Loc.print_location loc;
+  | NonDeterministicAction {loc; name} -> Printf.printf "NonDeterministicAction. Statements are concurrent. Cannot deterministically decide the final value of \"%s\" \t" (string_of_t_ident name); Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

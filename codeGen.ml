@@ -156,31 +156,8 @@ let rec lval_to_als env = function
   )
   else Als.VarRef(sym_from name)
 | TAst.Relation{right;_} -> 
-  (* you only get relation on lefthand side *)
-
-  (* I think we always want to modify a field in the state somehow. In that sense this should evaluate to a state variable
-     on the left hand of the assignment. 
-     So in situations like u.reservations, we want to modify the reservations field in state,i.e. rightmost of the composite join *)
-
-  (* For statements like u.reservations += r, which of course is parsed as
-                        u.reservations = u.reservations + r
-  The lhs is a relation, and we can interpret the right hand side as a binop join, which we can translate differently.
-  Ultimately, we want to end up with something like
-                  s1.reservations = s0.reservations + u->r
-
-  a.b.c += v
-  a.b.c = a.b.c + v
-  s0.c = s0.c + a->b->v
-
-  I want to do above, but how would this work if i had many binary operations
-  a.b.c += v + w
-
-  how would it figure out which one it should prepend a->b-> to ?
-
-  We can handle this in binop operations?
-  *)
+  (* you only get this on lhs. And there lefts are saved in the environment.... *)
   lval_to_als env right
-  (* Als.Relation({left = lval_to_als env left; right = lval_to_als env right;}) *)
      
 
   
@@ -315,73 +292,6 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
   | Some When{cond} -> Some (trans_expr env cond) 
   end in
 
-  (* TODO: Accumulate multiple expressions that mutate the same variable? Do this is semantic analysis? *)
-  (* get a list of all lval symbols used in body (without apostrophy from left) *)
-  let left_syms = List.map (
-    fun stmt -> 
-      match stmt with 
-      | TAst.Assignment{lval;_} -> lval
-   ) body in 
-  (* remove duplicates from list *)
-  let left_syms = List.sort_uniq compare left_syms in
-
-  let sym_in_expr sym exp = 
-    let rec lval_in_expr' = function 
-    | TAst.Lval lval -> let syms = traverse_relation lval in List.mem sym syms
-    | TAst.Unop{operand;_} -> lval_in_expr' operand
-    | TAst.Binop{left;right;_} -> lval_in_expr' left || lval_in_expr' right
-    | _ -> false
-    in lval_in_expr' exp
-  in  
-
-  (* same as below but fold left, so we can remove things from the body *)
-  (* let body = List.fold_left (
-    fun body_so_far stmt -> 
-
-      failwith "TODO"
-  ) body body in  *)
-
-  let body = 
-    List.map (
-    fun lval -> 
-      let lval_sym = get_lval_sym lval in
-      let stmts = List.filter (
-        fun stmt -> 
-          match stmt with 
-          | TAst.Assignment{lval;_} -> 
-            let lval_sym' = get_lval_sym lval in
-            (* print both syms *)
-            print_endline @@ Sym.name lval_sym ^ " " ^ Sym.name lval_sym';
-            lval_sym = lval_sym'
-      ) body in
-      (* remove all matches from body *)
-
-      (* traverse list of stmts *)
-      (* if left hand side symbol is not present on the right hand side, discard the list up until now and start from this stmt *)
-      let stmts = List.fold_left (
-        fun stmts_so_far stmt -> 
-          let TAst.Assignment{rhs;_} = stmt in
-          if sym_in_expr lval_sym rhs then stmts_so_far @ [stmt] else [stmt]
-          ) [] stmts in
-                
-      (* traverse stmt list and convert into a single statement, folding on rhs *)
-      let res = List.fold_left (
-        fun stmt_so_far (TAst.Assignment{rhs;tp;lval}) -> 
-          let TAst.Assignment{lval=lval_so_far;rhs=rhs_so_far;_} = stmt_so_far in 
-          (* TODO: Could possibly filter the lval here in compound assingments so no duplicates *)
-          TAst.Assignment{
-            lval = lval_so_far;
-            rhs = TAst.Binop{left = rhs; right = rhs_so_far; op = TAst.Plus;tp};
-            tp
-          }
-      ) (List.hd stmts) (List.tl stmts)
-      in
-      (* remove all occurrences of subsequent statements that has the same lval sym *)
-      res
-
-    ) left_syms in 
-
-    
   let body = if List.length out > 0 then (
     (* TODO: Currently semantic analysis ensures out has a length of 1 at most *)
     let out_syms_types = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ) out in
@@ -401,18 +311,49 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
     let vars = List.combine compress_syms (List.map (fun t -> typ_to_als t) out_types) 
     in [Als.SetComprehension{vars; cond = als_in_binop}]
   ) else (
-    let body, syms_used = List.fold_left (
-    fun (body_so_far, syms_so_far) stmt -> 
-      let lval_sym, t_stmt = trans_stmt env stmt in
-      (t_stmt :: body_so_far, lval_sym :: syms_so_far)
-    ) ([],[]) body in
+    let als_body = List.map (trans_stmt env) body in
+    (* Create a map/Sym.Table that takes the symbol as a key and as value a list of expressions
+      then accumulate all expressions of that symbol *)
+    let als_sym_table = List.fold_left (
+      fun sym_table (sym, expr) ->
+        let expr = match expr with 
+        | Als.Assignment{right;_} -> right
+        | _ -> expr
+        in 
+        let exprs = match Sym.Table.find_opt sym sym_table with 
+        | None -> [expr]
+        | Some exprs -> expr :: exprs
+        in
+        Sym.Table.add sym exprs sym_table
+    ) Sym.Table.empty als_body in
+
+    (* fold over this symbol table, creating a single expression for each key, 
+      expressions can be "+" separated (i.e. binop) *)
+    let sym_to_expr_map = Sym.Table.fold (
+      fun sym exprs body_so_far -> 
+        let expr = List.fold_left (
+          fun expr_so_far expr -> 
+            Als.Binop{left = expr_so_far; right = expr; op = Als.Plus}
+        ) (List.hd exprs) (List.tl exprs)
+        in
+        (sym, expr) :: body_so_far
+    ) als_sym_table [] in
+
+    (* This is equivalent to Map.Bindings and then collecting all the first arguments *)
+    let syms_used, als_body = List.split sym_to_expr_map in
     let remaining_syms = List.filter (fun sym -> not @@ List.mem sym syms_used) env.state_variables in
     let remaining_stmts = List.map (fun sym -> 
       let rhs_sym = prepend_state_symbol sym in
       let lhs_sym = prepend_state_symbol ~left:true sym  in
       Als.Assignment{left = Als.VarRef(lhs_sym); right = Als.Lval(Als.VarRef(rhs_sym))}
     ) remaining_syms in
-    body @ remaining_stmts
+
+    let als_body = List.map2 (
+      fun sym expr -> 
+        Als.Assignment{left = Als.VarRef(prepend_state_symbol ~left:true sym); right = expr}
+    ) syms_used als_body in
+
+    als_body @ remaining_stmts
   ) in
   let func = if List.length out = 0 then 
     Als.Pred(Als.Predicate{pred_id = sym_from name; cond = als_cond; params; body})
@@ -477,7 +418,6 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
 
         | _ -> failwith "CG: synchronization of non call, not supported, ruled out by semant"
         in
-      (* TODO: this somehow adds an additional call [t] *)
       let als_expression = Als.Implication{
         left = _tr_sync cond;
         right = Temporal{top = Eventually; 
@@ -492,7 +432,6 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
         falseExpr = None;
       }
       in
-      (* TODO: this adds extra call, remove that in serialization, and change above uses to manually add the call (in for instance) *)
       let fact_expr = Als.Quantifier{
         qop = All; 
         vars = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ_to_als typ) tmps;

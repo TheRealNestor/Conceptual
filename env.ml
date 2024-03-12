@@ -13,7 +13,8 @@ type environment = {env_objects : env_object Sym.Table.t;
                     app_ns : TAst.ident list; (* The namespace for apps, ensures no apps with the same name is declared simultaneously. This is an EDGE case*)
                     set_comp_type : TAst.typ option; (* Type of set comprehensions cannot be inferred without context... This is context from state or stmt *)
                     dist_join : TAst.expr list; (* The list of expressions that are being joined in a distributed join, e.g. u.reservations += r ----> try u->r as types don't match *)
-                    stmt_type : TAst.typ; 
+                    pure_assigns : (TAst.lval,bool) Hashtbl.t;
+                     (* Keep track of whether a non-compound assignment has taken place *)
                     }
 
    
@@ -26,7 +27,7 @@ let make_env =
   app_ns = [];
   set_comp_type = None;
   dist_join = [];
-  stmt_type = TAst.TVoid
+  pure_assigns = Hashtbl.create 8;
   } 
 
 let insert env sym obj =
