@@ -349,17 +349,16 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
     (* This is equivalent to Map.Bindings and then collecting all the first arguments *)
     let syms_used, als_body = List.split sym_to_expr_map in
     let remaining_syms = List.filter (fun sym -> not @@ List.mem sym syms_used) env.state_variables in
-    let remaining_stmts = List.map (fun sym -> 
+    let assign_from_syms syms = List.map (fun sym -> 
       let rhs_sym = prepend_state_symbol sym in
-      let lhs_sym = prepend_state_symbol ~left:true sym  in
+      let lhs_sym = prepend_state_symbol ~left:true sym in 
       Als.Assignment{left = Als.VarRef(lhs_sym); right = Als.Lval(Als.VarRef(rhs_sym))}
-    ) remaining_syms in
-
+    ) syms in
+    let remaining_stmts = assign_from_syms remaining_syms in
     let als_body = List.map2 (
       fun sym expr -> 
         Als.Assignment{left = Als.VarRef(prepend_state_symbol ~left:true sym); right = expr}
     ) syms_used als_body in
-
     als_body @ remaining_stmts
   ) in
   let func = if List.length out = 0 then 
@@ -386,15 +385,12 @@ let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{d
   Als.Program{module_header = als_header; facts = als_facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs} :: progs
 
 
-
-
 let trans_app env apps (TAst.App{name;deps;syncs}) =
   let als_header = Als.Module{name = sym_from name; parameters = None;} in
   let als_deps = List.map (fun (TAst.Dependency{name;generics}) -> 
     let als_generics = List.map (fun (TAst.Generic{con;ty}) -> sym_from con, typ_to_als ty) generics in
     Als.Dependency{id = sym_from name; generics = als_generics}
     ) deps in
-
 
   let emit_fresh_symbol = fresh_symbol 0 in
 

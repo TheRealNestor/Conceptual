@@ -488,10 +488,11 @@ let serializeEvents env (f : func_type list) : string =
   ) pred_events in
 
     
+
+      
   let key_of_vars (vars : (paramId * ty) list) = 
     let tps = List.map (fun (_, ty) -> serializeType ty) vars in
-    let tps = List.fast_sort String.compare tps in
-    String.concat "." (List.rev tps) 
+    String.concat "." tps
   in
 
   let partition_and_group_by_vars list =
@@ -505,6 +506,8 @@ let serializeEvents env (f : func_type list) : string =
     S.Table.fold (fun key names acc -> (key, names) :: acc) tbl []
     in
   let partitioned = partition_and_group_by_vars pred_events in
+  
+    
 
   let env = increase_indent env in
   let event_set_str = "fun events : set Event " ^ (braceswnl env) @@ 
