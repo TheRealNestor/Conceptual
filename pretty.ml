@@ -82,7 +82,7 @@ let unop_to_tree = function
 | Card _ -> make_keyword_line "Card"
   
 let decl_to_tree = function
-| Decl {name; typ; _} -> PBox.tree (make_info_node_line "NamedParameter") 
+| Decl {name; typ; _} -> PBox.tree (make_info_node_line "Decl") 
     [PBox.hlist ~bars:false [make_info_node_line "Name: "; ident_to_tree name]; 
     PBox.hlist ~bars:false [make_info_node_line "Type: "; typ_to_tree typ]
     ]
@@ -118,8 +118,8 @@ and parameter_to_tree  = function
   | Parameter {typ; _} -> PBox.tree (make_info_node_line "Parameter") [typ_to_tree typ]
 
 let rec named_parameter_list_to_tree parameters =
-  if List.length parameters = 0 then PBox.tree (make_info_node_line "NamedParameterList") [make_info_node_line "Empty"]
-  else PBox.tree (make_info_node_line "NamedParameterList") (List.map decl_to_tree parameters)
+  if List.length parameters = 0 then PBox.tree (make_info_node_line "DeclList") [make_info_node_line "Empty"]
+  else PBox.tree (make_info_node_line "DeclList") (List.map decl_to_tree parameters)
 
 
 

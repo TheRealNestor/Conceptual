@@ -59,6 +59,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         if Utility.is_boolean left_tp then TAst.TBool{mult=None}
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool{mult=None}; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
+      | Ast.Eq _ | Ast.Neq _ -> TAst.TBool{mult=None}
       | Ast.In _ | Ast.NotIn _ -> 
         (* TODO: Probably need to review these conditions *)
         if (Utility.is_relation right_tp) && not (Utility.type_is_in_relation left_tp right_tp) then (
@@ -197,7 +198,8 @@ let typecheck_stmt env = function
     end;
   | _ -> ()
   end;
-  TAst.Assignment{lval;rhs;tp}
+  (* Finally, return the assignment but with the type of the variable being mutated *)
+  TAst.Assignment{lval;rhs;tp=Utility.get_lval_type lval}
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{typ;_}) = 
   let typ = Utility.convert_type typ in
@@ -250,6 +252,7 @@ let add_action_name_to_env env ((TAst.Action{signature;_}), loc) =
 let typecheck_action env action =
   let Ast.Action{signature;cond;body;loc} = action in
   let env_with_params, signature = typecheck_action_signature env signature in
+  let env_with_params = {env_with_params with pure_assigns = Hashtbl.create 8;} in 
   let body = List.map (typecheck_stmt env_with_params) body in
   match cond with 
   | None -> TAst.Action{signature; cond = None; body}, loc
@@ -272,6 +275,7 @@ let typecheck_concept env (c : Ast.concept) =
   let t_purpose = TAst.Purpose{doc_str} in
   let env = List.fold_left add_state_param_to_env env states in (*Add state variables to environment in initial pass for mutual recursion*)
   let env, t_state_list = List.fold_left typecheck_state (env, []) states in
+  let t_state_list = List.rev t_state_list in
   let t_states = TAst.States{states = List.rev t_state_list} in
   let t_actions_with_loc = List.map (typecheck_action env) actions in
   let env = List.fold_left add_action_name_to_env env t_actions_with_loc in
@@ -375,6 +379,7 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
   *)
 
   let env, t_deps = List.fold_left typecheck_dependency (env, []) deps in
+  let t_deps = List.rev t_deps in
 
   let t_syncs = List.map (
     fun (Ast.Sync{cond;body;_}) -> 

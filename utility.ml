@@ -57,6 +57,7 @@ let token_to_string = function
   | Parser.LBRACE -> "LBRACE"
   | Parser.RBRACE -> "RBRACE"
   | Parser.PIPE -> "PIPE"
+  | Parser.IS -> "IS"
   
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -83,6 +84,13 @@ let rec same_base_type tp1 tp2 =
     same_base_type left1 left2 && same_base_type right1 right2
   | _ -> false
   
+let rec get_base_type = function
+| TAst.TInt _ -> TAst.TInt{mult = None}
+| TAst.TBool _ -> TAst.TBool{mult = None}
+| TAst.TString _ -> TAst.TString{mult = None}
+| TAst.TCustom {tp;_} -> TAst.TCustom{tp;mult = None}
+| TAst.TMap {left;right} -> TAst.TMap{left = get_base_type left; right = get_base_type right}
+| _ as t -> t
 
 let is_integer = function
 | TAst.TInt _ -> true
@@ -278,8 +286,10 @@ let get_expr_type (expr : TAst.expr) : TAst.typ =
 
 
 
-let get_lval_type = function 
-| TAst.Var {tp;_} | TAst.Relation {tp;_} -> tp
+(* gets the type of an lval, or rightmost variable on the left in an assignment *)
+let rec get_lval_type = function 
+| TAst.Var {tp;_} -> tp 
+| TAst.Relation{right;_} -> get_lval_type right
 
 let is_join_expr = function
 | TAst.Binop {op=TAst.Join;_} -> true

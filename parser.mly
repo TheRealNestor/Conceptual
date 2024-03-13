@@ -23,7 +23,7 @@ exception ParserError
 %token LPAR RPAR LBRACK RBRACK LBRACE RBRACE PIPE (*Brackets and stuff*)
 %token WHEN CAN (*Precondition related*)
 %token OUT (*Output*)
-%token EMPTY EMPTY_SET (*Set-related predicates*)
+%token IS EMPTY EMPTY_SET (*Set-related predicates*)
 %token INT BOOL STRING (*Primitive types*)
 %token ARROW SET ONE IN LONE SOME (* Set-related tokens *)
 %token CONST 
@@ -75,7 +75,7 @@ exception ParserError
 %left LOR
 %left LAND
 %nonassoc NOT (*TODO: Should this be higher*)
-%nonassoc EMPTY (*Set-related predicates*) 
+%nonassoc IS EMPTY (*Set-related predicates*) 
 
 %nonassoc EQEQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
 %left PLUS MINUS 
@@ -138,7 +138,7 @@ expr:
 | LPAR expr RPAR { $2 }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
-| expr EMPTY { Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} }
+| expr IS EMPTY { Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
 | lval LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = Lval($1); right = $3; loc = mk_loc $loc} }
 // set comprehension
@@ -159,7 +159,7 @@ expr:
 | AMP { Intersection{loc = mk_loc $loc} }
 | LAND { Land{loc = mk_loc $loc} }
 | LOR { Lor{loc = mk_loc $loc} }
-| EQEQ { Eq{loc = mk_loc $loc} }
+| EQEQ | IS { Eq{loc = mk_loc $loc} }
 | NEQ { Neq{loc = mk_loc $loc} }
 | LT { Lt{loc = mk_loc $loc} }
 | GT { Gt{loc = mk_loc $loc} }
@@ -210,8 +210,8 @@ stmt:
   | None -> Assignment{lval = $1; rhs = $4; is_compound = false; loc = mk_loc $loc}
   | Some op -> 
   let _ = match op with
-  | Plus _ | Minus _ | Intersection _ | Join _ -> ()
-  | _ -> Errors.print_error @@ Errors.InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op}; raise ParserError
+  | Lt _ | Gt _ | Lte _ | Gte _ | In _ | NotIn _ | MapsTo _  -> Errors.print_error @@ Errors.InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op}; raise ParserError;
+  | _ -> ()
   in
   Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; is_compound = true; loc = mk_loc $loc} 
   }

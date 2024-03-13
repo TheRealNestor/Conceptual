@@ -11,9 +11,7 @@ type appId = S.symbol (* Application names *)
 type depId = S.symbol (* Dependencies *)
 type genericId = S.symbol (* Parameterized dependencies *)
 
-(* A concept should probably be mapped to an Alloy module *)
 (* module reserved keyword in ocaml *)
-
 type aModule = Module of {
   name : uid;
   parameters : uid list option;
@@ -35,6 +33,7 @@ type ty =
 | Str of mul
 | Sig of sigId * mul 
 | Rel of ty * ty
+
 
 type dep = Dependency of {
   id : depId;
@@ -222,10 +221,10 @@ let serializeMul = function
 
 
 
-let serializeParamList l = 
+let serializeParamList ?(with_type=true) l = 
   mapcat ", " (fun (symbols, ty) -> 
     let symbolsStr = mapcat ", " (fun s -> S.name s) symbols in
-    symbolsStr ^ ": " ^ serializeType ty
+    symbolsStr ^ if with_type then ": " ^ serializeType ty else ""
   ) l 
 
 let serializeBinop = function 
@@ -270,7 +269,7 @@ let serializeModule (env : cg_env ) (Module{name;parameters}) : string =
       env.generics := params @ !(env.generics);
       "module " ^ s_name ^ brackets @@ mapcat ", " S.name params
 
-let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE: " ^ p)
+let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE:\t" ^ p)
 
 let serializeVars (vars : (paramId list * ty) list) = 
   mapcat ", " (fun (symbols, ty) -> 
@@ -283,60 +282,59 @@ let serializeQuantify qop vars =
   let qopStr = serializeQop qop in
   qopStr ^ " " ^ serializeVars vars ^ " | "
 
-let serializeExpr (e : expr) : string = 
-  let rec serializeLval (l : lval) : string = 
-    match l with 
-    | VarRef s -> S.name s
-    | BoolVarRef s -> S.name s ^ ".isTrue"
-    | Relation {left; right;} -> 
-        serializeLval left ^ "->" ^ serializeLval right        
-  in
-  let rec serialize_expr' (e : expr) : string = 
-    match e with 
+
+let rec serializeLval (l : lval) : string = 
+  match l with 
+  | VarRef s -> S.name s
+  | BoolVarRef s -> S.name s ^ ".isTrue"
+  | Relation {left; right;} -> 
+      serializeLval left ^ "->" ^ serializeLval right        
+
+let rec serializeExpr env (e : expr) = 
+  let _serializeExpr = serializeExpr env in
+  match e with
     | This -> "this"
     | Univ -> "univ"
     | None -> "none"
     | IntLit i -> Int64.to_string i
     | BoolLit b -> if b then "True" else "False" (*TODO: Alloy does not have boolean literals?*)  
     | StrLit s -> "\"" ^ s ^ "\""
-    | Parenthesis e -> parens (serialize_expr' e)
+    | Parenthesis e -> parens (_serializeExpr e)
     | Unop {op; expr} -> (match op with 
-                          | Not -> "not " ^ serialize_expr' expr
-                          | Tilde -> "~" ^ serialize_expr' expr
-                          | Caret -> "^" ^ serialize_expr' expr
-                          | Star -> "*" ^ serialize_expr' expr
-                          | IsEmpty -> "no " ^ serialize_expr' expr
-                          | Card -> "# " ^ serialize_expr' expr)
+                          | Not -> "not " ^ _serializeExpr expr
+                          | Tilde -> "~" ^ _serializeExpr expr
+                          | Caret -> "^" ^ _serializeExpr expr
+                          | Star -> "*" ^ _serializeExpr expr
+                          | IsEmpty -> "no " ^ _serializeExpr expr
+                          | Card -> "# " ^ _serializeExpr expr)
     | Binop {left; right; op} -> 
-      let parenthesized_left = if needs_parentheses e left then parens @@ serialize_expr' left else serialize_expr' left in
-      let parenthesized_right = if needs_parentheses e right then parens @@ serialize_expr' right else serialize_expr' right in
+      let parenthesized_left = if needs_parentheses e left then parens @@ _serializeExpr left else _serializeExpr left in
+      let parenthesized_right = if needs_parentheses e right then parens @@ _serializeExpr right else _serializeExpr right in
       begin match op with 
       | NotIn -> "not " ^ parenthesized_left ^ " in " ^ parenthesized_right
       | In -> parenthesized_left ^ " in " ^ parenthesized_right
       | Arrow | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
       | _ as bop -> (parenthesized_left) ^ " " ^ serializeBinop bop ^ " "  ^ (parenthesized_right)
       end
-    | Implication {left; right; falseExpr} -> (serialize_expr' left) ^ " => " ^ (serialize_expr' right) ^ (match falseExpr with 
+    | Implication {left; right; falseExpr} -> (_serializeExpr left) ^ " => " ^ (_serializeExpr right) ^ (match falseExpr with 
                                                                                                       | None -> ""
-                                                                                                      | Some e -> " else " ^ serialize_expr' e)
-    | Assignment {left; right} -> serializeLval left ^ " = " ^ serialize_expr' right
-    | Call {func; args} -> serialize_expr' func ^ brackets @@ mapcat ", " serialize_expr' args
-    | BoxJoin {left; right} -> serialize_expr' left ^ brackets @@ mapcat ", " serialize_expr' right
-    | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ serialize_expr' expr 
-    | Temporal {top; expr} -> serializeTop top ^ " " ^ parens @@ serialize_expr' expr
+                                                                                                      | Some e -> " else " ^ _serializeExpr e)
+    | Assignment {left; right} -> serializeLval left ^ " = " ^ _serializeExpr right
+    | Call {func; args} -> _serializeExpr func ^ brackets @@ mapcat ", " _serializeExpr args
+    | BoxJoin {left; right} -> _serializeExpr left ^ brackets @@ mapcat ", " _serializeExpr right
+    | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ braceswsp @@ _serializeExpr expr 
+    | Temporal {top; expr} -> serializeTop top ^ " " ^ (parenswnl @@ increase_indent env)  @@ _serializeExpr expr
     | SetComprehension{cond; vars} -> 
       let vars = groupByType vars in
       let varsStr = serializeVars vars in
-      let condStr = serialize_expr' cond in
+      let condStr = _serializeExpr cond in
       braces (varsStr ^ " | " ^ condStr)
     | Lval l -> serializeLval l
-  in
-  serialize_expr' e  
 
-let serializeField (FldDecl{id;ty;expr;const}) : string =
+let serializeField env (FldDecl{id;ty;expr;const}) : string =
   let exprStr = match expr with 
     | None -> ""
-    | Some e -> " = " ^ serializeExpr e
+    | Some e -> " = " ^ (serializeExpr env) e
   in
   let var = if const then "" else "var " in 
   var ^ S.name id ^ " : " ^ serializeType ty ^ exprStr (*"var" here works because State atom is only one with field in translation*)
@@ -344,7 +342,7 @@ let serializeField (FldDecl{id;ty;expr;const}) : string =
 let serializeSignature env (SigDecl{sig_id;fields;mult}) : string = 
   if List.length fields = 0 then "sig " ^ S.name sig_id ^ " { } " else (
     let env = increase_indent env in
-    let fieldsStr = mapcat ("," ^ nl env) serializeField fields in
+    let fieldsStr = mapcat ("," ^ nl env) (serializeField env) fields in
     let mult = serializeMul mult in
     mult ^ "sig " ^ S.name sig_id ^ " " ^ (braceswnl env) fieldsStr 
   )
@@ -366,7 +364,8 @@ let serializeSigs (env : cg_env) (s : sigDecl list) : string =
   boolean_signatures ^ mapcat "\n\n" (serializeSignature env) s
 
 let serializeFact env (Fact{fact_id;body}) : string = 
-  "fact _state_" ^ S.name fact_id ^ " " ^ (braceswnl env) @@ serializeExpr body
+  let env = increase_indent env in
+  "fact _state_" ^ S.name fact_id ^ " " ^ (braceswnl env) @@ (serializeExpr env) body
 
 let serializeFacts env (f : fact list) : string =
   mapcat "\n\n" (serializeFact env) f
@@ -376,18 +375,18 @@ let serializePredicate env (Predicate{pred_id;params;cond;body}) : string =
   let env = increase_indent env in 
   let condStr = match cond with 
     | None -> ""
-    | Some e -> serializeExpr e ^ nl env
+    | Some e -> (serializeExpr env) e ^ nl env
   in
-  let bodyStr = mapcat (nl env) serializeExpr body in
+  let bodyStr = mapcat (nl env) (serializeExpr env) body in
   "pred " ^ S.name pred_id ^ brackets paramsStr ^ " " ^ (braceswnl env) (condStr ^ bodyStr)
 
 let serializeFunction env (Function{func_id;params;body;cond;out} : func) : string =
   (* remove any output params from params (i.e. any param that also appears in f.out) *)
   let paramsStr = serializeParamList @@ groupByType params in
-  let bodyStr = mapcat (nl env) serializeExpr body in
+  let bodyStr = mapcat (nl env) (serializeExpr env) body in
   let condStr = match cond with 
     | None -> ""
-    | Some e -> serializeExpr e ^ (nl env)
+    | Some e -> (serializeExpr env) e ^ (nl env)
   in
   "fun " ^ S.name func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType out ^ " " ^ (braceswnl env) (condStr ^ bodyStr)
 
@@ -410,7 +409,7 @@ let serializeStutter env flds =
   else
   let env = increase_indent env in
   let assignments = mapcat (nl env) (fun (FldDecl{id;_}) -> 
-    serializeExpr (Assignment {left = VarRef(S.symbol @@  S.name id ^ "'"); right = Lval(VarRef(S.symbol @@ S.name id))})
+    (serializeExpr env) (Assignment {left = VarRef(S.symbol @@  S.name id ^ "'"); right = Lval(VarRef(S.symbol @@ S.name id))})
   ) flds in
   "pred alloy_stutter " ^ (braceswnl env) assignments
 
@@ -430,12 +429,11 @@ let transitions env funcs fields =
     | Pred Predicate{pred_id;params;_} -> (pred_id, params)
     | Func Function{func_id;params;_} -> (func_id, params)
     in
-    let params = List.fast_sort (fun (a, _) (b, _) -> String.compare (S.name a) (S.name b)) params in
     if List.length params = 0 then 
       S.name id ^ "[] or"
     else
-    serializeQuantify Some params ^
-    serializeExpr (Call { func = Lval(VarRef(id)); args = List.map (fun (s, _) -> Lval (VarRef s)) params }) ^ " or"
+    let params_str = serializeParamList ~with_type:false @@ groupByType params in
+    serializeQuantify Some params ^ S.name id ^ brackets params_str ^ " or"
     ) funcs
   in
   (* remove last occurrence of "or" *)
@@ -472,15 +470,19 @@ let serializeEvents env (f : func_type list) : string =
   let event_fun_str = mapcat "\n" (fun (name, vars) -> 
     let vars = groupByType vars in
     let vars_type_str = serializeVars vars in
-    let types = mapcat " -> " (fun (_, ty) -> serializeType ty) vars in
+    let types = mapcat " -> " (fun (left_list, ty) -> 
+      if List.length left_list = 1 then 
+        serializeType ty
+      else
+        mapcat " -> " (fun _ -> serializeType ty) left_list 
+    ) vars in
     let types = if types = "" then "" else types ^ " " in (*This is just to ensure all cases use just 1 space*)
     if List.length vars = 0 then (
       let expr_str = braceswsp ( "e : " ^ name ^ " | " ^ name ) in 
       "fun _" ^ name ^ " : Event " ^ braceswsp @@ expr_str
     )
     else 
-      let args = List.flatten @@ List.map (fun (s, _) -> s) vars in
-      let args = mapcat ", " (fun s -> S.name s) args in
+      let args = serializeParamList ~with_type:false vars in
       let expr_str = braceswsp ( vars_type_str ^ " | " ^ name ^ brackets args ) in
       "fun _" ^ name ^ " : Event -> " ^ types ^ braceswsp (name ^ " -> " ^ expr_str)
   ) pred_events in
@@ -536,17 +538,17 @@ let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;
                                                                    to populate the environment with generics*)
   let purpose = match purpose with | None -> "" | Some p -> serializePurpose p in
   module_str ^ purpose ^ "\n" ^ 
+  wrap_in_comment "LANGUAGE:\tAlloy6" ^ "\n\n" ^
 
-  serializeDependencies deps ^ "\n" ^
-  serializeSigs env sigs ^ "\n" ^
-  serializeFacts env facts ^ "\n" ^
-  serializeFunctionTypes env preds_and_funcs ^ "\n" ^
+  serializeDependencies deps ^ "\n\n" ^
+  serializeSigs env (List.rev sigs) ^ "\n\n" ^
+  serializeFacts env facts ^ "\n\n" ^
+  serializeFunctionTypes env preds_and_funcs ^ "\n\n" ^
   (* if this is an app, we don't want this event stuff TODO: we might in the future to distinguish between events,
     only concepts have 0 dependencies, apps have at least one dependency *)
   if List.length deps <> 0 then (
     ""
-  (*  *)
-
+    (* may want to do something here TODO: *)
   ) else (
   "-------------------------------------------" ^ "\n" ^
   serializeDynamicBehavior env p ^ "\n" ^

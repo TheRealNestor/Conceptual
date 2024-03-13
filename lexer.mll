@@ -78,7 +78,8 @@ rule token = parse
 | '>' { GT }
 | "<=" { LTE }
 | ">=" { GTE }
-| "==" | "is"  { EQEQ }
+| "==" { EQEQ }
+| "is"  { IS }
 | '&' { AMP } (* Set intersection *)
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
@@ -99,7 +100,7 @@ rule token = parse
 | "Int" { INT }
 | "true" { BOOL_LIT(true) }
 | "false" { BOOL_LIT(false) }
-| "is empty" { EMPTY }
+| "empty" { EMPTY }
 (* Now operators for operational principles *)
 | "can" { CAN }
 (* 
@@ -114,7 +115,7 @@ rule token = parse
 | "purpose" { Buffer.clear string_buf; purpose_str lexbuf; PURPOSE (Buffer.contents string_buf) } (* Embed the string into the token *)
 (* | "state" { STATE } This is never actually run *)
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
-| "operational principle" { add_token_to_cache OP; OP }
+| "principle" { add_token_to_cache OP; OP }
 
 (* Composition of concepts  *)
 | "app" { APP }
@@ -169,6 +170,7 @@ and multi_comment nesting_level = parse (* and here so we can do mutual recursio
           else
             multi_comment (nesting_level - 1) lexbuf 
         }
+| eof { token lexbuf } (* End of multi comment *)
 | _ { multi_comment nesting_level lexbuf } (* Keep reading multi_comments *)
 
 

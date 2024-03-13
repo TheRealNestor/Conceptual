@@ -18,7 +18,7 @@ type typ =
 (* set, mappings, custom types --> probably the ones i should have first??? *)
 
 type parameter = Parameter of { typ : typ } (*This is for the concept signature *)
-type decl = Decl of { name : ident; typ : typ } (*State declarations, action signatures*)
+type decl = Decl of { name : ident; typ : typ; } (*State declarations, action signatures*)
   
 type binop = 
 | Plus  

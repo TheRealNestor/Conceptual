@@ -49,16 +49,23 @@ let fst_char_of_typ tp =
 in
 first_letter_of_sym @@ fst_char_of_typ' tp
 
-let symbol_from_type = function 
+let rec symbol_from_type = function 
 | TAst.TCustom{tp= TAst.Ident{sym}; _} -> sym
 | TAst.TString _ -> Sym.symbol "String"
 | TAst.TInt _ -> Sym.symbol "Int"
 | TAst.TBool _ -> Sym.symbol "Bool"
+| TAst.TMap _ as t -> 
+  let types = List.tl @@ Utility.type_to_array_of_types t in 
+  (* construct the symbol of all types in types, delimit with " -> " *)
+  let str = List.fold_left (
+    fun str tp -> 
+      let tp = symbol_from_type tp in
+      str ^ Sym.name tp ^ " -> "
+  ) "" types in
+  let str = String.sub str 0 (String.length str - 4) in
+  Sym.symbol str
 | _ -> failwith "Other types are not supported ..."
-
-
  
-
 let type_in_env env tp = 
   List.mem tp env.custom_types
 
@@ -147,7 +154,7 @@ let rec lval_to_als env = function
     else 
       Als.VarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
   (* check that type of lval matches the assignment to figure out whether to distributively add join args  *)
-  else if List.length env.distributive_joins <> 0 && tp <> env.assignment_type then (
+  else if List.length env.distributive_joins <> 0 && Utility.same_base_type tp env.assignment_type |> not then (
     let str = get_dist_join_str env ^ (Sym.name @@ sym_from name) in
     if Utility.same_base_type tp (TAst.TBool{mult=Some TAst.One}) then 
       Als.BoolVarRef(Sym.symbol str)
@@ -174,9 +181,9 @@ let rec trans_expr env expr =
     if List.length env.distributive_joins <> 0 then 
       (*e.g. i.labels = {} 
     should be translated to: (State.labels') = (State.labels') - i->Label *)
-    let right = Als.Binop{op = Als.Arrow; 
-    left = Als.Lval(Als.VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
-    right = Als.Lval(Als.VarRef(symbol_from_type env.assignment_type))
+      let right = Als.Binop{op = Als.Arrow; 
+      left = Als.Lval(Als.VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
+      right = Als.Lval(Als.VarRef(symbol_from_type env.assignment_type))
     } in
     let e = Als.Binop{op=Als.Minus; left = Als.Lval(Als.VarRef(prepend_state_symbol @@ env.lhs_sym)); right} in 
     Als.Parenthesis e
@@ -247,12 +254,12 @@ let rec trans_expr env expr =
 end
 
 let trans_stmt env = function 
-| TAst.Assignment{lval; rhs; _ }  -> 
+| TAst.Assignment{lval; rhs; tp }  -> 
   (* This finds the rightmost lval on the left side. This is the state variable that is modified. Return this, alongside the als.assignment *)
   let lval_syms_reversed = List.rev @@ traverse_relation lval in
   let lval_sym = List.hd lval_syms_reversed in
   let lval_syms_without_last = List.rev @@ List.tl lval_syms_reversed in 
-  let env = {env with assignment_type = Utility.get_lval_type lval; assignment_lval = Some lval;lhs_sym = lval_sym} in 
+  let env = {env with assignment_type = tp; assignment_lval = Some lval;lhs_sym = lval_sym} in 
   let env = if List.length lval_syms_without_last = 0 then env else {env with distributive_joins = lval_syms_without_last} in    
   let right = trans_expr env rhs in (*Do this before setting environment to left, which adds apostrophies *)
   lval_sym, Als.Assignment{left = lval_to_als {env with is_left = true} lval; right}
@@ -364,7 +371,8 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
   env, func :: funcs
 
 let trans_actions env actions = 
-  List.fold_left trans_action (env, []) (actions)
+  let env, actions = List.fold_left trans_action (env, []) (actions) in 
+  env, List.rev actions
 
 let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{doc_str};states=States{states};actions = Actions{actions}} as c) = 
   let als_header, env = trans_concept_signature signature in
@@ -372,9 +380,8 @@ let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{d
   (* need a list of signatures, first from the primitive types stored in cg_env *)
   let primitive_sigs = List.map (fun sym -> Als.SigDecl{sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
   (* TODO: Booleans should be added here when needed.... *)
-  let sigs = List.rev @@ Als.SigDecl{sig_id = Sym.symbol "State"; fields = List.rev @@ als_states; mult = Als.One} :: primitive_sigs in
+  let sigs = Als.SigDecl{sig_id = Sym.symbol "State"; fields = als_states; mult = Als.One} :: primitive_sigs in
   let env, preds_and_funcs = trans_actions cg_env actions in  
-  let preds_and_funcs = List.rev preds_and_funcs in (*reverse due to fold left, messes up order*)
   {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) env.state_variables env_so_far.con_dict}, 
   Als.Program{module_header = als_header; facts = als_facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs} :: progs
 
@@ -415,27 +422,42 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
             check_arg arg
           ) args in 
           trans_expr env (TAst.Call{action=TAst.Ident{sym=mangle_sym sym};args;tp})
-
         | _ -> failwith "CG: synchronization of non call, not supported, ruled out by semant"
         in
       let als_expression = Als.Implication{
         left = _tr_sync cond;
-        right = Temporal{top = Eventually; 
-                        expr = List.fold_left (fun expr_so_far expr ->
-                            Als.Binop{
-                              left = expr_so_far;
-                              right = _tr_sync expr;
-                              op = Als.And
-                            }
-                          ) (_tr_sync @@ List.hd body) (List.tl body)
-        };
+        right = List.fold_left (
+          fun expr_so_far expr ->
+            Als.Binop{
+              left = expr_so_far;
+              right = _tr_sync expr;
+              op = Als.And
+            }
+        ) (_tr_sync @@ List.hd body) (List.tl body);
         falseExpr = None;
       }
       in
-      let fact_expr = Als.Quantifier{
-        qop = All; 
-        vars = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ_to_als typ) tmps;
-        expr = Temporal{top = Always; expr = als_expression};
+      
+      (*We need the symbol from the trigger action for the namespace of tmps*)
+      let (TAst.SyncCall{name=TAst.Ident{sym=con_sym};_}) = cond in 
+      let new_tmps = List.map (
+        fun (TAst.Decl{name;typ;}) -> 
+          let typ = match typ with 
+          | TAst.TCustom{tp=TAst.Ident{sym};mult=None} -> 
+            let sym = Symbol.symbol @@ (Sym.name con_sym) ^ "/" ^ (Sym.name sym) in
+            TAst.TCustom{tp=TAst.Ident{sym};mult=None}
+          | _ -> typ
+          in
+          TAst.Decl{name;typ}
+      ) tmps in
+      let fact_expr = Als.Temporal{
+        top = Als.Always;
+        expr = Als.Quantifier{
+          qop = All; 
+          vars = List.map (fun (TAst.Decl{name;typ}) ->
+            sym_from name, typ_to_als typ) new_tmps;
+          expr = als_expression;
+        }
       } in 
       let fact_id = emit_fresh_symbol @@ "_sync_" ^ Utility.get_sync_name sync in 
       Als.Fact{fact_id; body = fact_expr}
