@@ -20,6 +20,9 @@ type decl = Decl of {name : ident; typ : typ; loc : Loc.location } (*State decla
 type binop = 
 | Plus of { loc : Loc.location }
 | Minus of { loc : Loc.location }
+| Times of { loc : Loc.location }
+| Div of { loc : Loc.location }
+| Mod of { loc : Loc.location }
 | Land of { loc : Loc.location }
 | Lor of { loc : Loc.location }
 | Eq of { loc : Loc.location }
@@ -129,7 +132,7 @@ type concept = Concept of {
 }
 
 type generic = Generic of {
-  con : ident;
+  con : ident option;
   ty : typ;
   loc : Loc.location;
 }

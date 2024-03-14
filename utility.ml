@@ -58,6 +58,8 @@ let token_to_string = function
   | Parser.RBRACE -> "RBRACE"
   | Parser.PIPE -> "PIPE"
   | Parser.IS -> "IS"
+  | Parser.SLASH -> "SLASH"
+  | Parser.PERCENT -> "PERCENT"
   
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -182,6 +184,9 @@ let ast_binop_to_tast = function
 | Ast.Intersection _ -> TAst.Intersection
 | Ast.Join _ -> TAst.Join
 | Ast.MapsTo _ -> TAst.MapsTo
+| Ast.Times _ -> TAst.Times
+| Ast.Div _ -> TAst.Div
+| Ast.Mod _ -> TAst.Mod
 
 let rec set_typ_mult tp mult = 
   match tp with
@@ -196,7 +201,7 @@ let get_lval_or_expr_location = function
 | Ast.Lval l -> get_lval_location l
 | _ as e -> get_expr_location e
 
-let type_to_array_of_types tp = 
+let type_to_list_of_types tp = 
   let rec dfs_map_search acc = function 
     | TAst.TMap{left;right} -> 
       let left_history, right_history = dfs_map_search acc left, dfs_map_search acc right in
@@ -208,7 +213,7 @@ let type_to_array_of_types tp =
 let construct_join_type env expr left_tp right_tp =
     (*For maps we want a list of all tapes, makes it easier to construct resulting type
        Not the most efficient approach but relation should rarely but relations should rarely be long*)
-  let left_history, right_history = type_to_array_of_types left_tp, type_to_array_of_types right_tp in
+  let left_history, right_history = type_to_list_of_types left_tp, type_to_list_of_types right_tp in
   let leftmost_type_of_right, rightmost_type_of_left = List.hd right_history, List.hd @@ List.rev left_history in
   let unwrapped_right_tp, unwrapped_left_tp = set_typ_mult leftmost_type_of_right None, set_typ_mult rightmost_type_of_left None in
   if not (is_relation left_tp || is_relation right_tp) then (
@@ -221,11 +226,13 @@ let construct_join_type env expr left_tp right_tp =
   ) else (
     (* Construct the resulting type of the join  *)
     (* This includes everything in left_history except its last element, everything in right_history except for head *)
-    let left_history_altered = List.rev @@ List.tl @@ List.rev left_history in
-    let right_history_altered = List.tl right_history in
+    let left_history_altered = if List.length left_history = 0 then [] else List.rev @@ List.tl @@ List.rev left_history in
+    let right_history_altered = if List.length right_history = 0 then [] else List.tl right_history in
     let resulting_type = left_history_altered @ right_history_altered in
     (* Convert from an array of types to a type *)
-    if List.length resulting_type = 1 then (
+    if List.length resulting_type = 0 then (
+      failwith "Utility: This should not happen, empty join type"
+    ) else if List.length resulting_type = 1 then (
       List.hd resulting_type
     ) else
       List.fold_left (

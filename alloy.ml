@@ -22,7 +22,14 @@ type qop = All | No | One | Some | Lone
 (* could possibly add the rest *)
 type top = Always | Eventually | Until | Before | After 
 
-type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Arrow
+type bop = Plus | Minus  | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Arrow
+
+type int_bop = Add | Sub | Mul | Div | Rem 
+
+type binop = 
+| IntBop of int_bop
+| Bop of bop
+
 
 type unop = Not | Tilde | Caret | Star | IsEmpty | Card
 type mul = One | Lone | Some | Set | Implicit 
@@ -37,7 +44,7 @@ type ty =
 
 type dep = Dependency of {
   id : depId;
-  generics : (depId * ty) list;
+  generics : (genericId option * ty) list;
 }
 
 (* variables to the state *)
@@ -64,9 +71,10 @@ and expr =
 | IntLit of int64
 | BoolLit of bool
 | Parenthesis of expr 
+| Braces of expr option
 | StrLit of string
 | Unop of {op : unop; expr : expr}
-| Binop of {left : expr; right : expr; op : bop}
+| Binop of {left : expr; right : expr; op : binop}
 | Implication of {left : expr; right : expr; falseExpr : expr option}
 | Assignment of {left : lval ; right : expr}
 | Quantifier of {qop : qop; vars : (S.symbol * ty) list; expr : expr}
@@ -173,13 +181,22 @@ let brackets s = "[" ^ s ^ "]"
 let wrap_in_comment s = "/* " ^ s ^ " */"
 
 let needs_parentheses (outer : expr) (inner : expr) : bool  =
-  let binop_precedence = function
-  | And | Or -> 0
-  | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 1
-  | Plus | Minus -> 2
-  | Intersection -> 3
-  | Arrow -> 4
-  | Join -> 5
+  let binop_precedence (op : binop) = 
+    match op with
+  | IntBop op -> 
+    begin match op with 
+    | Add | Sub -> 2
+    | Mul | Div | Rem -> 3
+    end
+  | Bop op ->
+    begin match op with
+    | And | Or -> 0
+    | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 1
+    | Plus | Minus -> 2
+    | Intersection -> 3
+    | Arrow -> 4
+    | Join -> 5
+    end
   in
   match outer, inner with 
   | Binop{op = outer_op; _}, Binop{op = inner_op; _} -> 
@@ -198,7 +215,7 @@ let serializeMul = function
     match t with 
     | Int m-> serializeMul m ^ "Int"
     | Bool m-> serializeMul m ^ "Bool"
-    | Str m-> serializeMul m ^ "Str"
+    | Str m-> serializeMul m ^ "String"
     | Sig (s,m)-> serializeMul m ^ S.name s
     | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
   
@@ -227,7 +244,7 @@ let serializeParamList ?(with_type=true) l =
     symbolsStr ^ if with_type then ": " ^ serializeType ty else ""
   ) l 
 
-let serializeBinop = function 
+let serializeBinop = function
 | Plus -> "+"
 | Minus -> "-"
 | Intersection -> "&"
@@ -244,6 +261,10 @@ let serializeBinop = function
 | NotIn -> failwith "not in operation is not applied directly like this"
 | Arrow -> "->"
 
+let serializeIntBop left right op = 
+  let op = match op with 
+  | Add -> "add" | Sub -> "sub" | Mul -> "mul" | Div -> "div" | Rem -> "rem" in
+  "integer/" ^ op ^ brackets (left ^ ", " ^ right)
 
 let serializeQop = function
 | All -> "all"
@@ -300,21 +321,30 @@ let rec serializeExpr env (e : expr) =
     | BoolLit b -> if b then "True" else "False" (*TODO: Alloy does not have boolean literals?*)  
     | StrLit s -> "\"" ^ s ^ "\""
     | Parenthesis e -> parens (_serializeExpr e)
+    | Braces None -> "{}"
+    | Braces (Some e) -> braces @@ _serializeExpr e
     | Unop {op; expr} -> (match op with 
                           | Not -> "not " ^ _serializeExpr expr
                           | Tilde -> "~" ^ _serializeExpr expr
                           | Caret -> "^" ^ _serializeExpr expr
                           | Star -> "*" ^ _serializeExpr expr
                           | IsEmpty -> "no " ^ _serializeExpr expr
-                          | Card -> "# " ^ _serializeExpr expr)
+                          | Card -> "#" ^ _serializeExpr expr)
     | Binop {left; right; op} -> 
       let parenthesized_left = if needs_parentheses e left then parens @@ _serializeExpr left else _serializeExpr left in
       let parenthesized_right = if needs_parentheses e right then parens @@ _serializeExpr right else _serializeExpr right in
       begin match op with 
-      | NotIn -> "not " ^ parenthesized_left ^ " in " ^ parenthesized_right
-      | In -> parenthesized_left ^ " in " ^ parenthesized_right
-      | Arrow | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
-      | _ as bop -> (parenthesized_left) ^ " " ^ serializeBinop bop ^ " "  ^ (parenthesized_right)
+      | IntBop op -> 
+        begin match op with 
+        | Add | Sub | Mul | Div | Rem -> serializeIntBop parenthesized_left parenthesized_right op
+        end
+      | Bop op -> 
+        begin match op with 
+        | NotIn -> "not " ^ parenthesized_left ^ " in " ^ parenthesized_right
+        | In -> parenthesized_left ^ " in " ^ parenthesized_right
+        | Arrow | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
+        | _ as bop -> (parenthesized_left) ^ " " ^ serializeBinop bop ^ " "  ^ (parenthesized_right)
+        end
       end
     | Implication {left; right; falseExpr} -> (_serializeExpr left) ^ " => " ^ (_serializeExpr right) ^ (match falseExpr with 
                                                                                                       | None -> ""
@@ -487,11 +517,10 @@ let serializeEvents env (f : func_type list) : string =
       "fun _" ^ name ^ " : Event -> " ^ types ^ braceswsp (name ^ " -> " ^ expr_str)
   ) pred_events in
 
-    
-
-      
   let key_of_vars (vars : (paramId * ty) list) = 
-    let tps = List.map (fun (_, ty) -> serializeType ty) vars in
+    let vars = groupByType vars in (*get the correct order*)
+    let typs = List.rev @@ List.flatten @@ List.map (fun (ids, ty) -> List.map (fun _ -> ty) ids) vars in
+    let tps = List.map (fun ty -> serializeType ty) typs in
     String.concat "." tps
   in
 
@@ -507,8 +536,6 @@ let serializeEvents env (f : func_type list) : string =
     in
   let partitioned = partition_and_group_by_vars pred_events in
   
-    
-
   let env = increase_indent env in
   let event_set_str = "fun events : set Event " ^ (braceswnl env) @@ 
   mapcat " + " (
@@ -527,10 +554,12 @@ let serializeEvents env (f : func_type list) : string =
 let serializeDependencies (deps : dep list) : string = 
   mapcat "\n" (
     fun (Dependency{id;generics}) ->
-      let genericsStr = mapcat ", " (fun (id, ty) -> S.name id ^ "/" ^ serializeType ty) generics in
+      let genericsStr = mapcat ", " (fun (id, ty) -> 
+        if Option.is_none id then serializeType ty else
+        (S.name @@ Option.get id) ^ "/" ^ serializeType ty) generics in
       "open " ^ S.name id ^ if genericsStr = "" then "" else brackets genericsStr
   ) deps
-
+  
 let get_prog_name (Program{module_header;_}) = 
   match module_header with 
   | Module{name;_} -> S.name name

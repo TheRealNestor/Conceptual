@@ -16,7 +16,7 @@ exception ParserError
 
 %token EOF (*End of file*)
 %token EQEQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ ? *)
-%token PLUS MINUS AMP (*Binary operators*)
+%token PLUS MINUS AMP SLASH PERCENT (*Binary operators*)
 %token EQ (* Mutators*)
 %token NOT TILDE CARET STAR CARD (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
@@ -29,6 +29,7 @@ exception ParserError
 %token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 %token APP INCLUDE SYNC (*Composition related tokens*)
+
 
 (*ACTION_START: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
 %token <string> PURPOSE IDENT ACTION_START STR_LIT
@@ -77,8 +78,9 @@ exception ParserError
 %nonassoc NOT (*TODO: Should this be higher*)
 %nonassoc IS EMPTY (*Set-related predicates*) 
 
-%nonassoc EQEQ NEQ LT GT LTE GTE IN (*Comparisons: Should this be left associative or nonassoc?*)
+%nonassoc EQEQ NEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
 %left PLUS MINUS 
+%left SLASH PERCENT
 %nonassoc CARD
 
 %left AMP
@@ -110,6 +112,7 @@ typ:
 lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
+
 
 call: 
 | ACTION_START LPAR separated_list(COMMA, expr) RPAR 
@@ -156,6 +159,9 @@ expr:
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
 | MINUS { Minus{loc = mk_loc $loc} }
+| STAR { Times{loc = mk_loc $loc} } (*TODO: this might use wrong precedence due to unop*)
+| SLASH { Div{loc = mk_loc $loc} }
+| PERCENT { Mod{loc = mk_loc $loc} }
 | AMP { Intersection{loc = mk_loc $loc} }
 | LAND { Land{loc = mk_loc $loc} }
 | LOR { Lor{loc = mk_loc $loc} }
@@ -265,12 +271,12 @@ concept:
 
 app_dep:
 | IDENT pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
-| IDENT delimited(LBRACK, separated_nonempty_list(COMMA, pair(IDENT, pair(DOT, IDENT))), RBRACK) { 
+| IDENT delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_typ)), RBRACK) { 
   let generics = List.map (
-    fun (con_name, (_, ty)) -> 
-      let con = Ident{name=con_name; loc = mk_loc $loc} in
-      let ty = TCustom{tp = Ident{name = ty; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None} in
-      Generic{con; ty; loc = mk_loc $loc}
+    fun (con, ty) -> 
+      match con with
+      | None -> Generic{con = None;ty; loc = mk_loc $loc}
+      | Some (con_name, _) -> Generic{con = Some (Ident{name = con_name; loc = mk_loc $loc}); ty; loc = mk_loc $loc}
   ) $2 in
   Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics; loc = mk_loc $loc}
   }

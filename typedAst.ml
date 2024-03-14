@@ -36,6 +36,9 @@ type binop =
 | Intersection 
 | Join
 | MapsTo
+| Times
+| Div
+| Mod
 
 type unop = 
 | Not 
@@ -126,7 +129,7 @@ type concept = Concept of {
 }
 
 type generic = Generic of {
-  con : ident;
+  con : ident option;
   ty : typ;
 }
 

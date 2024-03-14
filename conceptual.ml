@@ -12,13 +12,12 @@ let compile_program (filepath : string) =
   let _ = Lexing.set_filename lex_buf filepath in
   try
     let tokenizer = TokenCache.next_token Lexer.token in 
-    
     (* Print all tokens. This will consume them so parser will not run also  *)
     (* Utility.lex_and_print_tokens tokenizer lex_buf;  *)
 
     let prog = Parser.program tokenizer lex_buf in 
     (* print AST *)
-    pretty_print_program prog;
+    (* pretty_print_program prog; *)
     (* print_endline ""; *)
     let env, typed_prog = Semant.typecheck_prog prog in
     pretty_print_t_program typed_prog;

@@ -55,6 +55,9 @@ let binop_to_string = function
 | Intersection _ -> "&"
 | Join _ -> "."
 | MapsTo _ -> "->"
+| Times _ -> "*"
+| Div _ -> "/"
+| Mod _ -> "%"
 
 let binop_to_tree = function 
 | Plus _ -> make_keyword_line "Plus"
@@ -72,6 +75,11 @@ let binop_to_tree = function
 | Intersection _ -> make_keyword_line "Intersection"
 | Join _ -> make_keyword_line "Join"
 | MapsTo _ -> make_keyword_line "MapsTo"
+| Times _ -> make_keyword_line "Times"
+| Div _ -> make_keyword_line "Div"
+| Mod _ -> make_keyword_line "Mod"
+
+
 
 let unop_to_tree = function
 | Not _ -> make_keyword_line "Not"
@@ -165,7 +173,11 @@ let concept_to_tree (c : concept ) =
   ]
 
 let pretty_generic (Generic{con;ty;_}) = 
-  PBox.tree (make_info_node_line "Generic") [ident_to_tree con; typ_to_tree ty]
+  PBox.tree (make_info_node_line "Generic") (
+  match con with 
+  | None -> [typ_to_tree ty]
+  | Some con -> [ident_to_tree con; typ_to_tree ty]
+  )
 
 let dependency_to_tree (Dependency{name;generics;_}) = 
   PBox.tree (make_info_node_line "Dependency") [ident_to_tree name; PBox.tree (make_info_node_line "Generics") (List.map pretty_generic generics)]

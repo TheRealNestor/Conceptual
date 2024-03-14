@@ -55,7 +55,7 @@ let rec symbol_from_type = function
 | TAst.TInt _ -> Sym.symbol "Int"
 | TAst.TBool _ -> Sym.symbol "Bool"
 | TAst.TMap _ as t -> 
-  let types = List.tl @@ Utility.type_to_array_of_types t in 
+  let types = List.tl @@ Utility.type_to_list_of_types t in 
   (* construct the symbol of all types in types, delimit with " -> " *)
   let str = List.fold_left (
     fun str tp -> 
@@ -104,21 +104,24 @@ let unop_to_als = function
 | TAst.Card -> Als.Card
 
 let binop_to_als = function
-| TAst.Plus -> Als.Plus
-| TAst.Minus -> Als.Minus
-| TAst.Intersection -> Als.Intersection
-| TAst.Land -> Als.And
-| TAst.Lor -> Als.Or
-| TAst.Lt -> Als.Lt (* Note that these are not domain restrictions like Alloy, only integer comparisons *)
-| TAst.Lte -> Als.Lte
-| TAst.Gt -> Als.Gt
-| TAst.Gte -> Als.Gte
-| TAst.Eq -> Als.Eq
-| TAst.Neq -> Als.Neq
-| TAst.Join -> Als.Join
-| TAst.In -> Als.In 
-| TAst.NotIn -> Als.NotIn
-| TAst.MapsTo -> Als.Arrow
+| TAst.Plus -> Als.Bop Plus
+| TAst.Minus -> Als.Bop Minus
+| TAst.Intersection -> Als.Bop Intersection
+| TAst.Land -> Als.Bop And
+| TAst.Lor -> Als.Bop Or
+| TAst.Lt -> Als.Bop Lt (* Note that these are not domain restrictions like Alloy, only integer comparisons *)
+| TAst.Lte -> Als.Bop Lte
+| TAst.Gt -> Als.Bop Gt
+| TAst.Gte -> Als.Bop Gte
+| TAst.Eq -> Als.Bop Eq
+| TAst.Neq -> Als.Bop Neq
+| TAst.Join -> Als.Bop Join
+| TAst.In -> Als.Bop In 
+| TAst.NotIn -> Als.Bop NotIn
+| TAst.MapsTo -> Als.Bop Arrow
+| TAst.Times -> Als.IntBop Mul
+| TAst.Div -> Als.IntBop Div
+| TAst.Mod -> Als.IntBop Rem
 
 let mult_to_als = function
 | None -> Als.Implicit
@@ -166,13 +169,11 @@ let rec lval_to_als env = function
   (* you only get this on lhs. And there lefts are saved in the environment.... *)
   lval_to_als env right
      
-
-  
 let rec trans_expr env expr =
   let _tr = trans_expr env in 
   let _mk_lit lit =   
     if List.length env.distributive_joins <> 0 then
-      Als.Binop {op = Als.Arrow; left = Als.Lval(Als.VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); right = lit}
+      Als.Binop {op = Bop(Arrow); left = Als.Lval(Als.VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); right = lit}
     else lit 
   in
 
@@ -181,11 +182,11 @@ let rec trans_expr env expr =
     if List.length env.distributive_joins <> 0 then 
       (*e.g. i.labels = {} 
     should be translated to: (State.labels') = (State.labels') - i->Label *)
-      let right = Als.Binop{op = Als.Arrow; 
+      let right = Als.Binop{op = Bop(Als.Arrow); 
       left = Als.Lval(Als.VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
       right = Als.Lval(Als.VarRef(symbol_from_type env.assignment_type))
     } in
-    let e = Als.Binop{op=Als.Minus; left = Als.Lval(Als.VarRef(prepend_state_symbol @@ env.lhs_sym)); right} in 
+    let e = Als.Binop{op=Bop(Als.Minus); left = Als.Lval(Als.VarRef(prepend_state_symbol @@ env.lhs_sym)); right} in 
     Als.Parenthesis e
   else
     Als.None
@@ -194,8 +195,15 @@ let rec trans_expr env expr =
   | TAst.Boolean{bool} -> _mk_lit (Als.BoolLit(bool))
   | TAst.Unop{op;operand;_} -> Als.Unop{op = unop_to_als op; expr = _tr operand}
   | TAst.Binop{op;left;right;_} -> 
-    begin match op with   
-    | TAst.Join ->
+    let is_int = Utility.same_base_type (Utility.get_expr_type left) (TAst.TInt{mult=None}) in
+    begin match op with
+      | TAst.Plus | TAst.Minus -> (*These operators are overloaded, must be translated differently for integers and standard types*)
+        if is_int then
+          let op = if op = TAst.Plus then Als.IntBop(Add) else Als.IntBop(Sub) in 
+          Als.Binop{left = _tr left; right = _tr right; op;}
+        else
+        Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
+      | TAst.Join ->
       (* check whether the join operation evaluate to the assignment_lval *)
       let is_same = if env.assignment_lval = None then false else
       begin match left,right with 
@@ -211,7 +219,7 @@ let rec trans_expr env expr =
           let sym = if List.mem (sym_from name) env.state_variables then 
             prepend_state_symbol ~left:env.is_left (sym_from name)
           else sym_from name in
-          Als.Binop{left = _tr left; right = Als.Lval(Als.VarRef(sym)); op = Als.Join}
+          Als.Binop{left = _tr left; right = Als.Lval(Als.VarRef(sym)); op = Als.Bop Join}
           (* Als.Call({func = sym; args = _tr left :: []}) Navigation.... *) (* <---- if we want navigation syntax ...*)
         | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
         end
@@ -219,7 +227,7 @@ let rec trans_expr env expr =
       let left_tp, right_tp = Utility.get_expr_type left, Utility.get_expr_type right in
       if  Utility.is_relation right_tp then 
         (* traverse the relation until we find the simple type *)
-        let type_list = Utility.type_to_array_of_types right_tp in 
+        let type_list = Utility.type_to_list_of_types right_tp in 
         let type_array = Array.of_list type_list in
         (* split the array, return array with all elements up to when left_tp is first encountered
            assumes left type is in array, but it should be or SEMANTIC ANALYSIS is broken*)
@@ -236,7 +244,7 @@ let rec trans_expr env expr =
           fun (tp : TAst.typ) -> fresh_sym @@ fst_char_of_typ tp, typ_to_als tp 
         ) partitioned_type_list in
         let qop = if op = TAst.In then Als.All else Als.No in
-        let expr = Als.Binop{left = _tr left; right = _tr right; op = Als.In} in
+        let expr = Als.Binop{left = _tr left; right = _tr right; op = Als.Bop In} in
         let box_right_syms = List.map (fun (sym,_) -> Als.Lval(Als.VarRef(sym))) quant_vars in
         Als.Quantifier{qop; vars = quant_vars; expr=BoxJoin{left = expr; right = box_right_syms}}    
       else
@@ -314,7 +322,7 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
     let compress_syms = List.map (fun sym -> 
       Sym.symbol @@ String.sub (Sym.name sym) 0 1 ) out_syms
     in
-    let als_in_binop = Als.Binop{op = Als.In; right = trans_expr env rhs; left = Als.Lval(Als.VarRef(List.hd compress_syms))} in
+    let als_in_binop = Als.Binop{op = Als.Bop In; right = trans_expr env rhs; left = Als.Lval(Als.VarRef(List.hd compress_syms))} in
     let vars = List.combine compress_syms (List.map (fun t -> typ_to_als t) out_types) 
     in [Als.SetComprehension{vars; cond = als_in_binop}]
   ) else (
@@ -336,15 +344,15 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
 
     (* fold over this symbol table, creating a single expression for each key, 
       expressions can be "+" separated (i.e. binop) *)
-    let sym_to_expr_map = Sym.Table.fold (
-      fun sym exprs body_so_far -> 
-        let expr = List.fold_left (
-          fun expr_so_far expr -> 
-            Als.Binop{left = expr_so_far; right = expr; op = Als.Plus}
-        ) (List.hd exprs) (List.tl exprs)
-        in
-        (sym, expr) :: body_so_far
-    ) als_sym_table [] in
+      let sym_to_expr_map = Sym.Table.fold (
+        fun sym exprs body_so_far -> 
+          let expr = List.fold_left (
+            fun expr_so_far expr -> 
+              Als.Binop{left = expr_so_far; right = expr; op = Als.Bop Plus}
+              ) (List.hd exprs) (List.tl exprs)
+            in
+            (sym, expr) :: body_so_far
+            ) als_sym_table [] in
 
     (* This is equivalent to Map.Bindings and then collecting all the first arguments *)
     let syms_used, als_body = List.split sym_to_expr_map in
@@ -384,11 +392,13 @@ let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{d
   {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) env.state_variables env_so_far.con_dict}, 
   Als.Program{module_header = als_header; facts = als_facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs} :: progs
 
-
 let trans_app env apps (TAst.App{name;deps;syncs}) =
   let als_header = Als.Module{name = sym_from name; parameters = None;} in
   let als_deps = List.map (fun (TAst.Dependency{name;generics}) -> 
-    let als_generics = List.map (fun (TAst.Generic{con;ty}) -> sym_from con, typ_to_als ty) generics in
+    let als_generics = List.map (fun (TAst.Generic{con;ty}) -> 
+      match con with 
+      | None -> None, typ_to_als ty
+      | Some con -> Option.some @@ sym_from con, typ_to_als ty) generics in
     Als.Dependency{id = sym_from name; generics = als_generics}
     ) deps in
 
@@ -422,18 +432,18 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
         in
       let als_expression = Als.Implication{
         left = _tr_sync cond;
-        right = List.fold_left (
-          fun expr_so_far expr ->
-            Als.Binop{
-              left = expr_so_far;
-              right = _tr_sync expr;
-              op = Als.And
-            }
-        ) (_tr_sync @@ List.hd body) (List.tl body);
+        right = if List.length body = 0 then Als.Braces(None)
+        else List.fold_left (
+            fun expr_so_far expr ->
+              Als.Binop{
+                left = expr_so_far;
+                right = _tr_sync expr;
+                op = Als.Bop And
+              }
+          ) (_tr_sync @@ List.hd body) (List.tl body);
         falseExpr = None;
       }
       in
-      
       (*We need the symbol from the trigger action for the namespace of tmps*)
       let (TAst.SyncCall{name=TAst.Ident{sym=con_sym};_}) = cond in 
       let new_tmps = List.map (

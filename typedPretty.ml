@@ -50,6 +50,9 @@ let binop_to_tree  = function
 | Intersection -> Pretty.make_keyword_line "Intersection"
 | Join -> Pretty.make_keyword_line "Join"
 | MapsTo -> Pretty.make_keyword_line "MapsTo"
+| Times -> Pretty.make_keyword_line "Times"
+| Div -> Pretty.make_keyword_line "Div"
+| Mod -> Pretty.make_keyword_line "Mod"
 
 let unop_to_tree = function
 | Not -> Pretty.make_keyword_line "Not"
@@ -144,8 +147,11 @@ let concept_to_tree (c : concept ) =
     (* PBox.tree (Pretty.make_info_node_line "Operational Principle") [Pretty.make_info_node_line c.op.doc_str] *)
   ]
 
+
 let prettify_generic (Generic{con;ty;_}) = 
-  PBox.tree (Pretty.make_info_node_line "Generic") [ident_to_tree con; typ_to_tree ty]
+  PBox.tree (Pretty.make_info_node_line "Generic") (match con with 
+  | None -> [typ_to_tree ty]
+  | Some con -> [ident_to_tree con; typ_to_tree ty])
 
 let dependency_to_tree (Dependency{name;generics;_}) = 
   PBox.tree (Pretty.make_info_node_line "Dependency") [ident_to_tree name; PBox.tree (Pretty.make_info_node_line "Generics") (List.map prettify_generic generics)]
