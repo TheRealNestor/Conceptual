@@ -33,8 +33,6 @@ let token_to_string = function
   | Parser.LAND -> "LAND"
   | Parser.INT -> "INT"
   | Parser.INT_LIT i -> Printf.sprintf "INT_LIT(%Ld)" i
-  | Parser.BOOL -> "BOOL"
-  | Parser.BOOL_LIT b -> Printf.sprintf "BOOL_LIT(%b)" b
   | Parser.ACTION_START s -> Printf.sprintf "ACTION_START(%s)" s
   | Parser.AMP -> "AMP"
   | Parser.OUT -> "OUT"
@@ -76,7 +74,7 @@ let lex_and_print_tokens tokenizer lexbuf =
 let rec same_base_type tp1 tp2 =
   match tp1, tp2 with 
   | TAst.TInt _, TAst.TInt _ -> true
-  | TAst.TBool _, TAst.TBool _ -> true
+  | TAst.TBool, TAst.TBool -> true
   | TAst.TString _, TAst.TString _ -> true
   | TAst.TCustom {tp=tp1;_}, TAst.TCustom {tp=tp2;_} -> tp1 = tp2
   | TAst.NullSet _, TAst.NullSet _ -> true
@@ -88,9 +86,8 @@ let rec same_base_type tp1 tp2 =
   
 let rec get_base_type = function
 | TAst.TInt _ -> TAst.TInt{mult = None}
-| TAst.TBool _ -> TAst.TBool{mult = None}
 | TAst.TString _ -> TAst.TString{mult = None}
-| TAst.TCustom {tp;_} -> TAst.TCustom{tp;mult = None}
+| TAst.TCustom {tp;_} -> TAst.TCustom{tp;mult = None;ns = None}
 | TAst.TMap {left;right} -> TAst.TMap{left = get_base_type left; right = get_base_type right}
 | _ as t -> t
 
@@ -103,7 +100,7 @@ let is_string = function
 | _ -> false
 
 let is_boolean = function
-| TAst.TBool _ -> true
+| TAst.TBool -> true
 | _ -> false
 
 let is_relation = function
@@ -115,7 +112,7 @@ let is_empty_set = function
 | _ -> false
 
 let get_mult = function
-| TAst.TInt {mult} | TAst.TBool {mult} | TAst.TString {mult} | TAst.TCustom {mult;_} -> mult
+| TAst.TInt {mult} | TAst.TString {mult} | TAst.TCustom {mult;_} -> mult
 | _ -> None
 
 (* create a function that checks that a given tp is included somewhere in a TMap{left;right} *)
@@ -147,7 +144,7 @@ let get_concept_name c = Symbol.name @@ get_concept_sym c
 
 let rec get_expr_location = function 
 | Ast.Lval l -> get_lval_location l
-| Ast.EmptySet {loc} | Ast.String {loc;_} | Ast.Integer {loc;_} | Ast.Boolean {loc;_} | Ast.Binop {loc;_} | Ast.Unop {loc;_} 
+| Ast.EmptySet {loc} | Ast.String {loc;_} | Ast.Integer {loc;_} | Ast.Binop {loc;_} | Ast.Unop {loc;_} 
 | Ast.Call {loc;_} | Ast.Can {loc;_} | Ast.BoxJoin{loc;_} | Ast.SetComp {loc;_} -> loc
 
 and get_lval_location = function
@@ -163,9 +160,9 @@ let ast_mult_to_tast = Option.map (function
 
 let rec convert_type = function
 | Ast.TInt {mult;_} -> TAst.TInt{mult = ast_mult_to_tast mult}
-| Ast.TBool {mult;_} -> TAst.TBool{mult = ast_mult_to_tast mult}
+| Ast.TBool _ -> TAst.TBool
 | Ast.TString {mult;_} -> TAst.TString{mult = ast_mult_to_tast mult}
-| Ast.TCustom {tp=Ident{name;_};mult;_} -> TAst.TCustom {tp = Ident{sym = Symbol.symbol name};mult = ast_mult_to_tast mult}
+| Ast.TCustom {tp=Ident{name;_};mult;_} -> TAst.TCustom {tp = Ident{sym = Symbol.symbol name};mult = ast_mult_to_tast mult; ns = None}
 | Ast.TMap{left;right;_} -> TAst.TMap{left = convert_type left; right = convert_type right}
 
 let ast_binop_to_tast = function
@@ -188,12 +185,12 @@ let ast_binop_to_tast = function
 | Ast.Div _ -> TAst.Div
 | Ast.Mod _ -> TAst.Mod
 
+
 let rec set_typ_mult tp mult = 
   match tp with
   | TAst.TInt _ -> TAst.TInt{mult}
-  | TAst.TBool _ -> TAst.TBool{mult}
   | TAst.TString _ -> TAst.TString{mult}
-  | TAst.TCustom {tp;_} -> TAst.TCustom{tp;mult}
+  | TAst.TCustom {tp;ns;_} -> TAst.TCustom{tp;mult;ns}
   | TAst.TMap {left;right} -> TAst.TMap{left = set_typ_mult left mult; right = set_typ_mult right mult}
   | _ -> tp
 
@@ -289,7 +286,8 @@ let get_expr_type (expr : TAst.expr) : TAst.typ =
   | SetComp {tp;_} -> tp
   | String _ -> TAst.TString{mult = None}
   | Integer _ -> TAst.TInt{mult = None}
-  | Boolean _ | Can _ -> TAst.TBool{mult = None}
+  | Can _ -> TAst.TBool
+
 
 
 

@@ -8,11 +8,10 @@ type mult = One | Set | Lone | Som
 
 type typ =
   | TString of { loc : Loc.location; mult : mult option }
-  | TBool of { loc : Loc.location; mult : mult option}
+  | TBool of { loc : Loc.location; }
   | TInt of { loc : Loc.location; mult : mult option}
-  | TCustom of { tp : ident; loc : Loc.location; mult : mult option } (* custom type *)
+  | TCustom of { tp : ident; loc : Loc.location; mult : mult option; } (* custom type *)
   | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
-
 
 type parameter = Parameter of {typ : typ; loc : Loc.location } (*This is for the concept signature *)
 type decl = Decl of {name : ident; typ : typ; loc : Loc.location } (*State declarations, action signatures*)
@@ -56,7 +55,6 @@ type expr =
 | EmptySet of { loc : Loc.location }
 | String of {str : string; loc : Loc.location }
 | Integer of {int : int64; loc : Loc.location }
-| Boolean of {bool : bool; loc : Loc.location }
 | Lval of lval 
 | Unop of {op : unop; operand : expr; loc : Loc.location;}
 | Binop of {left : expr; op : binop; right : expr; loc : Loc.location}

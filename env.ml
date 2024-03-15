@@ -37,9 +37,8 @@ let insert env sym obj =
 
 let rec set_mult mult = function
 | TAst.TInt _ -> TAst.TInt{mult}
-| TAst.TBool _ -> TAst.TBool{mult}
 | TAst.TString _ -> TAst.TString{mult}
-| TAst.TCustom {tp;_} -> TAst.TCustom {tp;mult}
+| TAst.TCustom {tp;ns;_} -> TAst.TCustom {tp;mult;ns}
 | TAst.TMap{left;right} -> TAst.TMap{left = set_mult mult left; right = set_mult mult right}
 | tp -> tp
 

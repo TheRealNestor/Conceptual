@@ -4,7 +4,7 @@ module Sym = Symbol
 
 type cg_env = {
   custom_types : Sym.symbol list;
-  state_variables : Sym.symbol list; (* actually declared variable in state component of concept*)
+  state_variables : (Sym.symbol * bool) list; (* actually declared variable in state component of concept*)
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
   assignment_type : TAst.typ; (* type of the assignment in typed AST, used with distributive join to add things if it does not match*)
   assignment_lval : TAst.lval option; (* lval of the assignment, used for code generation to translate non-compound assignments...*)
@@ -44,7 +44,6 @@ let fst_char_of_typ tp =
   | TAst.TCustom{tp= TAst.Ident{sym}; _} -> Sym.symbol @@ String.lowercase_ascii @@ Sym.name sym
   | TAst.TString _ -> Sym.symbol "string"
   | TAst.TInt _ -> Sym.symbol "int"
-  | TAst.TBool _ -> Sym.symbol "bool"
   | _ -> failwith "Other types are not supported ..."    
 in
 first_letter_of_sym @@ fst_char_of_typ' tp
@@ -53,7 +52,6 @@ let rec symbol_from_type = function
 | TAst.TCustom{tp= TAst.Ident{sym}; _} -> sym
 | TAst.TString _ -> Sym.symbol "String"
 | TAst.TInt _ -> Sym.symbol "Int"
-| TAst.TBool _ -> Sym.symbol "Bool"
 | TAst.TMap _ as t -> 
   let types = List.tl @@ Utility.type_to_list_of_types t in 
   (* construct the symbol of all types in types, delimit with " -> " *)
@@ -72,7 +70,6 @@ let type_in_env env tp =
 let rec add_tp_to_env env = function 
 | TAst.TCustom{tp = TAst.Ident{sym}; _} -> 
   if type_in_env env sym then env else {env with custom_types = sym::env.custom_types}
-| TAst.TBool _ -> if type_in_env env (Sym.symbol "Bool") then env else {env with custom_types = Sym.symbol "Bool" :: env.custom_types} 
 | TAst.TMap{left;right} -> 
   let env = add_tp_to_env env left in
   add_tp_to_env env right
@@ -133,7 +130,6 @@ let mult_to_als = function
 
 let rec typ_to_als = function
 | TAst.TInt {mult} -> Als.Int(mult_to_als mult)
-| TAst.TBool {mult} -> Als.Bool(mult_to_als mult)
 | TAst.TString {mult} -> Als.Str(mult_to_als mult)
 | TAst.TCustom{tp;mult;_} -> Als.Sig(sym_from tp, mult_to_als mult) (*Note that this is  assumes no explicit multiplicty and no fields*)
 | TAst.TMap{left;right} -> Als.Rel(typ_to_als left, typ_to_als right)
@@ -150,18 +146,12 @@ let get_dist_join_str ?(with_arrow = true) env =
 
 let rec lval_to_als env = function 
 | TAst.Var {name;tp} -> 
-  if List.mem (sym_from name) env.state_variables then 
-    (* TODO: This is probably not how to handle booleans *)
-    if Utility.same_base_type tp (TAst.TBool{mult=Some TAst.One}) then 
-      Als.BoolVarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
-    else 
+  let state_syms, _ = List.split env.state_variables in
+  if List.mem (sym_from name) state_syms then 
       Als.VarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
   (* check that type of lval matches the assignment to figure out whether to distributively add join args  *)
   else if List.length env.distributive_joins <> 0 && Utility.same_base_type tp env.assignment_type |> not then (
     let str = get_dist_join_str env ^ (Sym.name @@ sym_from name) in
-    if Utility.same_base_type tp (TAst.TBool{mult=Some TAst.One}) then 
-      Als.BoolVarRef(Sym.symbol str)
-    else
     Als.VarRef(Sym.symbol str)
   )
   else Als.VarRef(sym_from name)
@@ -192,7 +182,6 @@ let rec trans_expr env expr =
     Als.None
   | TAst.String {str} -> _mk_lit (Als.StrLit(str))
   | TAst.Integer{int} -> _mk_lit (Als.IntLit(int))
-  | TAst.Boolean{bool} -> _mk_lit (Als.BoolLit(bool))
   | TAst.Unop{op;operand;_} -> Als.Unop{op = unop_to_als op; expr = _tr operand}
   | TAst.Binop{op;left;right;_} -> 
     let is_int = Utility.same_base_type (Utility.get_expr_type left) (TAst.TInt{mult=None}) in
@@ -216,7 +205,8 @@ let rec trans_expr env expr =
       else 
         begin match left,right with 
         | _ , TAst.Lval (TAst.Var{name;_}) -> 
-          let sym = if List.mem (sym_from name) env.state_variables then 
+          let sym_states, _ = List.split env.state_variables in
+          let sym = if List.mem (sym_from name) sym_states then 
             prepend_state_symbol ~left:env.is_left (sym_from name)
           else sym_from name in
           Als.Binop{left = _tr left; right = Als.Lval(Als.VarRef(sym)); op = Als.Bop Join}
@@ -287,9 +277,12 @@ let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{pa
     let body = (Als.Assignment{left = Als.VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
     in [Als.Fact{fact_id = sym_from name; body}]
   in 
+
+  (* add new entry to list in state_variables *)
+
   Als.FldDecl{id = sym_from name; ty = typ_to_als typ; expr = None;const} :: fields_so_far, 
   fact @ facts_so_far,
-  add_tp_to_env {env_so_far with state_variables = sym_from name :: env_so_far.state_variables} typ
+  add_tp_to_env {env_so_far with state_variables = env_so_far.state_variables @ [sym_from name, const]} typ
 
 let trans_concept_states env states = 
   List.fold_left trans_concept_state ([], [], env) states
@@ -356,7 +349,9 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
 
     (* This is equivalent to Map.Bindings and then collecting all the first arguments *)
     let syms_used, als_body = List.split sym_to_expr_map in
-    let remaining_syms = List.filter (fun sym -> not @@ List.mem sym syms_used) env.state_variables in
+    let remaining = List.filter (fun (sym,const) -> not @@ List.mem sym syms_used && not const) env.state_variables in
+    let remaining_syms = List.map fst remaining in
+
     let assign_from_syms syms = List.map (fun sym -> 
       let rhs_sym = prepend_state_symbol sym in
       let lhs_sym = prepend_state_symbol ~left:true sym in 
@@ -386,10 +381,10 @@ let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{d
   let als_states, als_facts, cg_env = trans_concept_states env states in 
   (* need a list of signatures, first from the primitive types stored in cg_env *)
   let primitive_sigs = List.map (fun sym -> Als.SigDecl{sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
-  (* TODO: Booleans should be added here when needed.... *)
   let sigs = Als.SigDecl{sig_id = Sym.symbol "State"; fields = als_states; mult = Als.One} :: primitive_sigs in
   let env, preds_and_funcs = trans_actions cg_env actions in  
-  {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) env.state_variables env_so_far.con_dict}, 
+  let state_vars = List.map fst env.state_variables in
+  {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) state_vars env_so_far.con_dict}, 
   Als.Program{module_header = als_header; facts = als_facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs} :: progs
 
 let trans_app env apps (TAst.App{name;deps;syncs}) =
@@ -449,9 +444,11 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
       let new_tmps = List.map (
         fun (TAst.Decl{name;typ;}) -> 
           let typ = match typ with 
-          | TAst.TCustom{tp=TAst.Ident{sym};mult=None} -> 
-            let sym = Symbol.symbol @@ (Sym.name con_sym) ^ "/" ^ (Sym.name sym) in
-            TAst.TCustom{tp=TAst.Ident{sym};mult=None}
+          | TAst.TCustom{tp=TAst.Ident{sym};mult=None;ns} -> 
+            let sym = match ns with (*Use trigger action's namespace unless one is explicitly given*)
+            | None -> Sym.symbol @@ (Sym.name @@ con_sym) ^ "/" ^ (Sym.name sym) 
+            | Some ns -> Sym.symbol @@ (Sym.name @@ sym_from ns) ^ "/" ^ (Sym.name sym) in
+            TAst.TCustom{tp=TAst.Ident{sym};mult=None;ns}
           | _ -> typ
           in
           TAst.Decl{name;typ}

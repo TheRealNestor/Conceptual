@@ -6,7 +6,6 @@ let mk_loc loc = Location.make_location loc
 let add_mult_to_typ mult = function 
 | TString t -> TString{t with mult}
 | TInt t -> TInt{t with mult}
-| TBool t -> TBool{t with mult}
 | TCustom t -> TCustom{t with mult}
 | _ as t -> t
 
@@ -24,17 +23,16 @@ exception ParserError
 %token WHEN CAN (*Precondition related*)
 %token OUT (*Output*)
 %token IS EMPTY EMPTY_SET (*Set-related predicates*)
-%token INT BOOL STRING (*Primitive types*)
+%token INT STRING (*Primitive types*)
 %token ARROW SET ONE IN LONE SOME (* Set-related tokens *)
 %token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
-%token APP INCLUDE SYNC (*Composition related tokens*)
+%token APP INCLUDE SYNC NEW (*Composition related tokens*)
 
 
 (*ACTION_START: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
 %token <string> PURPOSE IDENT ACTION_START STR_LIT
 %token <int64> INT_LIT
-%token <bool> BOOL_LIT
 
 
 // __________________
@@ -96,7 +94,6 @@ exception ParserError
 prim_typ:
 | STRING { TString{loc = mk_loc $loc; mult = None} }
 | INT { TInt{loc = mk_loc $loc; mult = None} }
-| BOOL { TBool{loc = mk_loc $loc; mult = None} }
 | IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None} }
 
 mult: 
@@ -126,7 +123,6 @@ op_expr:
 
 const: 
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
-| BOOL_LIT { Boolean{bool = $1; loc = mk_loc $loc} }
 | EMPTY_SET { EmptySet{loc = mk_loc $loc} }
 | MINUS? INT_LIT { 
   match $1 with
@@ -198,7 +194,6 @@ c_sig:
 
 c_purpose: 
 | PURPOSE { Purpose{doc_str = $1; loc = mk_loc $loc} }
-
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 
@@ -283,6 +278,7 @@ app_dep:
 
 sync_call: 
 | IDENT DOT call { SyncCall{name = Ident{name = $1; loc = mk_loc $loc}; call = $3; loc = mk_loc $loc} }
+| IDENT EQ NEW pair(IDENT,DOT)? typ
 
 sync:
 | SYNC sync_call sync_call* { Sync{cond = $2; body = $3; loc = mk_loc $loc} }

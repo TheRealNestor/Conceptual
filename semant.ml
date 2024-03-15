@@ -23,14 +23,13 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
   | Ast.EmptySet _ -> TAst.EmptySet{tp=TAst.NullSet{tp=None}}, TAst.NullSet{tp = None}
   | Ast.String {str;_} -> TAst.String{str}, TAst.TString{mult = None}
   | Ast.Integer {int;_} -> TAst.Integer{int}, TAst.TInt{mult = None}
-  | Ast.Boolean {bool;_} -> TAst.Boolean{bool}, TAst.TBool{mult = None}
   | Ast.Unop {op;operand;loc} ->
     let operand, operand_tp = infertype_expr env operand  in
     let check_relation e = if not (Utility.is_relation e) then Env.insert_error env (Errors.NotARelation{tp=e;loc});
     in
     let op, tp = begin match op with 
-      | Ast.Not _ -> TAst.Not, TAst.TBool{mult = None}
-      | Ast.IsEmpty _ -> TAst.IsEmpty, TAst.TBool{mult = None}
+      | Ast.Not _ -> TAst.Not, TAst.TBool
+      | Ast.IsEmpty _ -> TAst.IsEmpty, TAst.TBool
       | Ast.Tilde _ -> check_relation operand_tp;  TAst.Tilde, Utility.reverse_relation_tp operand_tp
       | Ast.Caret _ -> check_relation operand_tp; TAst.Caret, operand_tp
       | Ast.Star _ -> check_relation operand_tp; TAst.Star, operand_tp
@@ -56,19 +55,19 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         if Utility.is_integer left_tp then left_tp
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TInt{mult=None}; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Lt _ | Ast.Lte _ | Ast.Gt _ | Ast.Gte _  ->
-        if Utility.is_integer left_tp then TAst.TBool{mult=None}
+        if Utility.is_integer left_tp then TAst.TBool
         else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TInt{mult=None}; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Lor _ | Ast.Land _ -> 
-        if Utility.is_boolean left_tp then TAst.TBool{mult=None}
-        else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool{mult=None}; loc = Utility.get_expr_location left}); TAst.ErrorType)
+        if Utility.is_boolean left_tp then TAst.TBool
+        else (Env.insert_error env (Errors.TypeMismatch{actual = left_tp; expected = TAst.TBool; loc = Utility.get_expr_location left}); TAst.ErrorType)
       | Ast.Join _ -> Utility.construct_join_type env expr left_tp right_tp
-      | Ast.Eq _ | Ast.Neq _ -> TAst.TBool{mult=None}
+      | Ast.Eq _ | Ast.Neq _ -> TAst.TBool
       | Ast.In _ | Ast.NotIn _ -> 
         (* TODO: Probably need to review these conditions *)
         if (Utility.is_relation right_tp) && not (Utility.type_is_in_relation left_tp right_tp) then (
           Env.insert_error env (Errors.InvalidInExpression{left = left_tp; right = right_tp; loc});
         );
-        TAst.TBool{mult=None}
+        TAst.TBool
       | Ast.MapsTo _ -> 
         TAst.TMap{left = left_tp; right = right_tp}
       | _ -> left_tp
@@ -86,7 +85,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
         let env, t_decl = add_decl_to_env env (Ast.Decl{name;typ;loc}) in
         env, t_decl :: t_decls
     ) (env, []) decls in
-    let t_cond = typecheck_expr env cond (TAst.TBool{mult=None}) in 
+    let t_cond = typecheck_expr env cond (TAst.TBool) in 
     (* To infertype we need to have information in the environment  *)
     let tp = begin match env.set_comp_type with 
     | Some t -> t
@@ -342,6 +341,7 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
       (* get the concept associated with the concept *)
       (* iterate over all actions *)
 
+      (* TODO: Namespace must be included somehow? *)
       let con_env = Sym.Table.fold (fun _ obj con_env ->
         match obj with
         | Env.Act(ActionSignature{params;name=TAst.Ident{sym} as name;out}) ->
@@ -356,7 +356,10 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
                 let nth_opt = List.nth_opt t_generics index in
                 match nth_opt with
                 | None -> Env.insert_error env (Errors.UndeclaredType{tp = typ; loc}); TAst.ErrorType;
-                | Some (TAst.Generic{ty;_}) -> ty
+                | Some (TAst.Generic{ty;con}) -> 
+                  match ty with 
+                  | TAst.TCustom{tp;mult;_} -> TAst.TCustom{tp;ns=con;mult=mult;}  
+                  | _ -> ty
               in
               TAst.Decl{name; typ = new_type; }
             else

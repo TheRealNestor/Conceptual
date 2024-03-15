@@ -30,7 +30,7 @@ let mult_to_string = function
 
 let rec typ_to_string = function
 | TString {mult;_} -> mult_to_string mult ^ "String"
-| TBool {mult;_} -> mult_to_string mult ^ "Bool"
+| TBool _ -> "Bool"
 | TInt {mult;_} -> mult_to_string mult ^ "Int"
 | TCustom{tp = Ident{name; _};mult;_} -> mult_to_string mult ^ name
 | TMap {left; right; _} -> "Map(" ^ typ_to_string left ^ ", " ^ typ_to_string right ^ ")"
@@ -99,7 +99,6 @@ let rec expr_to_tree = function
 | EmptySet _ -> PBox.tree (make_info_node_line "EmptySet") [make_info_node_line "Empty"]
 | String {str; _} -> PBox.hlist ~bars:false [make_info_node_line "StringLit("; PBox.line str; make_info_node_line ")"]
 | Integer {int; _} -> PBox.hlist ~bars:false [make_info_node_line "IntLit("; PBox.line (Int64.to_string int); make_info_node_line ")"]
-| Boolean {bool; _} -> PBox.hlist ~bars:false [make_info_node_line "BooleanLit("; make_keyword_line (if bool then "true" else "false"); make_info_node_line ")"]
 | Binop {left; op; right; _} -> PBox.tree (make_info_node_line "BinOp") [expr_to_tree left; binop_to_tree op; expr_to_tree right]
 | Unop {op; operand; _} -> PBox.tree (make_info_node_line "UnOp") [unop_to_tree op; expr_to_tree operand]
 | Lval l -> PBox.tree (make_info_node_line "Lval") [lval_to_tree l]
@@ -125,9 +124,9 @@ let rec parameter_list_to_tree parameters =
 and parameter_to_tree  = function
   | Parameter {typ; _} -> PBox.tree (make_info_node_line "Parameter") [typ_to_tree typ]
 
-let rec named_parameter_list_to_tree parameters =
-  if List.length parameters = 0 then PBox.tree (make_info_node_line "DeclList") [make_info_node_line "Empty"]
-  else PBox.tree (make_info_node_line "DeclList") (List.map decl_to_tree parameters)
+let decl_list_to_tree decel =
+  if List.length decel = 0 then PBox.tree (make_info_node_line "DeclList") [make_info_node_line "Empty"]
+  else PBox.tree (make_info_node_line "DeclList") (List.map decl_to_tree decel)
 
 
 
@@ -152,8 +151,8 @@ let action_to_tree = function
 | Action {signature=ActionSignature{name;out;params;_}; cond; body; _} ->
     PBox.tree (make_info_node_line "Action") [
       PBox.hlist ~bars:false [make_info_node_line "Name: "; ident_to_tree name];
-      PBox.hlist ~bars:false [make_info_node_line "Return Type: "; named_parameter_list_to_tree out];
-      PBox.hlist ~bars:false [named_parameter_list_to_tree params];
+      PBox.hlist ~bars:false [make_info_node_line "Return Type: "; decl_list_to_tree out];
+      PBox.hlist ~bars:false [decl_list_to_tree params];
       PBox.tree (make_info_node_line "Firing Condition") [match cond with Some When{cond; _} -> expr_to_tree cond | None -> make_info_node_line "None"];
       PBox.tree (make_info_node_line "Statements") (statement_seq_to_forest body)
       ]

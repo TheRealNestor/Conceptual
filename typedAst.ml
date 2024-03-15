@@ -7,9 +7,9 @@ type mult = One | Set | Lone | Som
 (* TODO: strings? *)
 type typ =
 | TString of { mult : mult option }
-| TBool of { mult : mult option }
+| TBool 
 | TInt of { mult : mult option }
-| TCustom of { tp : ident; mult : mult option } (* custom type *)
+| TCustom of { tp : ident; mult : mult option; ns : ident option} (* custom type *)
 | TMap of { left : typ; right : typ } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 | NullSet of { tp : typ option } (* For empty sets currently *)
 | ErrorType 
@@ -59,7 +59,6 @@ type expr =
 | EmptySet of {tp : typ}
 | String of {str : string }
 | Integer of {int : int64 }
-| Boolean of {bool : bool }
 | Lval of lval 
 | Unop of {op : unop; operand : expr; tp : typ}
 | Binop of {left : expr; op : binop; right : expr; tp : typ}

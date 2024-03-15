@@ -36,11 +36,9 @@ type mul = One | Lone | Some | Set | Implicit
 
 type ty = 
 | Int of mul
-| Bool of mul 
 | Str of mul
 | Sig of sigId * mul 
 | Rel of ty * ty
-
 
 type dep = Dependency of {
   id : depId;
@@ -69,7 +67,6 @@ and fact = Fact of {
 and expr =
 | This | Univ | None 
 | IntLit of int64
-| BoolLit of bool
 | Parenthesis of expr 
 | Braces of expr option
 | StrLit of string
@@ -85,7 +82,6 @@ and expr =
 | Lval of lval 
 and lval = 
 | VarRef of S.symbol
-| BoolVarRef of S.symbol
 | Relation of {left : lval; right : lval;} 
 
 type pred = Predicate of {
@@ -107,7 +103,7 @@ type func_type =
 | Pred of pred 
 | Func of func
 
-type prog = Program of{
+type prog = Program of {
   module_header : aModule; 
   purpose : string option;
   deps : dep list;
@@ -123,14 +119,14 @@ type cg_env = {
 }
 
 (*This is to remove signatures if the module is parameterized *)
-let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String"; Symbol.symbol "Bool"];
+let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String";];
                    indent_level = 0}
 
 (* -------------------------- Helper functions --------------------------   *)  
 
 let rec compare_typ a b = match (a, b) with
 (* same as below but for als  *)
-| (Str _, Str _) | (Bool _, Bool _) | (Int _, Int _) -> 0
+| (Str _, Str _) | (Int _, Int _) -> 0
 | (Sig (a,_), Sig (b,_)) -> String.compare (Symbol.name a) (Symbol.name b)
 | (Rel (a1, a2), Rel (b1, b2)) -> 
     let cmp_left = compare_typ a1 b1 in
@@ -139,10 +135,9 @@ let rec compare_typ a b = match (a, b) with
 
 and tag_of_typ = function
 | Str _ -> 0
-| Bool _ -> 1
-| Int _ -> 2
-| Sig _ -> 3
-| Rel _ -> 4
+| Int _ -> 1
+| Sig _ -> 2
+| Rel _ -> 3
 
 (* -------------------------- Serialization --------------------------   *)
 
@@ -214,35 +209,14 @@ let serializeMul = function
   let rec serializeType (t : ty) : string = 
     match t with 
     | Int m-> serializeMul m ^ "Int"
-    | Bool m-> serializeMul m ^ "Bool"
     | Str m-> serializeMul m ^ "String"
     | Sig (s,m)-> serializeMul m ^ S.name s
     | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
   
-  let groupByType (l : (S.symbol * ty) list) =
-    (* do the same as the function above, but using the symbol table (extends Map.Make) *)
-    let tbl = S.Table.empty in  (* Initialize an empty map *)
-    let l = List.map (fun (s, ty) -> (s, S.symbol @@ serializeType @@ ty)) l in
-    (* fold over the list, adding the symbols to the list of symbols for the type *)
-    let tbl = List.fold_left (fun acc (s, ty) ->
-      let key = ty in  (* Use `symbol` function to create a symbol for the key *)
-      match S.Table.find_opt key acc with
-      | Some symbols -> S.Table.add key (s :: symbols) acc  (* If key exists, prepend the new name to the list *)
-      | None -> S.Table.add key [s] acc  (* Otherwise, create a new entry with the key *)
-    ) tbl l in
-
-    (* fold over the table, converting it to a list *)
-    let l = S.Table.fold (fun key symbols acc -> (symbols, key) :: acc) tbl [] in
-    List.map (fun (symbols, ty) -> (List.fast_sort (fun a b -> String.compare (S.name a) (S.name b)) symbols, Sig(ty, Implicit))) l 
-
-
-
-
 let serializeParamList ?(with_type=true) l = 
-  mapcat ", " (fun (symbols, ty) -> 
-    let symbolsStr = mapcat ", " (fun s -> S.name s) symbols in
-    symbolsStr ^ if with_type then ": " ^ serializeType ty else ""
-  ) l 
+  mapcat ", " (fun (id, ty) -> 
+    (S.name id) ^ if with_type then ": " ^ serializeType ty else ""
+  ) l
 
 let serializeBinop = function
 | Plus -> "+"
@@ -292,14 +266,13 @@ let serializeModule (env : cg_env ) (Module{name;parameters}) : string =
 
 let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE:\t" ^ p)
 
-let serializeVars (vars : (paramId list * ty) list) = 
-  mapcat ", " (fun (symbols, ty) -> 
-    let symbolsStr = mapcat ", " (fun s -> S.name s) symbols in
-    symbolsStr ^ " : " ^ serializeType ty
+let serializeVars (vars : (paramId * ty) list) = 
+  mapcat ", " (fun (id, ty) -> 
+    (S.name id) ^ " : " ^ serializeType ty
   ) vars
 
+
 let serializeQuantify qop vars = 
-  let vars = groupByType vars in 
   let qopStr = serializeQop qop in
   qopStr ^ " " ^ serializeVars vars ^ " | "
 
@@ -307,7 +280,6 @@ let serializeQuantify qop vars =
 let rec serializeLval (l : lval) : string = 
   match l with 
   | VarRef s -> S.name s
-  | BoolVarRef s -> S.name s ^ ".isTrue"
   | Relation {left; right;} -> 
       serializeLval left ^ "->" ^ serializeLval right        
 
@@ -318,7 +290,6 @@ let rec serializeExpr env (e : expr) =
     | Univ -> "univ"
     | None -> "none"
     | IntLit i -> Int64.to_string i
-    | BoolLit b -> if b then "True" else "False" (*TODO: Alloy does not have boolean literals?*)  
     | StrLit s -> "\"" ^ s ^ "\""
     | Parenthesis e -> parens (_serializeExpr e)
     | Braces None -> "{}"
@@ -355,7 +326,6 @@ let rec serializeExpr env (e : expr) =
     | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ braceswsp @@ _serializeExpr expr 
     | Temporal {top; expr} -> serializeTop top ^ " " ^ (parenswnl @@ increase_indent env)  @@ _serializeExpr expr
     | SetComprehension{cond; vars} -> 
-      let vars = groupByType vars in
       let varsStr = serializeVars vars in
       let condStr = _serializeExpr cond in
       braces (varsStr ^ " | " ^ condStr)
@@ -379,19 +349,8 @@ let serializeSignature env (SigDecl{sig_id;fields;mult}) : string =
 
 let serializeSigs (env : cg_env) (s : sigDecl list) : string = 
   (* filter from the signature declaration list all the generic types *)
-  let contains_boolean = List.exists (
-    fun (SigDecl{fields;_}) ->
-      List.exists(
-      fun (FldDecl{ty;_}) -> 
-        match ty with 
-        | Bool _ -> true
-        | _ -> false
-      ) fields 
-  ) s in
-  let boolean_signatures = if contains_boolean then 
-    "open util/boolean\n\n" else "" in
   let s = List.filter (fun (SigDecl{sig_id;_}) -> not (List.mem sig_id !(env.generics))) s in
-  boolean_signatures ^ mapcat "\n\n" (serializeSignature env) s
+  mapcat "\n\n" (serializeSignature env) s
 
 let serializeFact env (Fact{fact_id;body}) : string = 
   let env = increase_indent env in
@@ -401,7 +360,7 @@ let serializeFacts env (f : fact list) : string =
   mapcat "\n\n" (serializeFact env) f
 
 let serializePredicate env (Predicate{pred_id;params;cond;body}) : string = 
-  let paramsStr = serializeParamList @@ groupByType params in
+  let paramsStr = serializeParamList params in
   let env = increase_indent env in 
   let condStr = match cond with 
     | None -> ""
@@ -412,7 +371,7 @@ let serializePredicate env (Predicate{pred_id;params;cond;body}) : string =
 
 let serializeFunction env (Function{func_id;params;body;cond;out} : func) : string =
   (* remove any output params from params (i.e. any param that also appears in f.out) *)
-  let paramsStr = serializeParamList @@ groupByType params in
+  let paramsStr = serializeParamList params in
   let bodyStr = mapcat (nl env) (serializeExpr env) body in
   let condStr = match cond with 
     | None -> ""
@@ -426,28 +385,31 @@ let serializeFunctionType env (f : func_type) : string =
   | Func f -> serializeFunction env f
 
 
-let serializeInit flds = 
+let serializeInit env flds = 
   (* create a fact, should contain each field in the State *)
   (* for each field write "no " ^ name*)
-  let exprs = List.map (fun (FldDecl{id;_}) -> "no " ^ S.name id) flds in
-  let exprs = String.concat "\n\t" exprs in
-  exprs
+  let flds_filtered = List.filter ( fun (FldDecl{const;_}) -> not const) flds in
+  mapcat (nl env) (fun (FldDecl{id;_}) -> 
+    "no " ^ S.name id
+  ) flds_filtered
+
 
 let serializeStutter env flds =
   if List.length flds = 0 then 
     "pred alloy_stutter { }"
   else
   let env = increase_indent env in
+  let flds_filtered = List.filter ( fun (FldDecl{const;_}) -> not const) flds in
   let assignments = mapcat (nl env) (fun (FldDecl{id;_}) -> 
     (serializeExpr env) (Assignment {left = VarRef(S.symbol @@  S.name id ^ "'"); right = Lval(VarRef(S.symbol @@ S.name id))})
-  ) flds in
+  ) flds_filtered in
   "pred alloy_stutter " ^ (braceswnl env) assignments
 
 let transitions env funcs fields =
   let env = increase_indent env in
   "fact alloy_behavior " ^ (braceswnl env) (
   wrap_in_comment "The initial state" ^ (nl env) ^
-  serializeInit fields ^ ("\n\n"^get_indent env) ^
+  serializeInit env fields ^ ("\n\n"^get_indent env) ^
   wrap_in_comment "The state transitions" ^ (nl env) ^
 
   let increased_env = increase_indent env in
@@ -462,14 +424,14 @@ let transitions env funcs fields =
     if List.length params = 0 then 
       S.name id ^ "[] or"
     else
-    let params_str = serializeParamList ~with_type:false @@ groupByType params in
+    let params_str = serializeParamList ~with_type:false params in
     serializeQuantify Some params ^ S.name id ^ brackets params_str ^ " or"
     ) funcs
   in
   (* remove last occurrence of "or" *)
   let func_str_list = String.sub func_str_list 0 (String.length func_str_list - 3) in
   func_str_list) ^ "\n"
-  
+
 let serializeDynamicBehavior env (Program{sigs;preds_and_funcs;_}) = 
   let sigs = sigs in
   let val_opt = List.find_opt (fun (SigDecl{sig_id;_}) -> S.name sig_id = "State") sigs in (*All concepts have State*)
@@ -498,14 +460,8 @@ let serializeEvents env (f : func_type list) : string =
 
   let enum_str = "enum Event " ^ braceswsp @@ mapcat ", " (fun x -> x) names  in
   let event_fun_str = mapcat "\n" (fun (name, vars) -> 
-    let vars = groupByType vars in
     let vars_type_str = serializeVars vars in
-    let types = mapcat " -> " (fun (left_list, ty) -> 
-      if List.length left_list = 1 then 
-        serializeType ty
-      else
-        mapcat " -> " (fun _ -> serializeType ty) left_list 
-    ) vars in
+    let types = mapcat " -> " (fun (_, ty) -> serializeType ty) vars in
     let types = if types = "" then "" else types ^ " " in (*This is just to ensure all cases use just 1 space*)
     if List.length vars = 0 then (
       let expr_str = braceswsp ( "e : " ^ name ^ " | " ^ name ) in 
@@ -518,10 +474,7 @@ let serializeEvents env (f : func_type list) : string =
   ) pred_events in
 
   let key_of_vars (vars : (paramId * ty) list) = 
-    let vars = groupByType vars in (*get the correct order*)
-    let typs = List.rev @@ List.flatten @@ List.map (fun (ids, ty) -> List.map (fun _ -> ty) ids) vars in
-    let tps = List.map (fun ty -> serializeType ty) typs in
-    String.concat "." tps
+    mapcat "." (fun (_, ty) -> serializeType ty) (List.rev vars)
   in
 
   let partition_and_group_by_vars list =

@@ -94,12 +94,10 @@ rule token = parse
 | "lone" { LONE }
 | "some" { SOME }
 | "const" { CONST }
+| "new" { NEW }
 | "one" { ONE }
 | "String" { STRING }
-| "Bool" { BOOL }
 | "Int" { INT }
-| "true" { BOOL_LIT(true) }
-| "false" { BOOL_LIT(false) }
 | "empty" { EMPTY }
 (* Now operators for operational principles *)
 | "can" { CAN }
