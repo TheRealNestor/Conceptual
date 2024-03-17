@@ -16,7 +16,6 @@ let rec typ_to_string = function
 | TString {mult} -> mult_to_string mult ^ "String"
 | TCustom {tp = Ident{sym};mult;_} -> mult_to_string mult ^ Sym.name sym
 | TMap{left;right} -> "Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">"
-| TVoid -> "Void"
 | ErrorType -> "Error"
 | NullSet{tp} -> 
   begin match tp with 
@@ -53,6 +52,8 @@ let binop_to_tree  = function
 | Times -> Pretty.make_keyword_line "Times"
 | Div -> Pretty.make_keyword_line "Div"
 | Mod -> Pretty.make_keyword_line "Mod"
+| Then -> Pretty.make_keyword_line "Then"
+| Until -> Pretty.make_keyword_line "Until"
 
 let unop_to_tree = function
 | Not -> Pretty.make_keyword_line "Not"
@@ -133,18 +134,19 @@ let action_to_tree = function
       ]
 
   
+  
 let actions_to_tree (actions : action list) =
   if List.length actions = 0 then PBox.tree (Pretty.make_info_node_line "Actions") [Pretty.make_info_node_line "Empty"]
   else PBox.tree (Pretty.make_info_node_line "Actions") (List.map action_to_tree actions)
 
 let concept_to_tree (c : concept ) =
-  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; _} = c in
+  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; op=OP{principles}} = c in
   PBox.tree (Pretty.make_info_node_line "Concept") [
     PBox.tree (Pretty.make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty signature];
     PBox.tree (Pretty.make_info_node_line "Purpose") [PBox.text doc_str];
     states_to_tree states;
     actions_to_tree actions;
-    (* PBox.tree (Pretty.make_info_node_line "Operational Principle") [Pretty.make_info_node_line c.op.doc_str] *)
+    PBox.tree (Pretty.make_info_node_line "OP") [List.map expr_to_tree principles |> PBox.tree (Pretty.make_info_node_line "Principle")]
   ]
 
 

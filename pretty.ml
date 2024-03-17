@@ -58,6 +58,9 @@ let binop_to_string = function
 | Times _ -> "*"
 | Div _ -> "/"
 | Mod _ -> "%"
+| Then _ -> "=>"
+| Until _ -> "Until"
+
 
 let binop_to_tree = function 
 | Plus _ -> make_keyword_line "Plus"
@@ -78,6 +81,8 @@ let binop_to_tree = function
 | Times _ -> make_keyword_line "Times"
 | Div _ -> make_keyword_line "Div"
 | Mod _ -> make_keyword_line "Mod"
+| Then _ -> make_keyword_line "Then"
+| Until _ -> make_keyword_line "Until"
 
 
 
@@ -162,13 +167,13 @@ let actions_to_tree (actions : action list) =
   else PBox.tree (make_info_node_line "Actions") (List.map action_to_tree actions)
 
 let concept_to_tree (c : concept ) =
-  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; _} = c in
+  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; op=OP{principles;_};_} = c in
   PBox.tree (make_info_node_line "Concept") [
     PBox.tree (make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty signature];
     PBox.tree (make_info_node_line "Purpose") [PBox.text doc_str];
     states_to_tree states;
     actions_to_tree actions;
-    (* PBox.tree (make_info_node_line "Operational Principle") [make_info_node_line c.op.doc_str] *)
+    PBox.tree (make_info_node_line "OP") [List.map expr_to_tree principles |> PBox.tree (make_info_node_line "Principle")]
   ]
 
 let pretty_generic (Generic{con;ty;_}) = 

@@ -101,12 +101,12 @@ rule token = parse
 | "empty" { EMPTY }
 (* Now operators for operational principles *)
 | "can" { CAN }
-(* 
-| "after" { AFTER }
 | "until" { UNTIL }
+| "then" { THEN } 
+
+(* | "after" { AFTER }
 | "of" { OF } (*TODO: not sure about this one*)
-| "has" { HAS } (*Not sure about this either *)
-| "then" { THEN } *)
+| "has" { HAS } Not sure about this either *)
 (* ---------------------------------------- *)
 
 | "concept" { CONCEPT }

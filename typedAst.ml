@@ -4,7 +4,6 @@ type ident = Ident of { sym : Sym.symbol }
 
 type mult = One | Set | Lone | Som
 
-(* TODO: strings? *)
 type typ =
 | TString of { mult : mult option }
 | TBool 
@@ -13,9 +12,6 @@ type typ =
 | TMap of { left : typ; right : typ } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 | NullSet of { tp : typ option } (* For empty sets currently *)
 | ErrorType 
-| TVoid
-
-(* set, mappings, custom types --> probably the ones i should have first??? *)
 
 type parameter = Parameter of { typ : typ } (*This is for the concept signature *)
 type decl = Decl of { name : ident; typ : typ; } (*State declarations, action signatures*)
@@ -39,6 +35,8 @@ type binop =
 | Times
 | Div
 | Mod
+| Then 
+| Until
 
 type unop = 
 | Not 
@@ -71,12 +69,9 @@ and lval =
 | Var of {name : ident; tp : typ}
 | Relation of {left : lval; right : lval; tp : typ}
 
-
-
 type stmt = 
 | Assignment of {lval : lval; rhs : expr ; tp : typ } 
 
-                                          
 type state = State of {
   param : decl;
   expr : expr option;
@@ -88,14 +83,8 @@ type concept_sig =
 | ParameterizedSignature of {name : ident; params : parameter list}
 
 type firing_cond = When of {cond : expr}
-
-type concept_purpose = Purpose of {
-  doc_str : string; 
-}
-
-type concept_states = States of {
-  states : state list;
-}
+type concept_purpose = Purpose of {doc_str : string;}
+type concept_states = States of {states : state list;}
 
 type action_sig = ActionSignature of {
   name : ident; 
@@ -109,22 +98,15 @@ type action = Action of {
   body : stmt list;
 }
 
-type concept_actions = Actions of {
-  actions : action list;
-}
-
-type operational_principle = OP of {
-  (* #TODO: This should also be a list of statements of some sort instead of a string...  *)
-  doc_str : string; 
-}
-
+type concept_actions = Actions of {actions : action list;}
+type operational_principle = OP of {principles : expr list; tmps : decl list;} (*decls are for code generation.*)
 
 type concept = Concept of {
   signature : concept_sig;
   purpose : concept_purpose; 
   states : concept_states;
   actions: concept_actions;
-  (* op : operational_principle; *)
+  op : operational_principle;
 }
 
 type generic = Generic of {
@@ -136,7 +118,6 @@ type dependency = Dependency of {
   name : ident; (*concept being included *)
   generics: generic list; (*parameter instantiation of generics, other concept name and type from it.*)
 }
-
 
 type sync_call = SyncCall of {
   name : ident; (*concept*)

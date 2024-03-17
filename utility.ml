@@ -58,6 +58,10 @@ let token_to_string = function
   | Parser.IS -> "IS"
   | Parser.SLASH -> "SLASH"
   | Parser.PERCENT -> "PERCENT"
+  | Parser.NEW -> "NEW"
+  | Parser.THEN -> "THEN"
+  | Parser.UNTIL -> "UNTIL"
+
   
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -120,8 +124,7 @@ let type_is_in_relation tp rel =
   if not (is_relation rel) then false
   else
 
-  (* TODO: could possibly extend this to work when tp is of type TMap, and then look for the structure within rel *)
-  let rec dfs = function
+let rec dfs = function
   | TAst.TMap{left;right} -> dfs left || dfs right
   | t -> same_base_type t tp
   in dfs rel
@@ -158,6 +161,13 @@ let ast_mult_to_tast = Option.map (function
   | Ast.Som -> TAst.Som
 )
 
+let get_ret_type (TAst.ActionSignature{out;_}) = 
+  let return_type = List.map (fun (TAst.Decl{typ;_}) -> typ) out in
+  match return_type with
+  | [] -> TAst.TBool
+  | [tp] -> tp
+  | _ -> TAst.ErrorType (*does not support multivalue returns. *)
+
 let rec convert_type = function
 | Ast.TInt {mult;_} -> TAst.TInt{mult = ast_mult_to_tast mult}
 | Ast.TBool _ -> TAst.TBool
@@ -184,7 +194,8 @@ let ast_binop_to_tast = function
 | Ast.Times _ -> TAst.Times
 | Ast.Div _ -> TAst.Div
 | Ast.Mod _ -> TAst.Mod
-
+| Ast.Then _ -> TAst.Then
+| Ast.Until _ -> TAst.Until
 
 let rec set_typ_mult tp mult = 
   match tp with

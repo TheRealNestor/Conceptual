@@ -4,6 +4,8 @@ module S = Symbol
 type sigId = S.symbol (* Signatures *)
 type fieldId = S.symbol (* Fields *)
 type uid = S.symbol (* Unique identifiers *)
+type factId = S.symbol (* Facts *)
+type assertId = S.symbol (* Assertions *)
 type funcId = S.symbol (* Functions and predicates *)
 type predId = S.symbol (* Predicates *)
 type paramId = S.symbol (* Parameters *)
@@ -20,14 +22,17 @@ type aModule = Module of {
 type qop = All | No | One | Some | Lone 
 
 (* could possibly add the rest *)
-type top = Always | Eventually | Until | Before | After 
+type top = Always | Eventually | Until | Before | After  
 
-type bop = Plus | Minus  | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Arrow
+type bop = Plus | Minus  | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Arrow | Implication 
 
 type int_bop = Add | Sub | Mul | Div | Rem 
 
+type tbop = Release
+
 type binop = 
 | IntBop of int_bop
+| Tbop of tbop
 | Bop of bop
 
 
@@ -46,7 +51,7 @@ type dep = Dependency of {
 }
 
 (* variables to the state *)
-and fieldDecl = FldDecl of {
+type fieldDecl = FldDecl of {
   id : fieldId;
   ty : ty;
   expr : expr option; 
@@ -59,10 +64,6 @@ and sigDecl = SigDecl of {
   fields : fieldDecl list;
 }
 
-and fact = Fact of {
-  fact_id : uid;
-  body : expr;
-}
 
 and expr =
 | This | Univ | None 
@@ -72,7 +73,6 @@ and expr =
 | StrLit of string
 | Unop of {op : unop; expr : expr}
 | Binop of {left : expr; right : expr; op : binop}
-| Implication of {left : expr; right : expr; falseExpr : expr option}
 | Assignment of {left : lval ; right : expr}
 | Quantifier of {qop : qop; vars : (S.symbol * ty) list; expr : expr}
 | Temporal of {top : top; expr : expr}
@@ -103,12 +103,23 @@ type func_type =
 | Pred of pred 
 | Func of func
 
+type fact = Fact of {
+  fact_id : factId;
+  body : expr;
+}
+
+type assertion = Assertion of {
+  assert_id : assertId;
+  body : expr;
+}
+
 type prog = Program of {
   module_header : aModule; 
   purpose : string option;
   deps : dep list;
   sigs : sigDecl list;
   facts : fact list;
+  assertions : assertion list;
   preds_and_funcs : func_type list;
 }
 
@@ -116,11 +127,14 @@ type prog = Program of {
 type cg_env = {
   generics : S.symbol list ref;
   indent_level : int;
+  can_functions : string list ref;
 }
 
 (*This is to remove signatures if the module is parameterized *)
 let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String";];
-                   indent_level = 0}
+                   indent_level = 0;
+                   can_functions = ref [];
+                   }
 
 (* -------------------------- Helper functions --------------------------   *)  
 
@@ -185,12 +199,17 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
     end
   | Bop op ->
     begin match op with
-    | And | Or -> 0
-    | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 1
-    | Plus | Minus -> 2
-    | Intersection -> 3
-    | Arrow -> 4
-    | Join -> 5
+    | Implication -> 0
+    | And | Or -> 1
+    | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 2
+    | Plus | Minus -> 3
+    | Intersection -> 4
+    | Arrow -> 5
+    | Join -> 6
+    end
+  | Tbop op ->
+    begin match op with
+    | Release -> 2
     end
   in
   match outer, inner with 
@@ -234,6 +253,7 @@ let serializeBinop = function
 | In -> "in"
 | NotIn -> failwith "not in operation is not applied directly like this"
 | Arrow -> "->"
+| Implication -> "=>"
 
 let serializeIntBop left right op = 
   let op = match op with 
@@ -316,15 +336,16 @@ let rec serializeExpr env (e : expr) =
         | Arrow | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
         | _ as bop -> (parenthesized_left) ^ " " ^ serializeBinop bop ^ " "  ^ (parenthesized_right)
         end
+      | Tbop op ->
+        begin match op with 
+        | Release -> parenthesized_right ^ " releases " ^ parenthesized_left
+        end
       end
-    | Implication {left; right; falseExpr} -> (_serializeExpr left) ^ " => " ^ (_serializeExpr right) ^ (match falseExpr with 
-                                                                                                      | None -> ""
-                                                                                                      | Some e -> " else " ^ _serializeExpr e)
     | Assignment {left; right} -> serializeLval left ^ " = " ^ _serializeExpr right
     | Call {func; args} -> _serializeExpr func ^ brackets @@ mapcat ", " _serializeExpr args
     | BoxJoin {left; right} -> _serializeExpr left ^ brackets @@ mapcat ", " _serializeExpr right
     | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ braceswsp @@ _serializeExpr expr 
-    | Temporal {top; expr} -> serializeTop top ^ " " ^ (parenswnl @@ increase_indent env)  @@ _serializeExpr expr
+    | Temporal {top; expr} -> serializeTop top ^ " " ^ (let env = increase_indent env in parenswnl env @@ serializeExpr env expr)
     | SetComprehension{cond; vars} -> 
       let varsStr = serializeVars vars in
       let condStr = _serializeExpr cond in
@@ -359,25 +380,46 @@ let serializeFact env (Fact{fact_id;body}) : string =
 let serializeFacts env (f : fact list) : string =
   mapcat "\n\n" (serializeFact env) f
 
+let serializeAssertion env (Assertion{assert_id;body}) : string = 
+  let env = increase_indent env in
+  "assert " ^ S.name assert_id ^ " " ^ (braceswnl env) @@ (serializeExpr env) body
+
+let serializeAssertions env (a : assertion list) : string = 
+  mapcat "\n\n" (serializeAssertion env) a
+
 let serializePredicate env (Predicate{pred_id;params;cond;body}) : string = 
   let paramsStr = serializeParamList params in
   let env = increase_indent env in 
   let condStr = match cond with 
     | None -> ""
-    | Some e -> (serializeExpr env) e ^ nl env
+    | Some e -> (serializeExpr env) e
   in
   let bodyStr = mapcat (nl env) (serializeExpr env) body in
-  "pred " ^ S.name pred_id ^ brackets paramsStr ^ " " ^ (braceswnl env) (condStr ^ bodyStr)
+  let can_str = 
+    "pred _can_" ^ S.name pred_id ^ " " ^ brackets paramsStr ^ " " ^ if condStr = "" then braces "" else (braceswnl env) (condStr) in
+  env.can_functions := can_str :: !(env.can_functions);
+
+  let condStr = if condStr = "" then "" else condStr ^ nl env in
+  "pred " ^ S.name pred_id ^ brackets paramsStr ^ " " ^ 
+  if condStr = "" && bodyStr = "" then braces "" else (braceswnl env) (condStr ^ bodyStr)
 
 let serializeFunction env (Function{func_id;params;body;cond;out} : func) : string =
   (* remove any output params from params (i.e. any param that also appears in f.out) *)
+  let env = increase_indent env in
   let paramsStr = serializeParamList params in
   let bodyStr = mapcat (nl env) (serializeExpr env) body in
   let condStr = match cond with 
     | None -> ""
-    | Some e -> (serializeExpr env) e ^ (nl env)
+    | Some e -> (serializeExpr env) e
   in
-  "fun " ^ S.name func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType out ^ " " ^ (braceswnl env) (condStr ^ bodyStr)
+  let can_str = 
+    "pred _can_" ^ S.name func_id ^ " " ^ brackets paramsStr ^ " " ^ if condStr = "" then braces "" else (braceswnl env) (condStr) in 
+  env.can_functions := can_str :: !(env.can_functions);
+  
+  let condStr = if condStr = "" then "" else condStr ^ nl env in
+  "fun " ^ S.name func_id ^ " " ^ brackets paramsStr ^ " : " ^ serializeType out ^ " " ^
+  if condStr = "" && bodyStr = "" then braces "" else (braceswnl env) (condStr ^ bodyStr)
+
 
 let serializeFunctionType env (f : func_type) : string = 
   match f with 
@@ -513,22 +555,25 @@ let serializeDependencies (deps : dep list) : string =
       "open " ^ S.name id ^ if genericsStr = "" then "" else brackets genericsStr
   ) deps
   
+
 let get_prog_name (Program{module_header;_}) = 
   match module_header with 
   | Module{name;_} -> S.name name
 
-let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;deps} as p) : string = 
+let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;deps;assertions} as p) : string = 
   let env = make_cg_env in 
   let module_str = serializeModule env module_header ^ "\n\n" in (*This is to ensure that it is run first,
                                                                    to populate the environment with generics*)
   let purpose = match purpose with | None -> "" | Some p -> serializePurpose p in
+  let funcs_str = serializeFunctionTypes env preds_and_funcs in
   module_str ^ purpose ^ "\n" ^ 
   wrap_in_comment "LANGUAGE:\tAlloy6" ^ "\n\n" ^
 
   serializeDependencies deps ^ "\n\n" ^
   serializeSigs env (List.rev sigs) ^ "\n\n" ^
   serializeFacts env facts ^ "\n\n" ^
-  serializeFunctionTypes env preds_and_funcs ^ "\n\n" ^
+  funcs_str ^ "\n\n" ^
+  String.concat "\n\n" (List.rev !(env.can_functions)) ^ "\n\n" ^
   (* if this is an app, we don't want this event stuff TODO: we might in the future to distinguish between events,
     only concepts have 0 dependencies, apps have at least one dependency *)
   if List.length deps <> 0 then (
@@ -540,6 +585,7 @@ let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;
   serializeEvents env preds_and_funcs ^ "\n" ^
   "-------------------------------------------" ^ "\n" 
   )
+  ^ "\n" ^ serializeAssertions env assertions
 
 
 

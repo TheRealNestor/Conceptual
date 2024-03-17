@@ -35,6 +35,8 @@ type binop =
 | Intersection of { loc : Loc.location } 
 | Join of { loc : Loc.location }
 | MapsTo of { loc : Loc.location }
+| Then of { loc : Loc.location }
+| Until of { loc : Loc.location }
 
 type unop = 
 | Not of { loc : Loc.location }
@@ -114,8 +116,7 @@ type concept_actions = Actions of {
 }
 
 type operational_principle = OP of {
-  (* #TODO: This should also be a list of statements of some sort instead of a string...  *)
-  doc_str : string; 
+  principles : expr list;
   loc : Loc.location;
 }
 
@@ -125,7 +126,7 @@ type concept = Concept of {
   purpose : concept_purpose; 
   states : concept_states;
   actions: concept_actions;
-  (* op : operational_principle; *)
+  op : operational_principle;
   loc : Loc.location;
 }
 
@@ -142,11 +143,11 @@ type dependency = Dependency of {
 }
 
 
-type sync_call = SyncCall of {
-  name : ident; (*concept*)
-  call : expr; (*action, can check for valid expressions in semantic analysis...*)
-  loc : Loc.location;
-}
+type sync_call = 
+| SyncCall of {name : ident; call :   expr; loc : Loc.location;}
+(* Assignment without new (from returned values...) *)
+(* | NewDecl of {decl : decl; loc : Loc.location;} *)
+
 
 type sync = Sync of {
   cond : sync_call;
