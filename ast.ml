@@ -45,6 +45,7 @@ type unop =
 | Star of { loc : Loc.location }
 | IsEmpty of { loc : Loc.location }
 | Card of { loc : Loc.location }
+| No of { loc : Loc.location }
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)
@@ -72,6 +73,9 @@ and lval =
 type stmt = 
 | Assignment of {lval : lval; rhs : expr; is_compound : bool; loc : Loc.location}
 
+type action_body = 
+| Mutators of {stmts : stmt list; loc : Loc.location}
+| Query of {expr : expr; loc : Loc.location}
                                           
 type state = State of {
   param : decl;
@@ -98,7 +102,7 @@ type concept_states = States of {
 
 type action_sig = ActionSignature of {
   name : ident; 
-  out : decl list ; (* Subset of params of values to be returned *)
+  out : typ option ; (* Subset of params of values to be returned *)
   params : decl list;
   loc : Loc.location;
 }
@@ -106,7 +110,7 @@ type action_sig = ActionSignature of {
 type action = Action of {
   signature : action_sig; 
   cond : firing_cond option;
-  body : stmt list;
+  body : action_body;
   loc : Loc.location;
 }
 

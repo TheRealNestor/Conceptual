@@ -17,7 +17,6 @@ type error =
 | IllFormedRelation of {loc : Loc.location; left : TAst.typ; right : TAst.typ}
 | DisjointRelation of {loc : Loc.location; left : TAst.typ; right : TAst.typ}
 | NotAnAction of {loc : Loc.location; name : TAst.ident}
-| UnsupportedMultipleReturnTypes of {loc : Loc.location} (*TODO: Temporary?*)
 | LengthMismatch of {loc : Loc.location; expected : int; actual : int}
 (* | TypeNotFirstOrder of {loc : Loc.location; tp : TAst.typ} *)
 | UnterminatedString of {loc : Loc.location}
@@ -38,6 +37,7 @@ type error =
 | NonCallForCan of {loc : Loc.location;}
 | CallNotAllowed of {loc : Loc.location; name : TAst.ident}
 | LTLsNotAllowed of {loc : Loc.location}
+| NoNotAllowed of {loc : Loc.location;}
 
 
 let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
@@ -53,7 +53,6 @@ let print_error err =
   | IllFormedRelation {loc; left; right} -> Printf.printf "IllFormedRelation. The types %s and %s are not compatible. One must be a relation \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;
   | DisjointRelation {loc; left; right} -> Printf.printf "DisjointRelation. The types %s and %s are disjoint \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;
   | NotAnAction {loc; name} -> Printf.printf "NotAnAction. The name %s is not an action \t" (string_of_t_ident name); Loc.print_location loc;
-  | UnsupportedMultipleReturnTypes {loc} -> Printf.printf "UnsupportedMultipleReturnTypes. Multiple return types are not supported. Alloy does not support it either?. \t"; Loc.print_location loc;
   | LengthMismatch {loc; expected; actual} -> Printf.printf "LengthMismatch. Expected %d arguments but got %d \t" expected actual; Loc.print_location loc;
   (* | TypeNotFirstOrder {loc; tp} -> Printf.printf "TypeNotFirstOrder. The type %s is not first order \t" (TPretty.typ_to_string tp); Loc.print_location loc; *)
   | UnterminatedString {loc} -> Printf.printf "UnterminatedString. Unterminated string \t"; Loc.print_location loc;
@@ -74,6 +73,7 @@ let print_error err =
   | NonCallForCan {loc} -> Printf.printf "NonCallForCan. The can operator is not applied to a call expression \t"; Loc.print_location loc;
   | CallNotAllowed {loc; name} -> Printf.printf "CallNotAllowed. The name %s is not allowed to be called. Calls only allowed in operational principle and synchronizations. \t" (string_of_t_ident name); Loc.print_location loc;
   | LTLsNotAllowed {loc} -> Printf.printf "LTLsNotAllowed. LTLs are only allowed in the operational principle. \t"; Loc.print_location loc;
+  | NoNotAllowed {loc} -> Printf.printf "NoNotAllowed. No is only allowed with action calls. \t"; Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

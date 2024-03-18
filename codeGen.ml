@@ -13,6 +13,7 @@ type cg_env = {
   con_dict : (Symbol.symbol list) Sym.Table.t; (* concept name to list of state variables *)
 }
 
+
 let make_cg_env = {
   custom_types = [];
   state_variables = [];
@@ -99,6 +100,8 @@ let unop_to_als = function
 | TAst.Star -> Als.Star
 | TAst.IsEmpty -> Als.IsEmpty
 | TAst.Card -> Als.Card
+| _ -> failwith "The rest of the unops must be handled explicitly in the code generator"
+
 
 let binop_to_als = function
 | TAst.Plus -> Als.Bop Plus
@@ -120,7 +123,7 @@ let binop_to_als = function
 | TAst.Div -> Als.IntBop Div
 | TAst.Mod -> Als.IntBop Rem
 | TAst.Then -> Als.Bop Implication
-| TAst.Until -> Als.Tbop Release
+| TAst.Until -> Als.Bop Release
 
 let mult_to_als = function
 | None -> Als.Implicit
@@ -242,7 +245,7 @@ let rec trans_expr env expr =
         else
           Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
       | TAst.Then -> 
-        Als.Binop{left = _tr left; right = Als.Temporal{top = After; expr = _tr right}; op = binop_to_als op;}
+        Als.Binop{left = _tr left; right = Als.Unop{op = After; expr = _tr right}; op = binop_to_als op;}
       | _ -> Als.Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
   end
   | TAst.Lval lval -> Als.Lval(lval_to_als env lval)
@@ -298,37 +301,15 @@ let trans_concept_states env states =
 
 let trans_action (env, funcs) (TAst.Action{signature;cond;body}) = 
   let TAst.ActionSignature{name;params;out} = signature in 
-  let params = List.fold_left (
-    fun (params_so_far) (TAst.Decl{name;typ} as np) -> 
-      (* remove any parameter that also appears in out *)
-      if List.mem np out then params_so_far else
-      params_so_far @ [sym_from name, typ_to_als typ]
-  ) [] params in
   let als_cond = begin match cond with 
   | None -> None
   | Some When{cond} -> Some (trans_expr env cond) 
   end in
 
-  let body = if List.length out > 0 then (
-    (* TODO: Currently semantic analysis ensures out has a length of 1 at most *)
-    let out_syms_types = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ) out in
-    let out_syms, out_types = List.split out_syms_types in
-      (* find output statement *)
-    let TAst.Assignment{rhs;_} = List.find (
-      fun stmt -> 
-        match stmt with 
-        | TAst.Assignment{lval;_} -> List.mem (get_lval_sym lval) out_syms
-    ) body in
-
-    (* if we end up allowing multiple returns, need to mangle here... *)
-    let compress_syms = List.map (fun sym -> 
-      Sym.symbol @@ String.sub (Sym.name sym) 0 1 ) out_syms
-    in
-    let als_in_binop = Als.Binop{op = Als.Bop In; right = trans_expr env rhs; left = Als.Lval(Als.VarRef(List.hd compress_syms))} in
-    let vars = List.combine compress_syms (List.map (fun t -> typ_to_als t) out_types) 
-    in [Als.SetComprehension{vars; cond = als_in_binop}]
-  ) else (
-    let als_body = List.map (trans_stmt env) body in
+  let body = match body with 
+  | Query{expr} -> [trans_expr env expr]
+  | Mutators{stmts} -> (
+    let als_body = List.map (trans_stmt env) stmts in
     (* Create a map/Sym.Table that takes the symbol as a key and as value a list of expressions
       then accumulate all expressions of that symbol *)
     let als_sym_table = List.fold_left (
@@ -373,11 +354,11 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
     ) syms_used als_body in
     als_body @ remaining_stmts
   ) in
-  let func = if List.length out = 0 then 
+  let params = List.map (fun (TAst.Decl{name=TAst.Ident{sym};typ}) -> sym, typ_to_als typ) params in
+  let func = if Option.is_none out then 
     Als.Pred(Als.Predicate{pred_id = sym_from name; cond = als_cond; params; body})
   else (
-    let out = List.hd @@ List.map (fun (TAst.Decl{typ;_}) -> typ_to_als typ) out in
-    Als.Func(Als.Function{func_id = sym_from name; cond = als_cond; params; out; body})
+    Als.Func(Als.Function{func_id = sym_from name; cond = als_cond; params; out = typ_to_als @@ Option.get out; body})
   ) in 
   env, func :: funcs
 
@@ -393,8 +374,8 @@ let trans_principle env (TAst.OP{principles; tmps}) =
       body = Quantifier{
         qop = All;
         vars = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ_to_als typ) tmps;
-        expr = Temporal{
-          top = Als.Always;
+        expr = Unop{
+          op = Always;
           expr = trans_expr env expr
         }
       }
@@ -479,9 +460,9 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
           in
           TAst.Decl{name;typ}
       ) tmps in
-      let fact_expr = Als.Temporal{
-        top = Als.Always;
-        expr = Als.Quantifier{
+      let fact_expr = Als.Unop{
+        op = Always;
+        expr = Quantifier{
           qop = All; 
           vars = List.map (fun (TAst.Decl{name;typ}) ->
             sym_from name, typ_to_als typ) new_tmps;

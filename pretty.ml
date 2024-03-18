@@ -93,6 +93,7 @@ let unop_to_tree = function
 | Caret _ -> make_keyword_line "Caret"
 | IsEmpty _ -> make_keyword_line "IsEmpty"
 | Card _ -> make_keyword_line "Card"
+| No _ -> make_keyword_line "No"
   
 let decl_to_tree = function
 | Decl {name; typ; _} -> PBox.tree (make_info_node_line "Decl") 
@@ -152,15 +153,20 @@ let states_to_tree (states : state list) =
   if List.length states = 0 then PBox.tree (make_info_node_line "States") [make_info_node_line "Empty"]
   else PBox.tree (make_info_node_line "States") (List.map state_to_tree states)
 
+let action_body_to_tree = function 
+| Mutators {stmts;_} -> PBox.tree (make_info_node_line "Statements") (statement_seq_to_forest stmts)
+| Query {expr;_} -> PBox.tree (make_info_node_line "Expression") [expr_to_tree expr]
+
 let action_to_tree = function
 | Action {signature=ActionSignature{name;out;params;_}; cond; body; _} ->
     PBox.tree (make_info_node_line "Action") [
       PBox.hlist ~bars:false [make_info_node_line "Name: "; ident_to_tree name];
-      PBox.hlist ~bars:false [make_info_node_line "Return Type: "; decl_list_to_tree out];
+      PBox.hlist ~bars:false [make_info_node_line "Return Type: ";  match out with | None -> make_info_node_line "None" | Some t -> typ_to_tree t];
       PBox.hlist ~bars:false [decl_list_to_tree params];
       PBox.tree (make_info_node_line "Firing Condition") [match cond with Some When{cond; _} -> expr_to_tree cond | None -> make_info_node_line "None"];
-      PBox.tree (make_info_node_line "Statements") (statement_seq_to_forest body)
+      PBox.tree (make_info_node_line "Body") [action_body_to_tree body]
       ]
+
 
 let actions_to_tree (actions : action list) =
   if List.length actions = 0 then PBox.tree (make_info_node_line "Actions") [make_info_node_line "Empty"]

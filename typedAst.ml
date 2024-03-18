@@ -45,6 +45,7 @@ type unop =
 | Star
 | IsEmpty
 | Card
+| No 
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)
@@ -69,8 +70,11 @@ and lval =
 | Var of {name : ident; tp : typ}
 | Relation of {left : lval; right : lval; tp : typ}
 
-type stmt = 
-| Assignment of {lval : lval; rhs : expr ; tp : typ } 
+type stmt = Assignment of {lval : lval; rhs : expr ; tp : typ } 
+
+type action_body = 
+| Mutators of {stmts : stmt list}
+| Query of {expr : expr}
 
 type state = State of {
   param : decl;
@@ -88,14 +92,15 @@ type concept_states = States of {states : state list;}
 
 type action_sig = ActionSignature of {
   name : ident; 
-  out : decl list ; (* Subset of params of values to be returned *)
+  out : typ option ;
   params : decl list;
 }
+
 
 type action = Action of {
   signature : action_sig; 
   cond : firing_cond option;
-  body : stmt list;
+  body : action_body;
 }
 
 type concept_actions = Actions of {actions : action list;}

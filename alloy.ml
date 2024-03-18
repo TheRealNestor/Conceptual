@@ -22,21 +22,18 @@ type aModule = Module of {
 type qop = All | No | One | Some | Lone 
 
 (* could possibly add the rest *)
-type top = Always | Eventually | Until | Before | After  
 
-type bop = Plus | Minus  | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq | Join | In | NotIn | Arrow | Implication 
-
+type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq
+| Join | In | NotIn | Arrow | Implication | Release 
 type int_bop = Add | Sub | Mul | Div | Rem 
-
-type tbop = Release
 
 type binop = 
 | IntBop of int_bop
-| Tbop of tbop
 | Bop of bop
 
 
 type unop = Not | Tilde | Caret | Star | IsEmpty | Card
+      | Always | Eventually | Before | After | Historically | Once 
 type mul = One | Lone | Some | Set | Implicit 
 
 type ty = 
@@ -75,7 +72,6 @@ and expr =
 | Binop of {left : expr; right : expr; op : binop}
 | Assignment of {left : lval ; right : expr}
 | Quantifier of {qop : qop; vars : (S.symbol * ty) list; expr : expr}
-| Temporal of {top : top; expr : expr}
 | SetComprehension of {cond : expr; vars : (S.symbol * ty) list;}
 | BoxJoin of {left : expr; right : expr list}
 | Call of {func : expr; args : expr list}
@@ -200,16 +196,13 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
   | Bop op ->
     begin match op with
     | Implication -> 0
-    | And | Or -> 1
-    | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 2
-    | Plus | Minus -> 3
-    | Intersection -> 4
-    | Arrow -> 5
-    | Join -> 6
-    end
-  | Tbop op ->
-    begin match op with
-    | Release -> 2
+    | Release -> 1
+    | And | Or -> 2
+    | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 3
+    | Plus | Minus -> 4
+    | Intersection -> 5
+    | Arrow -> 6
+    | Join -> 7
     end
   in
   match outer, inner with 
@@ -254,6 +247,22 @@ let serializeBinop = function
 | NotIn -> failwith "not in operation is not applied directly like this"
 | Arrow -> "->"
 | Implication -> "=>"
+| Release -> "releases"
+
+let serializeUnop = function
+| Not -> "not "
+| Tilde -> "~"
+| Caret -> "^"
+| Star -> "*"
+| IsEmpty -> "no "
+| Card -> "#"
+| Always -> "always "
+| Eventually -> "eventually "
+| Before -> "before "
+| After -> "after "
+| Historically -> "historically "
+| Once -> "once "
+
 
 let serializeIntBop left right op = 
   let op = match op with 
@@ -267,12 +276,7 @@ let serializeQop = function
 | Some -> "some"
 | Lone -> "lone"
 
-let serializeTop = function 
-| Always -> "always"
-| Eventually -> "eventually"
-| Until -> "until"
-| Before -> "before"
-| After -> "after"
+
 
 
 (* Serialization of module *)
@@ -314,13 +318,11 @@ let rec serializeExpr env (e : expr) =
     | Parenthesis e -> parens (_serializeExpr e)
     | Braces None -> "{}"
     | Braces (Some e) -> braces @@ _serializeExpr e
-    | Unop {op; expr} -> (match op with 
-                          | Not -> "not " ^ _serializeExpr expr
-                          | Tilde -> "~" ^ _serializeExpr expr
-                          | Caret -> "^" ^ _serializeExpr expr
-                          | Star -> "*" ^ _serializeExpr expr
-                          | IsEmpty -> "no " ^ _serializeExpr expr
-                          | Card -> "#" ^ _serializeExpr expr)
+    | Unop {op; expr} -> 
+      begin match op with 
+      | Always | After -> serializeUnop op ^ (let env = increase_indent env in parenswnl env @@ serializeExpr env expr)
+      | _ -> serializeUnop op ^ _serializeExpr expr
+      end
     | Binop {left; right; op} -> 
       let parenthesized_left = if needs_parentheses e left then parens @@ _serializeExpr left else _serializeExpr left in
       let parenthesized_right = if needs_parentheses e right then parens @@ _serializeExpr right else _serializeExpr right in
@@ -334,18 +336,14 @@ let rec serializeExpr env (e : expr) =
         | NotIn -> "not " ^ parenthesized_left ^ " in " ^ parenthesized_right
         | In -> parenthesized_left ^ " in " ^ parenthesized_right
         | Arrow | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
-        | _ as bop -> (parenthesized_left) ^ " " ^ serializeBinop bop ^ " "  ^ (parenthesized_right)
-        end
-      | Tbop op ->
-        begin match op with 
-        | Release -> parenthesized_right ^ " releases " ^ parenthesized_left
+        | Release -> parenthesized_right ^ " " ^ serializeBinop op ^ " " ^ parenthesized_left	
+        | _ as bop -> parenthesized_left ^ " " ^ serializeBinop bop ^ " "  ^ parenthesized_right
         end
       end
     | Assignment {left; right} -> serializeLval left ^ " = " ^ _serializeExpr right
     | Call {func; args} -> _serializeExpr func ^ brackets @@ mapcat ", " _serializeExpr args
     | BoxJoin {left; right} -> _serializeExpr left ^ brackets @@ mapcat ", " _serializeExpr right
     | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ braceswsp @@ _serializeExpr expr 
-    | Temporal {top; expr} -> serializeTop top ^ " " ^ (let env = increase_indent env in parenswnl env @@ serializeExpr env expr)
     | SetComprehension{cond; vars} -> 
       let varsStr = serializeVars vars in
       let condStr = _serializeExpr cond in

@@ -21,18 +21,17 @@ exception ParserError
 %token COLON COMMA DOT (*Punctuation*)
 %token LPAR RPAR LBRACK RBRACK LBRACE RBRACE PIPE (*Brackets and stuff*)
 %token WHEN CAN (*Precondition related*)
-%token THEN UNTIL (*Temporal operators*)
-%token OUT (*Output*)
+%token THEN UNTIL NO (*Temporal operators*)
 %token IS EMPTY EMPTY_SET (*Set-related predicates*)
 %token INT STRING (*Primitive types*)
 %token ARROW SET ONE IN LONE SOME (* Set-related tokens *)
 %token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
-%token APP INCLUDE SYNC NEW (*Composition related tokens*)
+%token APP INCLUDE SYNC (*Composition related tokens*)
 
 
-(*ACTION_START: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
-%token <string> PURPOSE IDENT ACTION_START STR_LIT
+(*ACT: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
+%token <string> PURPOSE IDENT ACT STR_LIT
 %token <int64> INT_LIT
 
 
@@ -43,13 +42,11 @@ exception ParserError
 
 %type <Ast.state list> state
 // %type <Ast.expr> expr op_expr
-%type <Ast.decl list * Ast.decl list> action_sig_param
 %type <Ast.lval> lval
 %type <Ast.stmt> stmt
 %type <Ast.action> action
 %type <Ast.action_sig> action_sig
 %type <Ast.firing_cond option> action_firing_cond
-%type <Ast.stmt list> action_body
 %type <Ast.concept> concept
 %type <Ast.concept_sig> c_sig
 %type <Ast.concept_purpose> c_purpose
@@ -61,24 +58,22 @@ exception ParserError
 %type <Ast.stmt list> stmt* 
 %type <Ast.state list list> state*
 %type <Ast.action list> action+
-%type <unit option> OUT?
-%type <(Ast.decl list * Ast.decl list) list> action_sig_param*
 %type <Ast.expr list> separated_nonempty_list(COMMA, expr) loption(separated_nonempty_list(COMMA, expr))
-
 
 // %type <Ast.operational_principle> c_op
 // __________________
 
 // Associativity and precedence
 
-// Logical operators are lowest precedence
-%left LOR
-%left LAND
-%nonassoc NOT (*TODO: Should this be higher*)
-%nonassoc IS EMPTY (*Set-related predicates*) 
-
 %right THEN 
 %left UNTIL 
+
+%left LOR
+%left LAND
+%nonassoc NOT NO (*TODO: Should this be higher*)
+%nonassoc IS EMPTY (*Set-related predicates*) 
+
+
 
 %nonassoc EQEQ NEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
 %left PLUS MINUS 
@@ -88,13 +83,8 @@ exception ParserError
 %left AMP
 %right ARROW 
 // %nonassoc SET LONE SOME ONE 
-%left LBRACK RBRACK
 %left DOT 
 %nonassoc TILDE CARET STAR (*Set and relation unary operators*)
-
-// these are just to disambiguiate the grammar (uses parenthesized expressions in both expr and op_expr)
-%nonassoc LPAR 
-%nonassoc RPAR 
 
 
 %start <Ast.program> program 
@@ -121,7 +111,7 @@ lval:
 
 
 call: 
-| ACTION_START LPAR separated_list(COMMA, expr) RPAR 
+| ACT LPAR separated_list(COMMA, expr) RPAR 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc} }
 
 
@@ -169,7 +159,7 @@ expr:
 | CARET { Caret{loc = mk_loc $loc} }
 | STAR { Star{loc = mk_loc $loc} }
 | CARD { Card{loc = mk_loc $loc} }
-
+| NO { No{loc = mk_loc $loc} }
 
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
@@ -238,41 +228,26 @@ stmt:
   Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; is_compound = true; loc = mk_loc $loc} 
   }
 
-action_sig_param:
-| OUT? decl  {
-  match $2, $1 with
-  | params, None -> params, []
-  | params, Some _ -> params, params
-  }
-| OUT? decl COMMA action_sig_param {
-  match $2, $1, $4 with
-  | params, None, (params', out) -> params @ params', out
-  | params, Some _, (params', out) -> params @ params', params @ out
-  }
-
-// TODO: add return type to action signature, this is more clear than the current OUT? decl
 action_sig:
-| ACTION_START LPAR action_sig_param* RPAR {
-  let (params, out) = List.fold_left (fun (acc_params, acc_out) (params, out) -> (acc_params @ params, acc_out @ out)) ([], []) $3 in
-  ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params; out; loc = mk_loc $loc} 
+| ACT LPAR flatten(separated_list(COMMA, decl)) RPAR {
+  ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params=$3; out = None; loc = mk_loc $loc} 
   }
-
-action_body:
-| stmt* { $1 }
 
 action_firing_cond:
 | { None }
 | WHEN expr { Some (When{cond = $2; loc = mk_loc $loc }) } 
 
 action:
-| action_sig action_firing_cond action_body 
-  { Action{signature = $1; cond = $2; body = $3; loc = mk_loc $loc } } 
+| action_sig action_firing_cond stmt*
+  { Action{signature = $1; cond = $2; body = Mutators{stmts= $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
+| action_sig COLON typ expr 
+  { let ActionSignature{name;params;out;loc} = $1 in
+    let signature = ActionSignature{name;params;out = Some $3; loc} in
+    Action{signature; cond = None; body = Query{expr = $4; loc = mk_loc $loc}; loc = mk_loc $loc} 
+  }
 
 c_actions:
 | ACTIONS action+ OP { Actions{actions = $2; loc = mk_loc $loc} }
-
-// | ACTIONS action+ { Actions{actions = $2; loc = mk_loc $loc} } (*TODO: Temporary untill OP is actually implemented*)
-
 
 c_op: 
 | OP separated_list(COMMA, expr) { OP{principles = $2; loc = mk_loc $loc} }
@@ -280,8 +255,6 @@ c_op:
 concept: 
 | c_sig c_purpose c_state c_actions c_op  (*TODO: Temporary until OP is implemented*)
   { Concept{signature = $1; purpose = $2; states = $3; actions = $4; op = $5; loc = mk_loc $loc} }
-// | c_sig c_purpose c_state c_actions c_op
-//   { raise TODO }
 
 app_dep:
 | IDENT pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }

@@ -34,6 +34,20 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
       | Ast.Caret _ -> check_relation operand_tp; TAst.Caret, operand_tp
       | Ast.Star _ -> check_relation operand_tp; TAst.Star, operand_tp
       | Ast.Card _ -> TAst.Card, TAst.TInt{mult = None}
+      | Ast.No _ -> 
+        if not env.in_op then 
+          Env.insert_error env (Errors.LTLsNotAllowed{loc})
+        else (
+          begin match operand, operand_tp with 
+          | TAst.Call _, TAst.TBool -> ();
+          | _, TAst.TBool -> Env.insert_error env (Errors.NoNotAllowed{loc}); 
+          | _, _ -> Env.insert_error env (Errors.TypeMismatch{actual = operand_tp; expected = TAst.TBool; loc});
+          end
+        )
+        ;
+
+
+        TAst.No, TAst.TBool
     end in
     TAst.Unop{op;operand;tp}, tp
   | Ast.Binop {op;left;right;loc} ->
@@ -117,8 +131,7 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
     | Some Var(tp,_) -> 
       Env.insert_error env (Errors.NotAnAction{name = t_ident; loc = Utility.get_expr_location expr});
       TAst.Call{action = t_ident; args = t_args_from args; tp}, tp
-    | Some Act(act) ->
-      let TAst.ActionSignature{params;_} = act in
+    | Some Act(TAst.ActionSignature{params;_} as act) ->
       if env.in_op || env.trigger_sync then (*add new variables to environment (not symbol table)*)
         (
           try 
@@ -142,7 +155,6 @@ let rec infertype_expr env expr : TAst.expr * TAst.typ =
           ;
       );
       let return_type = Utility.get_ret_type act in 
-      if return_type = TAst.ErrorType then Env.insert_error env (Errors.UnsupportedMultipleReturnTypes{loc = Utility.get_expr_location expr});
       if List.length args <> List.length params then (
         Env.insert_error env (Errors.LengthMismatch{expected = List.length params; actual = List.length args; loc = Utility.get_expr_location expr});
         TAst.Call{action = t_ident; args = t_args_from args; tp = return_type}, return_type
@@ -259,10 +271,7 @@ let typecheck_action_signature env signature =
       if not (Env.type_is_defined env typ) then Env.insert_error env (Errors.UndeclaredType{tp=typ;loc});
       env, t_param :: t_params_so_far
   ) (env, []) params in
-  let t_out = List.map (fun (Ast.Decl{name;typ;_}) -> 
-    TAst.Decl{name = convert_ident name; typ = Utility.convert_type typ}
-  ) out in
-  env, TAst.ActionSignature{name = convert_ident name; out = t_out; params = List.rev t_params}
+  env, TAst.ActionSignature{name = convert_ident name; out = Option.map Utility.convert_type out ; params = List.rev t_params}
 
 let add_action_name_to_env env ((TAst.Action{signature;_}), loc) =
   let TAst.ActionSignature{name=TAst.Ident{sym} as name;_} = signature in
@@ -270,12 +279,14 @@ let add_action_name_to_env env ((TAst.Action{signature;_}), loc) =
     Env.insert_error env (Errors.DuplicateDeclaration{name;loc; ns = "variable/action"});
   Env.insert env sym (Env.Act(signature))
 
-
 let typecheck_action env action =
   let Ast.Action{signature;cond;body;loc} = action in
   let env_with_params, signature = typecheck_action_signature env signature in
   let env_with_params = {env_with_params with pure_assigns = Hashtbl.create 8;} in 
-  let body = List.map (typecheck_stmt env_with_params) body in
+  let body = match body with 
+    | Mutators{stmts;_} -> TAst.Mutators{stmts = List.map (typecheck_stmt env_with_params) stmts}
+    | Query{expr;_} -> TAst.Query{expr = typecheck_expr env_with_params expr (Utility.get_ret_type signature)}
+  in
   match cond with 
   | None -> TAst.Action{signature; cond = None; body}, loc
   | Some When{cond;_} -> 

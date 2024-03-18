@@ -86,7 +86,6 @@ rule token = parse
 | "->" { ARROW }
 | "!=" { NEQ }
 | "none" | "{}" { EMPTY_SET }
-| "out" { OUT }
 | "when" { WHEN }
 | "in" { IN }
 | "not" | '!' { NOT }
@@ -94,7 +93,6 @@ rule token = parse
 | "lone" { LONE }
 | "some" { SOME }
 | "const" { CONST }
-| "new" { NEW }
 | "one" { ONE }
 | "String" { STRING }
 | "Int" { INT }
@@ -103,10 +101,8 @@ rule token = parse
 | "can" { CAN }
 | "until" { UNTIL }
 | "then" { THEN } 
+| "no" { NO }
 
-(* | "after" { AFTER }
-| "of" { OF } (*TODO: not sure about this one*)
-| "has" { HAS } Not sure about this either *)
 (* ---------------------------------------- *)
 
 | "concept" { CONCEPT }
@@ -121,7 +117,7 @@ rule token = parse
 | "sync" { SYNC }
 
 | ident as i { IDENT i }
-| ident as i '(' { add_token_to_cache LPAR; ACTION_START i } 
+| ident as i '(' { add_token_to_cache LPAR; ACT i } 
 | digits as i_lit { 
   (* Wrap in big int to do arithmetic/overflow computation *)
   let num = Z.big_int_of_string i_lit in 

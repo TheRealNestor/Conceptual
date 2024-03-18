@@ -62,6 +62,7 @@ let unop_to_tree = function
 | Star -> Pretty.make_keyword_line "Star"
 | IsEmpty -> Pretty.make_keyword_line "IsEmpty"
 | Card -> Pretty.make_keyword_line "Card"
+| No -> Pretty.make_keyword_line "No"
 
 let rec lval_to_tree = function
 | Var {name;tp} -> PBox.tree ( Pretty.make_info_node_line "Var:";) [ident_to_tree name; typ_to_tree tp]
@@ -88,9 +89,9 @@ let rec expr_to_tree = function
 
 let rec statement_to_tree = function
 | Assignment {lval;rhs;tp} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; typ_to_tree tp]
-and statement_seq_to_forest stms = 
-  if List.length stms = 0 then [Pretty.make_info_node_line "Empty"]
-  else List.map statement_to_tree stms
+and statement_seq_to_forest stmts = 
+  if List.length stmts = 0 then [Pretty.make_info_node_line "Empty"]
+  else List.map statement_to_tree stmts
 
 
 
@@ -123,18 +124,20 @@ let states_to_tree (states : state list) =
   if List.length states = 0 then PBox.tree (Pretty.make_info_node_line "States") [Pretty.make_info_node_line "Empty"]
   else PBox.tree (Pretty.make_info_node_line "States") (List.map state_to_tree states)
 
+let action_body_to_tree = function
+| Mutators{stmts} -> Pretty.make_info_node_line "Statements" :: statement_seq_to_forest stmts
+| Query{expr} -> [Pretty.make_info_node_line "Expression"; expr_to_tree expr]
+
 let action_to_tree = function
 | Action {signature=ActionSignature{name;out;params;_}; cond; body; _} ->
     PBox.tree (Pretty.make_info_node_line "Action") [
       PBox.hlist ~bars:false [Pretty.make_info_node_line "Name: "; ident_to_tree name];
-      PBox.hlist ~bars:false [Pretty.make_info_node_line "Return Type: "; decl_list_to_tree out];
+      PBox.hlist ~bars:false [Pretty.make_info_node_line "Return Type: "; match out with | None -> Pretty.make_info_node_line "None" | Some t -> typ_to_tree t];
       PBox.hlist ~bars:false [decl_list_to_tree params];
       PBox.tree (Pretty.make_info_node_line "Firing Condition") [match cond with Some When{cond; _} -> expr_to_tree cond | None -> Pretty.make_info_node_line "None"];
-      PBox.tree (Pretty.make_info_node_line "Statements") (statement_seq_to_forest body)
+      PBox.tree (Pretty.make_info_node_line "Body") (action_body_to_tree body)
       ]
 
-  
-  
 let actions_to_tree (actions : action list) =
   if List.length actions = 0 then PBox.tree (Pretty.make_info_node_line "Actions") [Pretty.make_info_node_line "Empty"]
   else PBox.tree (Pretty.make_info_node_line "Actions") (List.map action_to_tree actions)
@@ -146,7 +149,7 @@ let concept_to_tree (c : concept ) =
     PBox.tree (Pretty.make_info_node_line "Purpose") [PBox.text doc_str];
     states_to_tree states;
     actions_to_tree actions;
-    PBox.tree (Pretty.make_info_node_line "OP") [List.map expr_to_tree principles |> PBox.tree (Pretty.make_info_node_line "Principle")]
+    PBox.tree (Pretty.make_info_node_line "OP") (List.map (fun op -> PBox.tree (Pretty.make_info_node_line "Principle") [expr_to_tree op]) principles)
   ]
 
 
