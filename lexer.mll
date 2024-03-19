@@ -52,7 +52,7 @@ concept composition rule via the keywords "concept" and "app" *)
 
 rule token = parse 
 | eof { EOF }
-| '=' { ASSIGN }
+| '=' { EQ }
 | '+' { PLUS }
 | '-' { MINUS }
 | ':' { COLON }
@@ -61,10 +61,14 @@ rule token = parse
 | '~' { TILDE }
 | '^' { CARET }
 | '*' { STAR }
-| '(' { LPAREN }
-| ')' { RPAREN }
-| '[' { LBRACKET }
-| ']' { RBRACKET }
+| '#' { CARD }
+| '(' { LPAR }
+| ')' { RPAR }
+| '[' { LBRACK }
+| ']' { RBRACK }
+| '{' { LBRACE }
+| '|' { PIPE }
+| '}' { RBRACE }
 | '"' { Buffer.clear string_buf; string lexbuf; STR_LIT (Buffer.contents string_buf)}  (*Clear current buffer, do the string rule, return contents of buffer afterwards as a STRING token *)
 | whitespace+ { token lexbuf } (* Skip whitespace *)
 | '\n' { Lexing.new_line lexbuf; token lexbuf} (* Increment line number *)
@@ -74,42 +78,46 @@ rule token = parse
 | '>' { GT }
 | "<=" { LTE }
 | ">=" { GTE }
-| "==" { EQ }
-| '&' { AMP} (* Set intersection *)
+| "==" { EQEQ }
+| "is"  { IS }
+| '&' { AMP } (* Set intersection *)
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
-| "+=" { ADDEQ }
-| "-=" { MINUSEQ }
-| "&=" { AMPEQ }
 | "->" { ARROW }
 | "!=" { NEQ }
-| "out" { OUT }
+| "none" | "{}" { EMPTY_SET }
 | "when" { WHEN }
 | "in" { IN }
 | "not" | '!' { NOT }
 | "set" { SET }
-| "string" { STRING }
-| "bool" { BOOL }
-| "int" { INT }
-| "true" { BOOL_LIT(true) }
-| "false" { BOOL_LIT(false) }
+| "lone" { LONE }
+| "some" { SOME }
+| "const" { CONST }
+| "one" { ONE }
+| "String" { STRING }
+| "Int" { INT }
+| "empty" { EMPTY }
 (* Now operators for operational principles *)
-(* | "if" { IF } 
 | "can" { CAN }
-| "after" { AFTER }
 | "until" { UNTIL }
-| "of" { OF } (*TODO: not sure about this one*)
-| "has" { HAS } (*Not sure about this either *)
-| "then" { THEN } *)
+| "then" | ';' { THEN } 
+| "no" { NO }
+
 (* ---------------------------------------- *)
 
 | "concept" { CONCEPT }
 | "purpose" { Buffer.clear string_buf; purpose_str lexbuf; PURPOSE (Buffer.contents string_buf) } (* Embed the string into the token *)
 (* | "state" { STATE } This is never actually run *)
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
-| "operational principle" { add_token_to_cache OP; OP }
+| "principle" { add_token_to_cache OP; OP }
+
+(* Composition of concepts  *)
+| "app" { APP }
+| "include" { INCLUDE }
+| "sync" { SYNC }
+
 | ident as i { IDENT i }
-| ident as i whitespace* '(' { add_token_to_cache LPAREN; ACTION_START i } (*TODO: Add newline here too? To more easily distinguish idents for action_signature vs idents used in statements*)
+| ident as i '(' { add_token_to_cache LPAR; ACT i } 
 | digits as i_lit { 
   (* Wrap in big int to do arithmetic/overflow computation *)
   let num = Z.big_int_of_string i_lit in 
@@ -157,6 +165,7 @@ and multi_comment nesting_level = parse (* and here so we can do mutual recursio
           else
             multi_comment (nesting_level - 1) lexbuf 
         }
+| eof { token lexbuf } (* End of multi comment *)
 | _ { multi_comment nesting_level lexbuf } (* Keep reading multi_comments *)
 
 

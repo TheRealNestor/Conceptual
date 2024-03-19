@@ -7,3 +7,8 @@
 /parser.mli
 /bug.con
 /*.con
+/alloy/
+/concepts/
+/grammar/
+/dependencies_extra.txt
+/opam_packages.txt

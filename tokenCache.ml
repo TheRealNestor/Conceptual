@@ -3,9 +3,9 @@ let token_cache : Parser.token list ref = ref []
 
 (* Adding additional tokens. Example:
   
-  add_token_to_cache LPAREN; ACTION_START i   
+  add_token_to_cache LPAR; ACTION_START i   
 
-  will first return the ACTION_START token and then the LPAREN token immediately after.
+  will first return the ACTION_START token and then the LPAR token immediately after.
 *)
 
 let next_token lexer_func lexbuf =

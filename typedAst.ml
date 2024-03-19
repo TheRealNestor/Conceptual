@@ -2,21 +2,19 @@ module Sym = Symbol
 
 type ident = Ident of { sym : Sym.symbol }
 
-(* TODO: strings? *)
+type mult = One | Set | Lone | Som
+
 type typ =
-| TString 
+| TString of { mult : mult option }
 | TBool 
-| TInt
-| TVoid
-| TCustom of { tp : ident } (* custom type *)
-| TSet of { tp : typ  } (* set of types *)
+| TInt of { mult : mult option }
+| TCustom of { tp : ident; mult : mult option; ns : ident option} (* custom type *)
 | TMap of { left : typ; right : typ } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
+| NullSet of { tp : typ option } (* For empty sets currently *)
 | ErrorType 
 
-(* set, mappings, custom types --> probably the ones i should have first??? *)
-
 type parameter = Parameter of { typ : typ } (*This is for the concept signature *)
-type named_parameter = NamedParameter of { name : ident; typ : typ } (*State declarations, action signatures*)
+type decl = Decl of { name : ident; typ : typ; } (*State declarations, action signatures*)
   
 type binop = 
 | Plus  
@@ -33,13 +31,21 @@ type binop =
 | NotIn
 | Intersection 
 | Join
+| MapsTo
+| Times
+| Div
+| Mod
+| Then 
+| Until
 
 type unop = 
 | Not 
-| Neg 
 | Tilde 
 | Caret
 | Star
+| IsEmpty
+| Card
+| No 
 
 (* This is opeators for operational principle *)
 (* Could possibly include all of Alloy6's temporal operators? *)
@@ -49,26 +55,31 @@ type unop =
 | Until of  } *)
 
 type expr = 
+| EmptySet of {tp : typ}
 | String of {str : string }
 | Integer of {int : int64 }
-| Boolean of {bool : bool }
-| Assignment of {lval : lval; rhs : expr; tp : typ }
 | Lval of lval 
 | Unop of {op : unop; operand : expr; tp : typ}
 | Binop of {left : expr; op : binop; right : expr; tp : typ}
+| BoxJoin of {left : expr; right : expr list ; tp : typ}
+| SetComp of { decls : decl list; cond : expr; tp : typ}
+(* Move operational principle expressions? *)
 | Call of {action : ident; args : expr list; tp : typ}
+| Can of {call : expr; }
 and lval = 
 | Var of {name : ident; tp : typ}
 | Relation of {left : lval; right : lval; tp : typ}
 
+type stmt = Assignment of {lval : lval; rhs : expr ; tp : typ } 
 
-type stmt = 
-| ExprStmt of {expr : expr option } (*Assignment, function/action call, possibly more? Option lets us do nothing in case of error*)
+type action_body = 
+| Mutators of {stmts : stmt list}
+| Query of {expr : expr}
 
-                                          
 type state = State of {
-  param : named_parameter;
+  param : decl;
   expr : expr option;
+  const : bool;
 }
 
 type concept_sig = 
@@ -76,44 +87,58 @@ type concept_sig =
 | ParameterizedSignature of {name : ident; params : parameter list}
 
 type firing_cond = When of {cond : expr}
-
-type concept_purpose = Purpose of {
-  doc_str : string; 
-}
-
-type concept_states = States of {
-  states : state list;
-}
+type concept_purpose = Purpose of {doc_str : string;}
+type concept_states = States of {states : state list;}
 
 type action_sig = ActionSignature of {
   name : ident; 
-  out : named_parameter list ; (* Subset of params of values to be returned *)
-  params : named_parameter list;
+  out : typ option ;
+  params : decl list;
 }
+
 
 type action = Action of {
   signature : action_sig; 
   cond : firing_cond option;
-  body : stmt list;
+  body : action_body;
 }
 
-type concept_actions = Actions of {
-  actions : action list;
-}
-
-type operational_principle = OP of {
-  (* #TODO: This should also be a list of statements of some sort instead of a string...  *)
-  doc_str : string; 
-}
-
+type concept_actions = Actions of {actions : action list;}
+type operational_principle = OP of {principles : expr list; tmps : decl list;} (*decls are for code generation.*)
 
 type concept = Concept of {
   signature : concept_sig;
   purpose : concept_purpose; 
   states : concept_states;
   actions: concept_actions;
-  (* op : operational_principle; *)
+  op : operational_principle;
 }
 
-type program = concept list 
+type generic = Generic of {
+  con : ident option;
+  ty : typ;
+}
 
+type dependency = Dependency of {
+  name : ident; (*concept being included *)
+  generics: generic list; (*parameter instantiation of generics, other concept name and type from it.*)
+}
+
+type sync_call = SyncCall of {
+  name : ident; (*concept*)
+  call : expr; (*action, can check for valid expressions in semantic analysis...*)
+}
+
+type sync = Sync of {
+  cond : sync_call;
+  body : sync_call list;
+  tmps : decl list; (* This is just to make things simpler in code generation, we already construct this list in semant as is...*)
+}
+
+type app = App of {
+  name : ident;
+  deps : dependency list;
+  syncs : sync list;
+}
+
+type program = concept list * app list
