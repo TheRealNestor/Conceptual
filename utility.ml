@@ -113,6 +113,10 @@ let is_empty_set = function
 | TAst.NullSet _ -> true
 | _ -> false
 
+let is_empty_set_expr = function 
+| TAst.EmptySet _ -> true
+| _ -> false
+
 let get_mult = function
 | TAst.TInt {mult} | TString {mult} | TCustom {mult;_} -> mult
 | _ -> None
@@ -316,3 +320,24 @@ let get_sync_name (TAst.Sync{cond;_}) =
 let rec get_lval_name = function
 | TAst.Var {name;_} -> name 
 | Relation {right;_} -> get_lval_name right
+
+(* This checks whether a relation "lval" is contained insisde a join expressoin *)
+(* This handles cases such as u.reservations = u.reservations + r  *)
+let check_for_relation_in_join lval = function
+| TAst.Binop {left;right;op=TAst.Join; _} as e -> 
+  begin match lval with 
+    | Some (TAst.Relation {left=l;right=r;_} as rel) -> 
+      begin match left, right with
+      | TAst.Lval l_expr , TAst.Lval r_expr -> 
+        (l_expr = l && r_expr = r), TAst.Lval rel
+    | _ -> false, e
+    end
+  | _ -> false, e
+  end    
+| _ as e -> false, e
+
+let rec relation_in_expr = function
+| TAst.Binop {left;right;_} -> relation_in_expr left || relation_in_expr right
+| Lval Relation _ -> true
+| _ -> false
+

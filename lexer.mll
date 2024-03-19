@@ -100,7 +100,7 @@ rule token = parse
 (* Now operators for operational principles *)
 | "can" { CAN }
 | "until" { UNTIL }
-| "then" { THEN } 
+| "then" | ';' { THEN } 
 | "no" { NO }
 
 (* ---------------------------------------- *)

@@ -83,7 +83,13 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.typ = begin matc
         Utility.change_expr_type t_left right_tp else t_left in
       let t_right = if Utility.is_empty_set right_tp && not @@ Utility.is_relation left_tp && List.mem typed_op null_ops then
         Utility.change_expr_type t_right left_tp else t_right in  
-      Binop{op = typed_op; left = t_left; right = t_right; tp}, tp
+      let bop = TAst.Binop{op = typed_op; left = t_left; right = t_right; tp} in 
+      (* if the expression is join, left lval is relation and these match, change node to a relation
+         e.g. u.reservations = u.reservations + r
+        this is handled implicitly when the compound syntax is used, i.e. u.reservations += r
+      *)
+      let is_rel, rel = Utility.check_for_relation_in_join env.left_lval bop in
+      if is_rel then rel, tp else bop, tp
   | Lval lval -> let lval, tp = infertype_lval env lval in Lval(lval), tp
   | SetComp {decls; cond; loc} ->
     let env, t_decls = List.fold_left (
@@ -154,6 +160,7 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.typ = begin matc
       ) 
     end
   | Can{call;loc} -> 
+    if not env.in_op then Env.insert_error env (CanNotAllowed{loc});
     let t_call, _ = infertype_expr env call in
     match t_call with 
     | Call{action;_} ->
@@ -188,14 +195,14 @@ and typecheck_expr env (expr : Ast.expr) (tp : TAst.typ) =
   let texpr, texprtp = infertype_expr env expr in
   let loc = Utility.get_expr_location expr in 
   if Utility.is_empty_set texprtp && not @@ Utility.is_relation tp then () 
-  else if not @@ Utility.same_base_type texprtp tp then 
-    Env.insert_error env (TypeMismatch {actual = texprtp; expected = tp; loc});
+  else if not @@ Utility.same_base_type texprtp tp then Env.insert_error env (TypeMismatch {actual = texprtp; expected = tp; loc});
   texpr
 
 (* I don't think we have anything that can modify the environment, no variable declarations for example, so does not return environment *)
 let typecheck_stmt env = function
 | Ast.Assignment {lval;rhs;loc; is_compound} -> 
   let lval, tp = infertype_lval env lval in 
+  let env = {env with left_lval = Some lval} in (*TODO: Might need to remove this*)
   (* check that we dont have a combination of compound assignments and non-compound, or simply multiple non-compound *)
   let val_opt = Hashtbl.find_opt env.pure_assigns lval in 
   let error_already_inserted = ref false in

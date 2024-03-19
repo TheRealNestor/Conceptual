@@ -38,7 +38,7 @@ type error =
 | CallNotAllowed of {loc : Loc.location; name : TAst.ident}
 | LTLsNotAllowed of {loc : Loc.location}
 | NoNotAllowed of {loc : Loc.location;}
-
+| CanNotAllowed of {loc : Loc.location;}
 
 let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
 
@@ -74,6 +74,7 @@ let print_error err =
   | CallNotAllowed {loc; name} -> Printf.printf "CallNotAllowed. The name %s is not allowed to be called. Calls only allowed in operational principle and synchronizations. \t" (string_of_t_ident name); Loc.print_location loc;
   | LTLsNotAllowed {loc} -> Printf.printf "LTLsNotAllowed. LTLs are only allowed in the operational principle. \t"; Loc.print_location loc;
   | NoNotAllowed {loc} -> Printf.printf "NoNotAllowed. No is only allowed with action calls. \t"; Loc.print_location loc;
+  | CanNotAllowed {loc} -> Printf.printf "CanNotAllowed. Can expressions are only allowed in the operational principle. \t"; Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

@@ -29,7 +29,6 @@ exception ParserError
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 %token APP INCLUDE SYNC (*Composition related tokens*)
 
-
 (*ACT: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
 %token <string> PURPOSE IDENT ACT STR_LIT
 %token <int64> INT_LIT
@@ -115,18 +114,6 @@ call:
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc} }
 
 
-// %inline top: 
-// | THEN { Then{loc = mk_loc $loc} }
-// | UNTIL { Until{loc = mk_loc $loc} }
-
-// This is simply to prevent calls from happening in simple expressions (calls only allowed in lvals)
-// op_expr:
-// | LPAR op_expr RPAR %prec RPAR { $2 }
-// | expr { $1 }
-// | call { $1 }
-// | CAN call { Can{call = $2; loc = mk_loc $loc} }
-// | op_expr top op_expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
-
 const: 
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
 | EMPTY_SET { EmptySet{loc = mk_loc $loc} }
@@ -135,7 +122,6 @@ const:
   | None -> Integer{int = $2; loc = mk_loc $loc}
   | Some _ -> Integer{int = Int64.mul (-1L) $2; loc = mk_loc $loc} 
   }
-// TODO: might have to check for precedence of MINUS in particular, as that symbol is used elsewhere too 
 
 
 expr:
@@ -146,11 +132,9 @@ expr:
 | expr IS EMPTY { Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
 | lval LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = Lval($1); right = $3; loc = mk_loc $loc} }
-// set comprehension
 | LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
-// below can only happen in operational principle in addition to certain binops (e.g. THEN, UNTIL)
-| call { $1 }
-| CAN call { Can{call = $2; loc = mk_loc $loc} }
+| call { $1 } (*can only happen in op/syncs*)
+| CAN call { Can{call = $2; loc = mk_loc $loc} } (*can only happen in op*)
 
 
 %inline unary:

@@ -195,11 +195,11 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
     end
   | Bop op ->
     begin match op with
-    | Implication -> 0
+    | And | Or -> 0
     | Release -> 1
-    | And | Or -> 2
+    | Implication -> 2
     | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 3
-    | Plus | Minus -> 4
+    | Plus | Minus -> 4 
     | Intersection -> 5
     | Arrow -> 6
     | Join -> 7
@@ -290,15 +290,39 @@ let serializeModule (env : cg_env ) (Module{name;parameters}) : string =
 
 let serializePurpose (p : string) : string = wrap_in_comment ("PURPOSE:\t" ^ p)
 
-let serializeVars (vars : (paramId * ty) list) = 
-  mapcat ", " (fun (id, ty) -> 
-    (S.name id) ^ " : " ^ serializeType ty
-  ) vars
 
+let groupByType (l : (S.symbol * ty) list) =
+  (* do the same as the function above, but using the symbol table (extends Map.Make) *)
+  let tbl = S.Table.empty in  (* Initialize an empty map *)
+  let l = List.map (fun (s, ty) -> (s, S.symbol @@ serializeType @@ ty)) l in
+  (* fold over the list, adding the symbols to the list of symbols for the type *)
+  let tbl = List.fold_left (fun acc (s, ty) ->
+    let key = ty in  (* Use `symbol` function to create a symbol for the key *)
+    match S.Table.find_opt key acc with
+    | Some symbols -> S.Table.add key (s :: symbols) acc  (* If key exists, prepend the new name to the list *)
+    | None -> S.Table.add key [s] acc  (* Otherwise, create a new entry with the key *)
+  ) tbl l in
+
+  (* fold over the table, converting it to a list *)
+  let l = S.Table.fold (fun key symbols acc -> (symbols, key) :: acc) tbl [] in
+  List.map (fun (symbols, ty) -> (List.fast_sort (fun a b -> String.compare (S.name a) (S.name b)) symbols, Sig(ty, Implicit))) l 
+
+
+let serializeVars ?(group = false) ?(with_type = true) (vars : (paramId * ty) list) = 
+  if group then 
+  let vars = groupByType vars in
+  mapcat ", " (fun (symbols, ty) -> 
+    let symbols = mapcat ", " (fun s -> S.name s) symbols in
+    symbols ^ if with_type then " : " ^ serializeType ty else ""
+  ) vars
+  else  
+  mapcat ", " (fun (id, ty) -> 
+    (S.name id) ^ if with_type then " : " ^ serializeType ty else ""
+  ) vars
 
 let serializeQuantify qop vars = 
   let qopStr = serializeQop qop in
-  qopStr ^ " " ^ serializeVars vars ^ " | "
+  qopStr ^ " " ^ serializeVars ~group:true vars ^ " | "
 
 
 let rec serializeLval (l : lval) : string = 
@@ -345,7 +369,7 @@ let rec serializeExpr env (e : expr) =
     | BoxJoin {left; right} -> _serializeExpr left ^ brackets @@ mapcat ", " _serializeExpr right
     | Quantifier {qop; vars; expr} -> serializeQuantify qop vars ^ braceswsp @@ _serializeExpr expr 
     | SetComprehension{cond; vars} -> 
-      let varsStr = serializeVars vars in
+      let varsStr = serializeVars ~group:true vars in
       let condStr = _serializeExpr cond in
       braces (varsStr ^ " | " ^ condStr)
     | Lval l -> serializeLval l
@@ -386,7 +410,7 @@ let serializeAssertions env (a : assertion list) : string =
   mapcat "\n\n" (serializeAssertion env) a
 
 let serializePredicate env (Predicate{pred_id;params;cond;body}) : string = 
-  let paramsStr = serializeParamList params in
+  let paramsStr = serializeVars params in
   let env = increase_indent env in 
   let condStr = match cond with 
     | None -> ""
@@ -394,7 +418,7 @@ let serializePredicate env (Predicate{pred_id;params;cond;body}) : string =
   in
   let bodyStr = mapcat (nl env) (serializeExpr env) body in
   let can_str = 
-    "pred _can_" ^ S.name pred_id ^ " " ^ brackets paramsStr ^ " " ^ if condStr = "" then braces "" else (braceswnl env) (condStr) in
+    "pred _can_" ^ S.name pred_id ^ " " ^ brackets paramsStr ^ " " ^ braceswsp condStr in
   env.can_functions := can_str :: !(env.can_functions);
 
   let condStr = if condStr = "" then "" else condStr ^ nl env in
@@ -404,14 +428,14 @@ let serializePredicate env (Predicate{pred_id;params;cond;body}) : string =
 let serializeFunction env (Function{func_id;params;body;cond;out} : func) : string =
   (* remove any output params from params (i.e. any param that also appears in f.out) *)
   let env = increase_indent env in
-  let paramsStr = serializeParamList params in
+  let paramsStr = serializeVars params in
   let bodyStr = mapcat (nl env) (serializeExpr env) body in
   let condStr = match cond with 
     | None -> ""
     | Some e -> (serializeExpr env) e
   in
   let can_str = 
-    "pred _can_" ^ S.name func_id ^ " " ^ brackets paramsStr ^ " " ^ if condStr = "" then braces "" else (braceswnl env) (condStr) in 
+    "pred _can_" ^ S.name func_id ^ " " ^ brackets paramsStr ^ " " ^ braceswsp condStr in 
   env.can_functions := can_str :: !(env.can_functions);
   
   let condStr = if condStr = "" then "" else condStr ^ nl env in
@@ -508,7 +532,7 @@ let serializeEvents env (f : func_type list) : string =
       "fun _" ^ name ^ " : Event " ^ braceswsp @@ expr_str
     )
     else 
-      let args = serializeParamList ~with_type:false vars in
+      let args = serializeVars ~with_type:false vars in
       let expr_str = braceswsp ( vars_type_str ^ " | " ^ name ^ brackets args ) in
       "fun _" ^ name ^ " : Event -> " ^ types ^ braceswsp (name ^ " -> " ^ expr_str)
   ) pred_events in
@@ -571,7 +595,7 @@ let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;
   serializeSigs env (List.rev sigs) ^ "\n\n" ^
   serializeFacts env facts ^ "\n\n" ^
   funcs_str ^ "\n\n" ^
-  String.concat "\n\n" (List.rev !(env.can_functions)) ^ "\n\n" ^
+  String.concat "\n" (List.rev !(env.can_functions)) ^ "\n\n" ^
   (* if this is an app, we don't want this event stuff TODO: we might in the future to distinguish between events,
     only concepts have 0 dependencies, apps have at least one dependency *)
   if List.length deps <> 0 then (

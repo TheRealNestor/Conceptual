@@ -2,24 +2,23 @@ module TAst = TypedAst
 module Als = Alloy
 module Sym = Symbol
 
+type var = {id : Sym.symbol; is_const : bool; has_fact : bool}
+
 type cg_env = {
-  custom_types : Sym.symbol list;
-  state_variables : (Sym.symbol * bool) list; (* actually declared variable in state component of concept*)
+  custom_types : Sym.symbol list; (*Keep track of custom types, these are for the signatures*)
+  state_vars : var list; (* actually declared variable in state component of concept*)
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
   assignment_type : TAst.typ; (* type of the assignment in typed AST, used with distributive join to add things if it does not match*)
-  assignment_lval : TAst.lval option; (* lval of the assignment, used for code generation to translate non-compound assignments...*)
   is_left : bool; (* number of statements in the action, used for code generation*)
-  lhs_sym : Sym.symbol; (* symbol of the left hand side of the assignment, used for empty set expression*)
+  lhs_sym : Sym.symbol; (* TODO: this could likely be refactored/removed... symbol of the left hand side of the assignment, used for empty set expression*)
   con_dict : (Symbol.symbol list) Sym.Table.t; (* concept name to list of state variables *)
 }
 
-
 let make_cg_env = {
   custom_types = [];
-  state_variables = [];
+  state_vars = [];
   distributive_joins = [];
   assignment_type = TAst.ErrorType; (* This is reassigned before it is used*)
-  assignment_lval = None;
   is_left = false;
   lhs_sym = Sym.symbol "lhs"; (* This is reassigned before it is used*)
   con_dict = Sym.Table.empty;
@@ -100,7 +99,7 @@ let unop_to_als = function
 | Star -> Star
 | IsEmpty -> IsEmpty
 | Card -> Card
-| _ -> failwith "The rest of the unops must be handled explicitly in the code generator"
+| No -> Historically
 
 
 let binop_to_als = function
@@ -127,7 +126,8 @@ let binop_to_als = function
 
 let mult_to_als = function
 | None -> Als.Implicit
-| Some TAst.One -> One
+| Some TAst.One -> Lone (*The problem with defining this to One, is that we cannot just use the empty set as initial state. 
+                          A model with "one" multiplicity should not have actions for removing the association entirely. *)
 | Some Set -> Set
 | Some Lone -> Lone
 | Some Som -> Some
@@ -151,7 +151,7 @@ let get_dist_join_str ?(with_arrow = true) env =
 
 let rec lval_to_als env = function 
 | TAst.Var {name;tp} -> 
-  let state_syms, _ = List.split env.state_variables in
+  let state_syms = List.map (fun var -> var.id) env.state_vars in
   if List.mem (sym_from name) state_syms then 
     Als.VarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
   (* check that type of lval matches the assignment to figure out whether to distributively add join args  *)
@@ -159,7 +159,7 @@ let rec lval_to_als env = function
     let str = get_dist_join_str env ^ (Sym.name @@ sym_from name) in
     VarRef(Sym.symbol str)
   )
-  else Als.VarRef(sym_from name)
+  else VarRef(sym_from name)
 | Relation{right;_} -> 
   (* you only get this on lhs. And there lefts are saved in the environment.... *)
   lval_to_als env right
@@ -171,12 +171,12 @@ let rec trans_expr env expr =
       Als.Binop {op = Bop(Arrow); left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); right = lit}
     else lit 
   in
-
   begin match expr with
   | TAst.EmptySet _ -> 
     if List.length env.distributive_joins <> 0 then 
       (*e.g. i.labels = {} 
     should be translated to: (State.labels') = (State.labels') - i->Label *)
+    (* TODO: How to generalize this? If a relation is only on the left but not on the right??? *)
       let right = Als.Binop{op = Bop Arrow; 
       left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
       right = Lval(VarRef(symbol_from_type env.assignment_type))
@@ -187,37 +187,30 @@ let rec trans_expr env expr =
     None
   | String {str} -> _mk_lit (StrLit(str))
   | Integer{int} -> _mk_lit (IntLit(int))
-  | Unop{op;operand;_} -> Unop{op = unop_to_als op; expr = _tr operand}
+  | Unop{op;operand;_} -> begin match op with 
+    | TAst.No -> Unop{op = unop_to_als op; expr = Unop{op = Not; expr = _tr operand}}
+    | _ -> Unop{op = unop_to_als op; expr = _tr operand}
+    end
   | Binop{op;left;right;_} -> 
     let is_int = Utility.same_base_type (Utility.get_expr_type left) (TInt{mult=None}) in
     begin match op with
       | TAst.Plus | Minus -> (*These operators are overloaded, must be translated differently for integers and standard types*)
-        if is_int then
-          let op = if op = Plus then Als.IntBop(Add) else IntBop(Sub) in 
-          Binop{left = _tr left; right = _tr right; op;}
-        else
-        Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
+        let op = if is_int then 
+          if op = Plus then Als.IntBop(Add) else IntBop(Sub)
+          else binop_to_als op
+        in
+        Binop{left = _tr left; right = _tr right; op;}
       | Join ->
-        (* check whether the join operation evaluate to the assignment_lval *)
-        let is_same = if env.assignment_lval = None then false else
         begin match left,right with 
-        | TAst.Lval l, TAst.Lval l2 -> TAst.Relation{left=l;right=l2;tp=env.assignment_type} = Option.get env.assignment_lval
-        | _ -> false
-        end in
-        (* Handle non-compound assignments.... *)
-        if is_same then 
-          Als.Lval(lval_to_als env @@ Option.get env.assignment_lval)
-        else 
-          begin match left,right with 
-          | _ , TAst.Lval (Var{name;_}) -> 
-            let sym_states, _ = List.split env.state_variables in
-            let sym = if List.mem (sym_from name) sym_states then 
-              prepend_state_symbol ~left:env.is_left (sym_from name)
-            else sym_from name in
-            Binop{left = _tr left; right = Lval(VarRef(sym)); op = Bop Join}
-            (* Als.Call({func = sym; args = _tr left :: []}) Navigation.... *) (* <---- if we want navigation syntax ...*)
-          | _ -> Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
-          end
+        | _ , TAst.Lval (Var{name;_}) -> 
+          let state_syms = List.map (fun var -> var.id) env.state_vars in
+          let sym = if List.mem (sym_from name) state_syms then 
+            prepend_state_symbol ~left:env.is_left (sym_from name)
+          else sym_from name in
+          Binop{left = _tr left; right = Lval(VarRef(sym)); op = Bop Join}
+          (* Als.Call({func = sym; args = _tr left :: []}) Navigation.... *) (* <---- if we want navigation syntax ...*)
+        | _ -> Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
+        end
       | In | NotIn -> 
         let left_tp, right_tp = Utility.get_expr_type left, Utility.get_expr_type right in
         if  Utility.is_relation right_tp then 
@@ -265,14 +258,25 @@ let rec trans_expr env expr =
     SetComprehension{vars = als_decls; cond = als_cond}
 end
 
+
 let trans_stmt env = function 
 | TAst.Assignment{lval; rhs; tp }  -> 
   (* This finds the rightmost lval on the left side. This is the state variable that is modified. Return this, alongside the als.assignment *)
   let lval_syms_reversed = List.rev @@ traverse_relation lval in
   let lval_sym = List.hd lval_syms_reversed in
   let lval_syms_without_last = List.rev @@ List.tl lval_syms_reversed in 
-  let env = {env with assignment_type = tp; assignment_lval = Some lval;lhs_sym = lval_sym} in 
-  let env = if List.length lval_syms_without_last = 0 then env else {env with distributive_joins = lval_syms_without_last} in    
+  let env = {env with assignment_type = tp;lhs_sym = lval_sym} in 
+  let env = if List.length lval_syms_without_last = 0 then env else {env with distributive_joins = lval_syms_without_last} in   
+
+  (* If there is no relation on the RHS, it is a pure assignment of a relation. To translate these, we must explicitly empty the relation first before adding the new set
+     There is no exclusivity in Alloy, even with one/lone keywords... *)
+  let rhs = if not @@ Utility.relation_in_expr rhs && Utility.is_relation tp && not @@ Utility.is_empty_set_expr rhs then
+    TAst.Binop{
+      op = TAst.Plus;
+      left = TAst.EmptySet{tp};
+      right = rhs;
+      tp;
+    } else rhs in
   let right = trans_expr env rhs in (*Do this before setting environment to left, which adds apostrophies *)
   lval_sym, Als.Assignment{left = lval_to_als {env with is_left = true} lval; right}
 
@@ -281,20 +285,20 @@ let trans_concept_signature = function
 | ParameterizedSignature{params; name} -> 
   (* Add params to environment of "primitive types" *)
   let syms = List.map (fun p -> get_sym_from_parameter p) params in
-  Module{name = sym_from name; parameters = Some syms;}, {make_cg_env with custom_types = syms}
-
+  Module{name = sym_from name; parameters = Some syms;}, make_cg_env
 
 let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = Decl{name;typ};expr;const}) = 
   let fact = match expr with
   | None -> []
   | Some e ->  
-    let body = (Als.Assignment{left = VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
-    in [Als.Fact{fact_id = sym_from name; body}]
+    let fact_constraint = (Als.Assignment{left = VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
+    in [Als.Fact{fact_id = sym_from name; body=Unop{op = Always; expr = fact_constraint}}] (*Facts must hold in all States!*)
   in 
-  (* add new entry to list in state_variables *)
+  let new_var = {id = sym_from name; is_const = const; has_fact = List.length fact <> 0} in
+  (* add new entry to list in state_vars *)
   Als.FldDecl{id = sym_from name; ty = typ_to_als typ; expr = None;const} :: fields_so_far, 
   fact @ facts_so_far,
-  add_tp_to_env {env_so_far with state_variables = env_so_far.state_variables @ [sym_from name, const]} typ
+  add_tp_to_env {env_so_far with state_vars = new_var :: env_so_far.state_vars} typ
 
 let trans_concept_states env states = 
   List.fold_left trans_concept_state ([], [], env) states
@@ -339,8 +343,8 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
 
     (* This is equivalent to Map.Bindings and then collecting all the first arguments *)
     let syms_used, als_body = List.split sym_to_expr_map in
-    let remaining = List.filter (fun (sym,const) -> not @@ List.mem sym syms_used && not const) env.state_variables in
-    let remaining_syms = List.map fst remaining in
+    let remaining = List.filter (fun var -> not @@ List.mem var.id syms_used && not var.is_const && not var.has_fact) env.state_vars in
+    let remaining_syms = List.map (fun var -> var.id) remaining in
 
     let assign_from_syms syms = List.map (fun sym -> 
       let rhs_sym = prepend_state_symbol sym in
@@ -389,9 +393,9 @@ let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{d
   let primitive_sigs = List.map (fun sym -> Als.SigDecl{sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
   let sigs = Als.SigDecl{sig_id = Sym.symbol "State"; fields = als_states; mult = One} :: primitive_sigs in
   let env, preds_and_funcs = trans_actions cg_env actions in  
-  let state_vars = List.map fst env.state_variables in
+  let state_syms = List.map (fun var -> var.id) env.state_vars in 
   let assertions = trans_principle env op in  
-  {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) state_vars env_so_far.con_dict}, 
+  {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) state_syms env_so_far.con_dict}, 
   Als.Program{module_header; facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs; assertions} :: progs
 
 let trans_app env apps (TAst.App{name;deps;syncs}) =

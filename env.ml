@@ -16,7 +16,8 @@ type environment = {env_objects : env_object Sym.Table.t;
                     in_op : bool; (* Whether the current context is in the operational principle. Certain expressions are only allowed here, e.g. LTL operators... *)
                     in_sync : bool; (* Whether the current context is in synchronizations. Certain expressions are allowed here, e.g call... *)
                     call_tmps : TAst.decl list ref; (* Temporary variables for the operational principle *)
-                    trigger_sync : bool (* Whether the current context is in a trigger sync. Trigger synchronizations can introduce new variables *)
+                    trigger_sync : bool; (* Whether the current context is in a trigger sync. Trigger synchronizations can introduce new variables *)
+                    left_lval : TAst.lval option (* The left hand side of the current assignment *)
                     }
 
    
@@ -32,8 +33,10 @@ let make_env =
   in_op = false;
   in_sync = false;
   call_tmps = ref [];
-  trigger_sync = false
+  trigger_sync = false;
+  left_lval = None; 
   }
+
 
 let insert env sym obj =
   let {env_objects; _} = env in
