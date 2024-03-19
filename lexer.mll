@@ -126,7 +126,6 @@ rule token = parse
   let i64_val = Z.int64_of_big_int @@ overflow_computation num min_val max_val in
   INT_LIT(i64_val)  
  }
-| _ as c { print_error @@ UnrecognizedCharacter{loc = create_location lexbuf; input = String.make 1 c}; raise LexerError}
 
 (* TODO: I want to stop this rule when I see the "state" clause. However, this approach
 will stop me from ever writing "state" inside the string. How to go about this... 
