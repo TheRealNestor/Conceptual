@@ -26,17 +26,16 @@ let mult_to_string = function
 | Some One -> "One of "
 | Some Set -> "Set of "
 | Some Lone -> "Lone of "
-| Some Som -> "Some of "
 
 let rec typ_to_string = function
 | TString {mult;_} -> mult_to_string mult ^ "String"
 | TBool _ -> "Bool"
 | TInt {mult;_} -> mult_to_string mult ^ "Int"
-| TCustom{tp = Ident{name; _};mult;_} -> mult_to_string mult ^ name
+| TCustom{ty = Ident{name; _};mult;_} -> mult_to_string mult ^ name
 | TMap {left; right; _} -> "Map(" ^ typ_to_string left ^ ", " ^ typ_to_string right ^ ")"
 
-let rec typ_to_tree = function
-| TMap {left; right; _} -> PBox.tree (make_typ_line "Map") [typ_to_tree left; typ_to_tree right]
+let rec ty_to_tree = function
+| TMap {left; right; _} -> PBox.tree (make_typ_line "Map") [ty_to_tree left; ty_to_tree right]
 | _ as t -> make_typ_line @@ typ_to_string t
 
 let binop_to_string = function
@@ -96,9 +95,9 @@ let unop_to_tree = function
 | No _ -> make_keyword_line "No"
   
 let decl_to_tree = function
-| Decl {name; typ; _} -> PBox.tree (make_info_node_line "Decl") 
+| Decl {name; ty; _} -> PBox.tree (make_info_node_line "Decl") 
     [PBox.hlist ~bars:false [make_info_node_line "Name: "; ident_to_tree name]; 
-    PBox.hlist ~bars:false [make_info_node_line "Type: "; typ_to_tree typ]
+    PBox.hlist ~bars:false [make_info_node_line "Type: "; ty_to_tree ty]
     ]
 
 let rec expr_to_tree = function
@@ -128,7 +127,7 @@ let rec parameter_list_to_tree parameters =
   if List.length parameters = 0 then PBox.tree (make_info_node_line "ParameterList") [make_info_node_line "Empty"]
   else PBox.tree (make_info_node_line "ParameterList") (List.map parameter_to_tree parameters)
 and parameter_to_tree  = function
-  | Parameter {typ; _} -> PBox.tree (make_info_node_line "Parameter") [typ_to_tree typ]
+  | Parameter {ty; _} -> PBox.tree (make_info_node_line "Parameter") [ty_to_tree ty]
 
 let decl_list_to_tree decel =
   if List.length decel = 0 then PBox.tree (make_info_node_line "DeclList") [make_info_node_line "Empty"]
@@ -161,7 +160,7 @@ let action_to_tree = function
 | Action {signature=ActionSignature{name;out;params;_}; cond; body; _} ->
     PBox.tree (make_info_node_line "Action") [
       PBox.hlist ~bars:false [make_info_node_line "Name: "; ident_to_tree name];
-      PBox.hlist ~bars:false [make_info_node_line "Return Type: ";  match out with | None -> make_info_node_line "None" | Some t -> typ_to_tree t];
+      PBox.hlist ~bars:false [make_info_node_line "Return Type: ";  match out with | None -> make_info_node_line "None" | Some t -> ty_to_tree t];
       PBox.hlist ~bars:false [decl_list_to_tree params];
       PBox.tree (make_info_node_line "Firing Condition") [match cond with Some When{cond; _} -> expr_to_tree cond | None -> make_info_node_line "None"];
       PBox.tree (make_info_node_line "Body") [action_body_to_tree body]
@@ -185,8 +184,8 @@ let concept_to_tree (c : concept ) =
 let pretty_generic (Generic{con;ty;_}) = 
   PBox.tree (make_info_node_line "Generic") (
   match con with 
-  | None -> [typ_to_tree ty]
-  | Some con -> [ident_to_tree con; typ_to_tree ty]
+  | None -> [ty_to_tree ty]
+  | Some con -> [ident_to_tree con; ty_to_tree ty]
   )
 
 let dependency_to_tree (Dependency{name;generics;_}) = 

@@ -2,19 +2,19 @@ module Sym = Symbol
 
 type ident = Ident of { sym : Sym.symbol }
 
-type mult = One | Set | Lone | Som
+type mult = One | Set | Lone 
 
-type typ =
+type ty =
 | TString of { mult : mult option }
 | TBool 
 | TInt of { mult : mult option }
-| TCustom of { tp : ident; mult : mult option; ns : ident option} (* custom type *)
-| TMap of { left : typ; right : typ } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
-| NullSet of { tp : typ option } (* For empty sets currently *)
+| TCustom of { ty : ident; mult : mult option; ns : ident option} (* custom type *)
+| TMap of { left : ty; right : ty } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
+| NullSet of { ty : ty option } (* For empty sets currently *)
 | ErrorType 
 
-type parameter = Parameter of { typ : typ } (*This is for the concept signature *)
-type decl = Decl of { name : ident; typ : typ; } (*State declarations, action signatures*)
+type parameter = Parameter of { ty : ty } (*This is for the concept signature *)
+type decl = Decl of { name : ident; ty : ty; } (*State declarations, action signatures*)
   
 type binop = 
 | Plus  
@@ -55,22 +55,22 @@ type unop =
 | Until of  } *)
 
 type expr = 
-| EmptySet of {tp : typ}
+| EmptySet of {ty : ty}
 | String of {str : string }
 | Integer of {int : int64 }
 | Lval of lval 
-| Unop of {op : unop; operand : expr; tp : typ}
-| Binop of {left : expr; op : binop; right : expr; tp : typ}
-| BoxJoin of {left : expr; right : expr list ; tp : typ}
-| SetComp of { decls : decl list; cond : expr; tp : typ}
+| Unop of {op : unop; operand : expr; ty : ty}
+| Binop of {left : expr; op : binop; right : expr; ty : ty}
+| BoxJoin of {left : expr; right : expr list ; ty : ty}
+| SetComp of { decls : decl list; cond : expr; ty : ty}
 (* Move operational principle expressions? *)
-| Call of {action : ident; args : expr list; tp : typ}
+| Call of {action : ident; args : expr list; ty : ty}
 | Can of {call : expr; }
 and lval = 
-| Var of {name : ident; tp : typ}
-| Relation of {left : lval; right : lval; tp : typ}
+| Var of {name : ident; ty : ty}
+| Relation of {left : lval; right : lval; ty : ty}
 
-type stmt = Assignment of {lval : lval; rhs : expr ; tp : typ } 
+type stmt = Assignment of {lval : lval; rhs : expr ; ty : ty } 
 
 type action_body = 
 | Mutators of {stmts : stmt list}
@@ -92,7 +92,7 @@ type concept_states = States of {states : state list;}
 
 type action_sig = ActionSignature of {
   name : ident; 
-  out : typ option ;
+  out : ty option ;
   params : decl list;
 }
 
@@ -116,7 +116,7 @@ type concept = Concept of {
 
 type generic = Generic of {
   con : ident option;
-  ty : typ;
+  ty : ty;
 }
 
 type dependency = Dependency of {

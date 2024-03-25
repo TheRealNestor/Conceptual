@@ -1,16 +1,12 @@
 %{
 open Ast
-
 let mk_loc loc = Location.make_location loc
-
 let add_mult_to_typ mult = function 
 | TString t -> TString{t with mult}
 | TInt t -> TInt{t with mult}
 | TCustom t -> TCustom{t with mult}
 | _ as t -> t
-
 exception ParserError
-
 %}
 
 %token EOF (*End of file*)
@@ -24,7 +20,7 @@ exception ParserError
 %token THEN UNTIL NO (*Temporal operators*)
 %token IS EMPTY EMPTY_SET (*Set-related predicates*)
 %token INT STRING (*Primitive types*)
-%token ARROW SET ONE IN LONE SOME (* Set-related tokens *)
+%token ARROW SET ONE IN LONE (* Set-related tokens *)
 %token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 %token APP INCLUDE SYNC (*Composition related tokens*)
@@ -37,7 +33,7 @@ exception ParserError
 // __________________
 // Explicit rule types go here, in case we want to use -ml as opposed to table-driven
 %type <Ast.decl list> decl
-%type <Ast.typ> typ
+%type <Ast.ty> ty
 
 %type <Ast.state list> state
 // %type <Ast.expr> expr op_expr
@@ -81,38 +77,34 @@ exception ParserError
 
 %left AMP
 %right ARROW 
-// %nonassoc SET LONE SOME ONE 
+// %nonassoc SET LONE  ONE 
 %left DOT 
 %nonassoc TILDE CARET STAR (*Set and relation unary operators*)
-
 
 %start <Ast.program> program 
 %%
 
-prim_typ:
+prim_ty:
 | STRING { TString{loc = mk_loc $loc; mult = None} }
 | INT { TInt{loc = mk_loc $loc; mult = None} }
-| IDENT { TCustom{tp = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None} }
+| IDENT { TCustom{ty = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None} }
 
 mult: 
 | ONE { One }
 | SET { Set }
 | LONE { Lone }
-| SOME { Som }
 
-typ: 
-| ioption(mult) prim_typ { add_mult_to_typ $1 $2 }
-| prim_typ ARROW typ { TMap{left = $1; right = $3; loc = mk_loc $loc} }
+ty: 
+| ioption(mult) prim_ty { add_mult_to_typ $1 $2 }
+| prim_ty ARROW ty { TMap{left = $1; right = $3; loc = mk_loc $loc} }
 
 lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
-
 call: 
 | ACT LPAR separated_list(COMMA, expr) RPAR 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc} }
-
 
 const: 
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
@@ -123,19 +115,25 @@ const:
   | Some _ -> Integer{int = Int64.mul (-1L) $2; loc = mk_loc $loc} 
   }
 
-
 expr:
 | const { $1 }
 | LPAR expr RPAR { $2 }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
-| expr IS EMPTY { Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} }
+| expr IS NOT? EMPTY { 
+  match $3 with 
+  | None -> Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} 
+  | Some _ -> Unop{op = Not{loc = mk_loc $loc}; operand = Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc}; loc = mk_loc $loc} 
+  }
 | lval %prec DOT { Lval($1) }
 | lval LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = Lval($1); right = $3; loc = mk_loc $loc} }
 | LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
 | call { $1 } (*can only happen in op/syncs*)
-| CAN call { Can{call = $2; loc = mk_loc $loc} } (*can only happen in op*)
-
+| CAN NOT? call { (*The NOT option here is just to allow a different way of writing this, rather than NOT in front 'not can...' vs 'can not ...'*)
+  match $2 with
+  | None -> Can{call = $3; loc = mk_loc $loc}
+  | Some _ -> Unop{op = Not{loc = mk_loc $loc}; operand = Can{call = $3; loc = mk_loc $loc}; loc = mk_loc $loc}
+  }
 
 %inline unary:
 | NOT { Not{loc = mk_loc $loc} }
@@ -172,9 +170,9 @@ expr:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
 decl:
-| separated_nonempty_list(COMMA, IDENT) COLON typ {
+| separated_nonempty_list(COMMA, IDENT) COLON ty {
   let idents = List.map (fun id -> Ident{name = id; loc = mk_loc $loc}) $1 in
-  List.map (fun id -> Decl{name = id; typ = $3; loc = mk_loc $loc}) idents
+  List.map (fun id -> Decl{name = id; ty = $3; loc = mk_loc $loc}) idents
   }
 
 c_sig:
@@ -182,7 +180,7 @@ c_sig:
   match $3 with
   | None -> Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc}
   | Some params ->
-  let params = List.map (fun id -> Parameter{typ = TCustom{tp = Ident{name = id; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None}; loc = mk_loc $loc}) params in
+  let params = List.map (fun id -> Parameter{ty = TCustom{ty = Ident{name = id; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None}; loc = mk_loc $loc}) params in
   if params = [] then Signature{name = Ident{name = $2; loc = mk_loc $loc}; loc = mk_loc $loc}
   else ParameterizedSignature{name = Ident{name = $2; loc = mk_loc $loc}; params; loc = mk_loc $loc} 
   }
@@ -223,8 +221,8 @@ action_firing_cond:
 
 action:
 | action_sig action_firing_cond stmt*
-  { Action{signature = $1; cond = $2; body = Mutators{stmts= $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
-| action_sig COLON typ expr 
+  { Action{signature = $1; cond = $2; body = Mutators{stmts = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
+| action_sig COLON ty expr 
   { let ActionSignature{name;params;out;loc} = $1 in
     let signature = ActionSignature{name;params;out = Some $3; loc} in
     Action{signature; cond = None; body = Query{expr = $4; loc = mk_loc $loc}; loc = mk_loc $loc} 
@@ -242,7 +240,7 @@ concept:
 
 app_dep:
 | IDENT pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
-| IDENT delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_typ)), RBRACK) { 
+| IDENT delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_ty)), RBRACK) { 
   let generics = List.map (
     fun (con, ty) -> 
       match con with

@@ -2,19 +2,19 @@ module Loc = Location
 
 exception TODO
 
-type ident = Ident of {name: string; loc : Loc.location }
+type ident = Ident of { name : string; loc : Loc.location }
 
-type mult = One | Set | Lone | Som
+type mult = One | Set | Lone 
 
-type typ =
+type ty =
   | TString of { loc : Loc.location; mult : mult option }
   | TBool of { loc : Loc.location; }
   | TInt of { loc : Loc.location; mult : mult option}
-  | TCustom of { tp : ident; loc : Loc.location; mult : mult option; } (* custom type *)
-  | TMap of { left : typ; right : typ; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
+  | TCustom of { ty : ident; loc : Loc.location; mult : mult option; } (* custom type *)
+  | TMap of { left : ty; right : ty; loc : Loc.location } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 
-type parameter = Parameter of {typ : typ; loc : Loc.location } (*This is for the concept signature *)
-type decl = Decl of {name : ident; typ : typ; loc : Loc.location } (*State declarations, action signatures*)
+type parameter = Parameter of {ty : ty; loc : Loc.location } (*This is for the concept signature *)
+type decl = Decl of {name : ident; ty : ty; loc : Loc.location } (*State declarations, action signatures*)
   
 type binop = 
 | Plus of { loc : Loc.location }
@@ -102,7 +102,7 @@ type concept_states = States of {
 
 type action_sig = ActionSignature of {
   name : ident; 
-  out : typ option ; (* Subset of params of values to be returned *)
+  out : ty option ; (* Subset of params of values to be returned *)
   params : decl list;
   loc : Loc.location;
 }
@@ -136,7 +136,7 @@ type concept = Concept of {
 
 type generic = Generic of {
   con : ident option;
-  ty : typ;
+  ty : ty;
   loc : Loc.location;
 }
 

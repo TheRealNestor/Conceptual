@@ -383,28 +383,29 @@ let serializeField env (FldDecl{id;ty;expr;const}) : string =
   var ^ S.name id ^ " : " ^ serializeType ty ^ exprStr (*"var" here works because State atom is only one with field in translation*)
 
 let serializeSignature env (SigDecl{sig_id;fields;mult}) : string = 
-  if List.length fields = 0 then "sig " ^ S.name sig_id ^ " { } " else (
+  if List.length fields = 0 then "sig " ^ S.name sig_id ^ " {}" 
+  else (*State*)
     let env = increase_indent env in
     let fieldsStr = mapcat ("," ^ nl env) (serializeField env) fields in
     let mult = serializeMul mult in
-    mult ^ "sig " ^ S.name sig_id ^ " " ^ (braceswnl env) fieldsStr 
-  )
+    "\n" ^ mult ^ "sig " ^ S.name sig_id ^ " " ^ (braceswnl env) fieldsStr 
 
 let serializeSigs (env : cg_env) (s : sigDecl list) : string = 
   (* filter from the signature declaration list all the generic types *)
   let s = List.filter (fun (SigDecl{sig_id;_}) -> not (List.mem sig_id !(env.generics))) s in
-  mapcat "\n\n" (serializeSignature env) s
+  mapcat "\n" (serializeSignature env) s ^ if List.length s = 0 then "" else "\n\n"
 
 let serializeFact env (Fact{fact_id;body}) : string = 
   let env = increase_indent env in
   "fact _state_" ^ S.name fact_id ^ " " ^ (braceswnl env) @@ (serializeExpr env) body
 
 let serializeFacts env (f : fact list) : string =
-  mapcat "\n\n" (serializeFact env) f
+  mapcat "\n\n" (serializeFact env) f ^ if List.length f = 0 then "" else "\n\n"
 
 let serializeAssertion env (Assertion{assert_id;body}) : string = 
   let env = increase_indent env in
-  "assert " ^ S.name assert_id ^ " " ^ (braceswnl env) @@ (serializeExpr env) body
+  "assert " ^ S.name assert_id ^ " " ^ ((braceswnl env) @@ (serializeExpr env) body )
+  ^ "\n" ^ "check " ^ S.name assert_id ^ " for 3" (*some reasonable scope*)
 
 let serializeAssertions env (a : assertion list) : string = 
   mapcat "\n\n" (serializeAssertion env) a
@@ -505,10 +506,10 @@ let serializeDynamicBehavior env (Program{sigs;preds_and_funcs;_}) =
     let stutter = serializeStutter env fields in
     let preds = List.filter (fun x -> match x with | Pred _ -> true | _ -> false) preds_and_funcs in (*Remove queries*)
     let transitions = transitions env preds fields in  
-    stutter ^ "\n\n" ^ transitions
+    stutter ^ "\n\n" ^ transitions ^ "\n"
 
 let serializeFunctionTypes env (f : func_type list) : string =
-  mapcat "\n\n" (serializeFunctionType env) f
+  mapcat "\n\n" (serializeFunctionType env) f ^ if List.length f = 0 then "" else "\n\n" (*This should always have a function*)
 
 (* TODO: Ensure the set of events is correctly formatted for a number of cases... Are extensions correctly added, etc... *)
 let serializeEvents env (f : func_type list) : string = 
@@ -565,7 +566,7 @@ let serializeEvents env (f : func_type list) : string =
       else
         parens action_str ^ key
   ) partitioned in
-  enum_str ^ "\n\n" ^ event_fun_str ^ "\n\n" ^ event_set_str
+  enum_str ^ "\n\n" ^ event_fun_str ^ "\n\n" ^ event_set_str ^ "\n"
 
 
 let serializeDependencies (deps : dep list) : string = 
@@ -576,6 +577,7 @@ let serializeDependencies (deps : dep list) : string =
         (S.name @@ Option.get id) ^ "/" ^ serializeType ty) generics in
       "open " ^ S.name id ^ if genericsStr = "" then "" else brackets genericsStr
   ) deps
+  ^ if List.length deps = 0 then "" else "\n\n"
   
 
 let get_prog_name (Program{module_header;_}) = 
@@ -588,23 +590,22 @@ let string_of_program (Program{module_header;purpose;sigs;facts;preds_and_funcs;
                                                                    to populate the environment with generics*)
   let purpose = match purpose with | None -> "" | Some p -> serializePurpose p in
   let funcs_str = serializeFunctionTypes env preds_and_funcs in
+  let can_str = if List.length deps <> 0 then "" else 
+    String.concat "\n" (!(env.can_functions)) ^ if List.length !(env.can_functions) = 0 then "" else  "\n\n" in
+  env.can_functions := [];
   module_str ^ purpose ^ "\n" ^ 
   wrap_in_comment "LANGUAGE:\tAlloy6" ^ "\n\n" ^
-
-  serializeDependencies deps ^ "\n\n" ^
-  serializeSigs env (List.rev sigs) ^ "\n\n" ^
-  serializeFacts env facts ^ "\n\n" ^
-  funcs_str ^ "\n\n" ^
-  String.concat "\n" (List.rev !(env.can_functions)) ^ "\n\n" ^
-  (* if this is an app, we don't want this event stuff TODO: we might in the future to distinguish between events,
-    only concepts have 0 dependencies, apps have at least one dependency *)
+  serializeDependencies deps ^
+  serializeSigs env (List.rev sigs) ^
+  serializeFacts env facts ^
+  funcs_str ^
+  can_str ^
   if List.length deps <> 0 then (
     ""
-    (* may want to do something here TODO: *)
   ) else (
   "-------------------------------------------" ^ "\n" ^
-  serializeDynamicBehavior env p ^ "\n" ^
-  serializeEvents env preds_and_funcs ^ "\n" ^
+  serializeDynamicBehavior env p ^
+  serializeEvents env preds_and_funcs  ^
   "-------------------------------------------" ^ "\n" 
   )
   ^ "\n" ^ serializeAssertions env assertions

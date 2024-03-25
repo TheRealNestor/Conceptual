@@ -45,7 +45,6 @@ let token_to_string = function
   | Parser.ONE -> "ONE"
   | Parser.CAN -> "CAN"
   | Parser.CARD -> "CARD"
-  | Parser.SOME -> "SOME"
   | Parser.LONE -> "LONE"
   | Parser.APP -> "APP"
   | Parser.INCLUDE -> "INCLUDE"
@@ -61,6 +60,7 @@ let token_to_string = function
   | Parser.UNTIL -> "UNTIL"
   | Parser.NO -> "NO"
 
+
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
         let token = tokenizer lexbuf in
@@ -73,12 +73,12 @@ let lex_and_print_tokens tokenizer lexbuf =
       aux ()
       
 (* Checks if types are equal (disregarding multiplicity) *)
-let rec same_base_type tp1 tp2 =
-  match tp1, tp2 with 
+let rec same_base_type ty1 ty2 =
+  match ty1, ty2 with 
   | TAst.TInt _, TAst.TInt _ -> true
   | TBool, TBool -> true
   | TString _, TString _ -> true
-  | TCustom {tp=tp1;_}, TCustom {tp=tp2;_} -> tp1 = tp2
+  | TCustom {ty=ty1;_}, TCustom {ty=ty2;_} -> ty1 = ty2
   | NullSet _, NullSet _ -> true
   | NullSet _, _ -> true
   | _, NullSet _ -> true
@@ -89,7 +89,7 @@ let rec same_base_type tp1 tp2 =
 let rec get_base_type = function
 | TAst.TInt _ -> TAst.TInt{mult = None}
 | TString _ -> TString{mult = None}
-| TCustom {tp;_} -> TCustom{tp;mult = None;ns = None}
+| TCustom {ty;_} -> TCustom{ty;mult = None;ns = None}
 | TMap {left;right} -> TMap{left = get_base_type left; right = get_base_type right}
 | _ as t -> t
 
@@ -121,14 +121,14 @@ let get_mult = function
 | TAst.TInt {mult} | TString {mult} | TCustom {mult;_} -> mult
 | _ -> None
 
-(* create a function that checks that a given tp is included somewhere in a TMap{left;right} *)
-let type_is_in_relation tp rel = 
+(* create a function that checks that a given ty is included somewhere in a TMap{left;right} *)
+let type_is_in_relation ty rel = 
   if not (is_relation rel) then false
   else
 
 let rec dfs = function
   | TAst.TMap{left;right} -> dfs left || dfs right
-  | t -> same_base_type t tp
+  | t -> same_base_type t ty
   in dfs rel
 
 let is_lval = function
@@ -160,19 +160,18 @@ let ast_mult_to_tast = Option.map (function
   | Ast.One -> TAst.One
   | Set -> Set
   | Lone -> Lone
-  | Som -> Som
 )
 
 let get_ret_type (TAst.ActionSignature{out;_}) = 
   match out with
   | None -> TAst.TBool
-  | Some tp -> tp
+  | Some ty -> ty
 
 let rec convert_type = function
 | Ast.TInt {mult;_} -> TAst.TInt{mult = ast_mult_to_tast mult}
 | TBool _ -> TBool
 | TString {mult;_} -> TString{mult = ast_mult_to_tast mult}
-| TCustom {tp=Ident{name;_};mult;_} -> TCustom {tp = Ident{sym = Symbol.symbol name};mult = ast_mult_to_tast mult; ns = None}
+| TCustom {ty=Ident{name;_};mult;_} -> TCustom {ty = Ident{sym = Symbol.symbol name};mult = ast_mult_to_tast mult; ns = None}
 | TMap{left;right;_} -> TMap{left = convert_type left; right = convert_type right}
 
 let ast_binop_to_tast = function
@@ -197,37 +196,36 @@ let ast_binop_to_tast = function
 | Then _ -> Then
 | Until _ -> Until
 
-let rec set_typ_mult tp mult = 
-  match tp with
+let rec set_typ_mult mult = function
   | TAst.TInt _ -> TAst.TInt{mult}
   | TString _ -> TString{mult}
-  | TCustom {tp;ns;_} -> TCustom{tp;mult;ns}
-  | TMap {left;right} -> TMap{left = set_typ_mult left mult; right = set_typ_mult right mult}
-  | _ -> tp
+  | TCustom {ty;ns;_} -> TCustom{ty;mult;ns}
+  | TMap {left;right} -> TMap{left = set_typ_mult mult left; right = set_typ_mult mult right}
+  | _ as ty -> ty
 
 let get_lval_or_expr_location = function
 | Ast.Lval l -> get_lval_location l
 | _ as e -> get_expr_location e
 
-let type_to_list_of_types tp = 
+let type_to_list_of_types ty = 
   let rec dfs_map_search acc = function 
     | TAst.TMap{left;right} -> 
       let left_history, right_history = dfs_map_search acc left, dfs_map_search acc right in
       left_history @ right_history
-    | tp -> acc @ [tp]
-  in dfs_map_search [] tp
+    | ty -> acc @ [ty]
+  in dfs_map_search [] ty
 
 (* Passing expression only to get its location information, not needed otherwise... *)
-let construct_join_type env expr left_tp right_tp =
+let construct_join_type env expr left_ty right_ty =
     (*For maps we want a list of all tapes, makes it easier to construct resulting type
        Not the most efficient approach but relation should rarely but relations should rarely be long*)
-  let left_history, right_history = type_to_list_of_types left_tp, type_to_list_of_types right_tp in
+  let left_history, right_history = type_to_list_of_types left_ty, type_to_list_of_types right_ty in
   let leftmost_type_of_right, rightmost_type_of_left = List.hd right_history, List.hd @@ List.rev left_history in
-  let unwrapped_right_tp, unwrapped_left_tp = set_typ_mult leftmost_type_of_right None, set_typ_mult rightmost_type_of_left None in
-  if not (is_relation left_tp || is_relation right_tp) then (
-    Env.insert_error env (IllFormedRelation{loc = get_lval_or_expr_location expr; left = left_tp; right = right_tp}); TAst.ErrorType
-  ) else if unwrapped_right_tp <> unwrapped_left_tp then (
-    Env.insert_error env (DisjointRelation{loc = get_lval_or_expr_location expr; left = unwrapped_left_tp; right = unwrapped_right_tp}); ErrorType
+  let unwrapped_right_ty, unwrapped_left_ty = set_typ_mult None leftmost_type_of_right, set_typ_mult None rightmost_type_of_left in
+  if not (is_relation left_ty || is_relation right_ty) then (
+    Env.insert_error env (IllFormedRelation{loc = get_lval_or_expr_location expr; left = left_ty; right = right_ty}); TAst.ErrorType
+  ) else if unwrapped_right_ty <> unwrapped_left_ty then (
+    Env.insert_error env (DisjointRelation{loc = get_lval_or_expr_location expr; left = unwrapped_left_ty; right = unwrapped_right_ty}); ErrorType
   ) else (
     (* Construct the resulting type of the join  *)
     (* This includes everything in left_history except its last element, everything in right_history except for head *)
@@ -241,56 +239,28 @@ let construct_join_type env expr left_tp right_tp =
       List.hd resulting_type
     ) else
       List.fold_left (
-        fun acc tp ->
+        fun acc ty ->
           (* construct the map from list of types *)
-          TAst.TMap{left = acc; right = tp}
+          TAst.TMap{left = acc; right = ty}
       ) (List.hd resulting_type) (List.tl resulting_type)  
   )
 
-let rec reverse_relation_tp = function
-| TAst.TMap{left;right} -> TAst.TMap{left = reverse_relation_tp right; right = reverse_relation_tp left}
-| tp -> tp
+let rec reverse_relation_type = function
+| TAst.TMap{left;right} -> TAst.TMap{left = reverse_relation_type right; right = reverse_relation_type left}
+| ty -> ty
 
-(* As we are using typed ast, we must explicitly provide location in case errors happen *)
-
-(* TODO: This should be updated? Maps can be used with other maps for instance, distinguish between map and set complex types. *)
-(* let is_first_order_type env tp loc =
-  let complex_type_encountered = ref false in
-  let rec dfs = function
-    | TAst.TMap {left; right} -> 
-      complex_type_encountered := true;
-      (* if any of left or right or their sub types are sets, return false *)
-      dfs left && dfs right
-    | TAst.TString {mult} | TAst.TInt {mult} | TAst.TBool {mult} | TAst.TCustom {mult;_} -> 
-      (match mult with
-      | None -> false
-      | Some TAst.One -> 
-        if !complex_type_encountered then (
-          Env.insert_error env (TypeNotFirstOrder {tp; loc});
-          true
-        ) else 
-          false
-      | Some TAst.Set -> false)
-    | _ -> true
-  in
-  let is_first_order = dfs tp in
-  if not is_first_order then
-    Env.insert_error env (TypeNotFirstOrder {tp; loc});
-  is_first_order *)
-
-let change_expr_type (expr : TAst.expr) typ : TAst.expr =
-  match expr with 
-  | EmptySet _ -> EmptySet{tp=typ}
-  | Binop {op;left;right;_} -> Binop {op;left;right;tp=typ}
-  | Unop {op;operand;_} -> Unop {op;operand;tp=typ}
-  | Call {action;args;_} -> Call {action;args;tp=typ}
-  | Lval(Var {name;_}) -> Lval(Var {name;tp=typ})
-  | Lval(Relation {left; right;_}) -> Lval(Relation {left; right;tp=typ})
+let change_expr_type ty = function
+  | TAst.EmptySet _ -> TAst.EmptySet{ty}
+  | Binop {op;left;right;_} -> Binop {op;left;right;ty}
+  | Unop {op;operand;_} -> Unop {op;operand;ty}
+  | Call {action;args;_} -> Call {action;args;ty}
+  | Lval(Var {name;_}) -> Lval(Var {name;ty})
+  | Lval(Relation {left; right;_}) -> Lval(Relation {left; right;ty})
   | e -> e
 
 let get_expr_type = function 
-| TAst.EmptySet {tp} | Binop {tp;_} | Unop {tp;_} | Call {tp;_} | Lval(Var {tp;_}) | Lval(Relation {tp;_}) | BoxJoin{tp;_} 
-| SetComp {tp;_} -> tp
+| TAst.EmptySet {ty} | Binop {ty;_} | Unop {ty;_} | Call {ty;_} | Lval(Var {ty;_}) | Lval(Relation {ty;_}) | BoxJoin{ty;_} 
+| SetComp {ty;_} -> ty
 | String _ -> TString{mult = None}
 | Integer _ -> TInt{mult = None}
 | Can _ -> TBool
@@ -300,7 +270,7 @@ let get_expr_type = function
 
 (* gets the type of an lval, or rightmost variable on the left in an assignment *)
 let rec get_lval_type = function 
-| TAst.Var {tp;_} -> tp 
+| TAst.Var {ty;_} -> ty 
 | Relation{right;_} -> get_lval_type right
 
 let is_join_expr = function

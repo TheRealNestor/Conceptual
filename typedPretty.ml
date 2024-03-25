@@ -7,18 +7,17 @@ let mult_to_string = function
 | Some One -> "One of "
 | Some Set -> "Set of "
 | Some Lone -> "Lone of "
-| Some Som -> "Some of "
 
 
 let rec typ_to_string = function 
 | TInt {mult} -> mult_to_string mult ^ "Int"
 | TBool -> "Bool" 
 | TString {mult} -> mult_to_string mult ^ "String"
-| TCustom {tp = Ident{sym};mult;_} -> mult_to_string mult ^ Sym.name sym
+| TCustom {ty = Ident{sym};mult;_} -> mult_to_string mult ^ Sym.name sym
 | TMap{left;right} -> "Map <" ^ (typ_to_string left) ^ " , " ^ (typ_to_string right) ^ ">"
 | ErrorType -> "Error"
-| NullSet{tp} -> 
-  begin match tp with 
+| NullSet{ty} -> 
+  begin match ty with 
   | None -> "Null"
   | Some t -> "Null of " ^ (typ_to_string t)
   end
@@ -28,8 +27,8 @@ let ident_to_tree (Ident{sym}) = Pretty.make_ident_line (Sym.name sym)
 let ident_from_signature = function 
 | Signature {name; _} | ParameterizedSignature {name; _} -> name
 
-let rec typ_to_tree = function
-| TMap {left; right; _} -> PBox.tree (Pretty.make_typ_line "Map") [typ_to_tree left; typ_to_tree right]
+let rec ty_to_tree = function
+| TMap {left; right; _} -> PBox.tree (Pretty.make_typ_line "Map") [ty_to_tree left; ty_to_tree right]
 | _ as t -> Pretty.make_typ_line @@ typ_to_string t
 
 
@@ -65,30 +64,30 @@ let unop_to_tree = function
 | No -> Pretty.make_keyword_line "No"
 
 let rec lval_to_tree = function
-| Var {name;tp} -> PBox.tree ( Pretty.make_info_node_line "Var:";) [ident_to_tree name; typ_to_tree tp]
-| Relation {left;right;tp} -> PBox.tree (Pretty.make_info_node_line "Relation:") [lval_to_tree left; lval_to_tree right; typ_to_tree tp]
+| Var {name;ty} -> PBox.tree ( Pretty.make_info_node_line "Var:";) [ident_to_tree name; ty_to_tree ty]
+| Relation {left;right;ty} -> PBox.tree (Pretty.make_info_node_line "Relation:") [lval_to_tree left; lval_to_tree right; ty_to_tree ty]
 
 let decl_to_tree = function
-  | Decl {name; typ; _} -> PBox.tree (Pretty.make_info_node_line "Decl") 
+  | Decl {name; ty; _} -> PBox.tree (Pretty.make_info_node_line "Decl") 
       [PBox.hlist ~bars:false [Pretty.make_info_node_line "Name: "; ident_to_tree name]; 
-      PBox.hlist ~bars:false [Pretty.make_info_node_line "Type: "; typ_to_tree typ]
+      PBox.hlist ~bars:false [Pretty.make_info_node_line "Type: "; ty_to_tree ty]
       ]
 
 let rec expr_to_tree = function
-| EmptySet {tp} -> PBox.tree (Pretty.make_info_node_line "EmptySet") [typ_to_tree tp]
+| EmptySet {ty} -> PBox.tree (Pretty.make_info_node_line "EmptySet") [ty_to_tree ty]
 | Integer {int} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "IntLit("; PBox.line (Int64.to_string int); Pretty.make_info_node_line ")"]
 | String {str} -> PBox.hlist ~bars:false [Pretty.make_info_node_line "StringLit("; PBox.line str; Pretty.make_info_node_line ")"]
 | Lval l -> lval_to_tree l
-| Unop {op;operand;tp} -> PBox.tree (Pretty.make_info_node_line "Unop") [unop_to_tree op; expr_to_tree operand; typ_to_tree tp]
-| Binop {op;left;right;tp} -> PBox.tree (Pretty.make_info_node_line "Binop") [binop_to_tree op; expr_to_tree left; expr_to_tree right; typ_to_tree tp]
-| SetComp {decls; cond; tp} -> PBox.tree (Pretty.make_info_node_line "SetComp") [PBox.tree (Pretty.make_info_node_line "Decls") (List.map decl_to_tree decls); expr_to_tree cond; typ_to_tree tp]
-| BoxJoin {left;right;tp} -> PBox.tree (Pretty.make_info_node_line "BoxJoin") [expr_to_tree left; List.map expr_to_tree right |> PBox.tree (Pretty.make_info_node_line "Right"); typ_to_tree tp]
-| Call {action;args;tp} -> PBox.tree (Pretty.make_info_node_line "Call") [ident_to_tree action; PBox.tree (Pretty.make_info_node_line "Args") (List.map expr_to_tree args); typ_to_tree tp]
+| Unop {op;operand;ty} -> PBox.tree (Pretty.make_info_node_line "Unop") [unop_to_tree op; expr_to_tree operand; ty_to_tree ty]
+| Binop {op;left;right;ty} -> PBox.tree (Pretty.make_info_node_line "Binop") [binop_to_tree op; expr_to_tree left; expr_to_tree right; ty_to_tree ty]
+| SetComp {decls; cond; ty} -> PBox.tree (Pretty.make_info_node_line "SetComp") [PBox.tree (Pretty.make_info_node_line "Decls") (List.map decl_to_tree decls); expr_to_tree cond; ty_to_tree ty]
+| BoxJoin {left;right;ty} -> PBox.tree (Pretty.make_info_node_line "BoxJoin") [expr_to_tree left; List.map expr_to_tree right |> PBox.tree (Pretty.make_info_node_line "Right"); ty_to_tree ty]
+| Call {action;args;ty} -> PBox.tree (Pretty.make_info_node_line "Call") [ident_to_tree action; PBox.tree (Pretty.make_info_node_line "Args") (List.map expr_to_tree args); ty_to_tree ty]
 | Can {call} -> PBox.tree (Pretty.make_info_node_line "Can") [expr_to_tree call]
 
 
 let rec statement_to_tree = function
-| Assignment {lval;rhs;tp} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; typ_to_tree tp]
+| Assignment {lval;rhs;ty} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; ty_to_tree ty]
 and statement_seq_to_forest stmts = 
   if List.length stmts = 0 then [Pretty.make_info_node_line "Empty"]
   else List.map statement_to_tree stmts
@@ -99,7 +98,7 @@ let rec parameter_list_to_tree parameters =
   if List.length parameters = 0 then PBox.tree (Pretty.make_info_node_line "ParameterList") [Pretty.make_info_node_line "Empty"]
   else PBox.tree (Pretty.make_info_node_line "ParameterList") (List.map parameter_to_tree parameters)
 and parameter_to_tree  = function
-  | Parameter {typ; _} -> PBox.tree (Pretty.make_info_node_line "Parameter") [typ_to_tree typ]
+  | Parameter {ty; _} -> PBox.tree (Pretty.make_info_node_line "Parameter") [ty_to_tree ty]
 
 let decl_list_to_tree parameters =
   if List.length parameters = 0 then PBox.tree (Pretty.make_info_node_line "DeclList") [Pretty.make_info_node_line "Empty"]
@@ -132,7 +131,7 @@ let action_to_tree = function
 | Action {signature=ActionSignature{name;out;params;_}; cond; body; _} ->
     PBox.tree (Pretty.make_info_node_line "Action") [
       PBox.hlist ~bars:false [Pretty.make_info_node_line "Name: "; ident_to_tree name];
-      PBox.hlist ~bars:false [Pretty.make_info_node_line "Return Type: "; match out with | None -> Pretty.make_info_node_line "None" | Some t -> typ_to_tree t];
+      PBox.hlist ~bars:false [Pretty.make_info_node_line "Return Type: "; match out with | None -> Pretty.make_info_node_line "None" | Some t -> ty_to_tree t];
       PBox.hlist ~bars:false [decl_list_to_tree params];
       PBox.tree (Pretty.make_info_node_line "Firing Condition") [match cond with Some When{cond; _} -> expr_to_tree cond | None -> Pretty.make_info_node_line "None"];
       PBox.tree (Pretty.make_info_node_line "Body") (action_body_to_tree body)
@@ -143,7 +142,7 @@ let actions_to_tree (actions : action list) =
   else PBox.tree (Pretty.make_info_node_line "Actions") (List.map action_to_tree actions)
 
 let concept_to_tree (c : concept ) =
-  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; op=OP{principles}} = c in
+  let Concept{signature; purpose=Purpose{doc_str;_}; states=States{states;_}; actions=Actions{actions;_}; op=OP{principles;_}} = c in
   PBox.tree (Pretty.make_info_node_line "Concept") [
     PBox.tree (Pretty.make_info_node_line "Signature") [ident_to_tree @@ ident_from_signature signature; signature_params_pretty signature];
     PBox.tree (Pretty.make_info_node_line "Purpose") [PBox.text doc_str];
@@ -155,8 +154,8 @@ let concept_to_tree (c : concept ) =
 
 let prettify_generic (Generic{con;ty;_}) = 
   PBox.tree (Pretty.make_info_node_line "Generic") (match con with 
-  | None -> [typ_to_tree ty]
-  | Some con -> [ident_to_tree con; typ_to_tree ty])
+  | None -> [ty_to_tree ty]
+  | Some con -> [ident_to_tree con; ty_to_tree ty])
 
 let dependency_to_tree (Dependency{name;generics;_}) = 
   PBox.tree (Pretty.make_info_node_line "Dependency") [ident_to_tree name; PBox.tree (Pretty.make_info_node_line "Generics") (List.map prettify_generic generics)]

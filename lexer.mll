@@ -37,7 +37,6 @@
 
 let backslash_escapes =
     ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
-    
 
 let digit = ['0'-'9']
 let digits = digit+
@@ -50,7 +49,7 @@ let whitespace = [' ' '\t' '\r']
 (* Could possibly have this be its own concept spec rule and distinguish it from a 
 concept composition rule via the keywords "concept" and "app" *)
 
-rule token = parse 
+rule lex = parse 
 | eof { EOF }
 | '=' { EQ }
 | '+' { PLUS }
@@ -70,8 +69,8 @@ rule token = parse
 | '|' { PIPE }
 | '}' { RBRACE }
 | '"' { Buffer.clear string_buf; string lexbuf; STR_LIT (Buffer.contents string_buf)}  (*Clear current buffer, do the string rule, return contents of buffer afterwards as a STRING token *)
-| whitespace+ { token lexbuf } (* Skip whitespace *)
-| '\n' { Lexing.new_line lexbuf; token lexbuf} (* Increment line number *)
+| whitespace+ { lex lexbuf } (* Skip whitespace *)
+| '\n' { Lexing.new_line lexbuf; lex lexbuf} (* Increment line number *)
 | "//" { single_comment lexbuf } 
 | "/*" { multi_comment 0 lexbuf } 
 | '<' { LT }
@@ -91,7 +90,6 @@ rule token = parse
 | "not" | '!' { NOT }
 | "set" { SET }
 | "lone" { LONE }
-| "some" { SOME }
 | "const" { CONST }
 | "one" { ONE }
 | "String" { STRING }
@@ -102,16 +100,12 @@ rule token = parse
 | "until" { UNTIL }
 | "then" | ';' { THEN } 
 | "no" { NO }
-
-(* ---------------------------------------- *)
-
 | "concept" { CONCEPT }
 | "purpose" { Buffer.clear string_buf; purpose_str lexbuf; PURPOSE (Buffer.contents string_buf) } (* Embed the string into the token *)
 (* | "state" { STATE } This is never actually run *)
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
 | "principle" { add_token_to_cache OP; OP }
 
-(* Composition of concepts  *)
 | "app" { APP }
 | "include" { INCLUDE }
 | "sync" { SYNC }
@@ -152,19 +146,19 @@ and string = parse
 
 (* Nesting not applicable for single-line comments*)
 and single_comment = parse
-| '\n' {Lexing.new_line lexbuf; token lexbuf} (* End of single comment. Increment line number *)
-| eof { token lexbuf } (* End of single comment *)
+| '\n' {Lexing.new_line lexbuf; lex lexbuf} (* End of single comment. Increment line number *)
+| eof { lex lexbuf } (* End of single comment *)
 | _ { single_comment lexbuf } (* Keep reading single comment *)
 
 and multi_comment nesting_level = parse (* and here so we can do mutual recursion *)
 | "/*" { multi_comment (nesting_level + 1) lexbuf } (* Nested multi_comment *)
 | '\n' {Lexing.new_line lexbuf; multi_comment nesting_level lexbuf} (* increment l_num when incountering newline in *)
 | "*/" { if nesting_level = 0 then 
-            token lexbuf
+            lex lexbuf
           else
             multi_comment (nesting_level - 1) lexbuf 
         }
-| eof { token lexbuf } (* End of multi comment *)
+| eof { lex lexbuf } (* End of multi comment *)
 | _ { multi_comment nesting_level lexbuf } (* Keep reading multi_comments *)
 
 

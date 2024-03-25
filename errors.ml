@@ -6,27 +6,25 @@ module Loc = Location
 module TAst = TypedAst
 module TPretty = TypedPretty
 
-
 type error = 
 | InvalidEscapeCharacter of {loc : Loc.location; input : string}
 | NoState 
 | DuplicateDeclaration of {loc : Loc.location; name : TAst.ident; ns : string}
-| TypeMismatch of {expected : TAst.typ; actual : TAst.typ; loc : Loc.location}
+| TypeMismatch of {expected : TAst.ty; actual : TAst.ty; loc : Loc.location}
 | UnsupportedExpressionStatement of {loc : Loc.location}
 | Undeclared of {loc : Loc.location; name : TAst.ident}
-| IllFormedRelation of {loc : Loc.location; left : TAst.typ; right : TAst.typ}
-| DisjointRelation of {loc : Loc.location; left : TAst.typ; right : TAst.typ}
+| IllFormedRelation of {loc : Loc.location; left : TAst.ty; right : TAst.ty}
+| DisjointRelation of {loc : Loc.location; left : TAst.ty; right : TAst.ty}
 | NotAnAction of {loc : Loc.location; name : TAst.ident}
 | LengthMismatch of {loc : Loc.location; expected : int; actual : int}
-(* | TypeNotFirstOrder of {loc : Loc.location; tp : TAst.typ} *)
 | UnterminatedString of {loc : Loc.location}
-| NotARelation of {loc : Loc.location; tp : TAst.typ}
-| InvalidInExpression of {loc : Loc.location; left : TAst.typ; right : TAst.typ}
-| NotAPrimitiveType of {loc : Loc.location; tp : TAst.typ}
-| PrimitiveType of {loc : Loc.location; tp : TAst.typ}
-| UndeclaredType of {loc : Loc.location; tp : TAst.typ}
+| NotARelation of {loc : Loc.location; ty : TAst.ty}
+| InvalidInExpression of {loc : Loc.location; left : TAst.ty; right : TAst.ty}
+| NotAPrimitiveType of {loc : Loc.location; ty : TAst.ty}
+| PrimitiveType of {loc : Loc.location; ty : TAst.ty}
+| UndeclaredType of {loc : Loc.location; ty : TAst.ty}
 | ActionAsLval of {loc : Loc.location; name : TAst.ident}
-| NotASet of {loc : Loc.location; tp : TAst.typ}
+| NotASet of {loc : Loc.location; ty : TAst.ty}
 | InvalidCStyle of {loc : Loc.location; input : string}
 | ConstAssignment of {loc : Loc.location; name : TAst.ident}
 | CannotInferSetCompType of {loc : Loc.location}
@@ -54,15 +52,14 @@ let print_error err =
   | DisjointRelation {loc; left; right} -> Printf.printf "DisjointRelation. The types %s and %s are disjoint \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;
   | NotAnAction {loc; name} -> Printf.printf "NotAnAction. The name %s is not an action \t" (string_of_t_ident name); Loc.print_location loc;
   | LengthMismatch {loc; expected; actual} -> Printf.printf "LengthMismatch. Expected %d arguments but got %d \t" expected actual; Loc.print_location loc;
-  (* | TypeNotFirstOrder {loc; tp} -> Printf.printf "TypeNotFirstOrder. The type %s is not first order \t" (TPretty.typ_to_string tp); Loc.print_location loc; *)
   | UnterminatedString {loc} -> Printf.printf "UnterminatedString. Unterminated string \t"; Loc.print_location loc;
-  | NotARelation {loc; tp} -> Printf.printf "NotARelation. The type %s is not a relation \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+  | NotARelation {loc; ty} -> Printf.printf "NotARelation. The type %s is not a relation \t" (TPretty.typ_to_string ty); Loc.print_location loc;
   | InvalidInExpression {loc; left; right} -> Printf.printf "InvalidInExpression. The types %s and %s are not compatible \t" (TPretty.typ_to_string left) (TPretty.typ_to_string right); Loc.print_location loc;
-  | NotAPrimitiveType {loc; tp} -> Printf.printf "NotAPrimitiveType. The type %s is not a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
-  | PrimitiveType {loc; tp} -> Printf.printf "PrimitiveType. The type %s is a primitive type \t" (TPretty.typ_to_string tp); Loc.print_location loc;
-  | UndeclaredType {loc; tp} -> Printf.printf "UndeclaredType. The type %s is not declared \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+  | NotAPrimitiveType {loc; ty} -> Printf.printf "NotAPrimitiveType. The type %s is not a primitive type \t" (TPretty.typ_to_string ty); Loc.print_location loc;
+  | PrimitiveType {loc; ty} -> Printf.printf "PrimitiveType. The type %s is a primitive type \t" (TPretty.typ_to_string ty); Loc.print_location loc;
+  | UndeclaredType {loc; ty} -> Printf.printf "UndeclaredType. The type %s is not declared \t" (TPretty.typ_to_string ty); Loc.print_location loc;
   | ActionAsLval {loc; name} -> Printf.printf "ActionAsLval. The name %s is an action \t" (string_of_t_ident name); Loc.print_location loc;
-  | NotASet {loc; tp} -> Printf.printf "NotASet. The type %s is not a set \t" (TPretty.typ_to_string tp); Loc.print_location loc;
+  | NotASet {loc; ty} -> Printf.printf "NotASet. The type %s is not a set \t" (TPretty.typ_to_string ty); Loc.print_location loc;
   | InvalidCStyle {loc; input} -> Printf.printf "InvalidShorthand. Invalid C-style shorthand: %s= \t" input; Loc.print_location loc;
   | ConstAssignment {loc; name} -> Printf.printf "ConstAssignment. The name %s is a constant and cannot be mutated \t" (string_of_t_ident name); Loc.print_location loc;
   | CannotInferSetCompType {loc} -> Printf.printf "CannotInferSetCompType. Cannot infer the type of the set comprehension \t"; Loc.print_location loc;

@@ -2,13 +2,13 @@ module TAst = TypedAst
 module Als = Alloy
 module Sym = Symbol
 
-type var = {id : Sym.symbol; is_const : bool; has_fact : bool}
+type variable = {id : Sym.symbol; is_const : bool; has_fact : bool}
 
 type cg_env = {
   custom_types : Sym.symbol list; (*Keep track of custom types, these are for the signatures*)
-  state_vars : var list; (* actually declared variable in state component of concept*)
+  state_vars : variable list; (* actually declared variable in state component of concept*)
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
-  assignment_type : TAst.typ; (* type of the assignment in typed AST, used with distributive join to add things if it does not match*)
+  assignment_type : TAst.ty; (* type of the assignment in typed AST, used with distributive join to add things if it does not match*)
   is_left : bool; (* number of statements in the action, used for code generation*)
   lhs_sym : Sym.symbol; (* TODO: this could likely be refactored/removed... symbol of the left hand side of the assignment, used for empty set expression*)
   con_dict : (Symbol.symbol list) Sym.Table.t; (* concept name to list of state variables *)
@@ -30,54 +30,57 @@ let fresh_symbol initial_counter =
   fun initial ->
     let n = !c in c := n + 1; Sym.symbol (initial ^ (string_of_int n))
     
-let prepend_state_symbol ?(left = false) (s : Sym.symbol) : Sym.symbol = 
+let prepend_state_symbol ?(left = false) ?(parens=true) (s : Sym.symbol) : Sym.symbol = 
   let apost = if left then "'" else "" in
-  Sym.symbol @@ "(State." ^ Sym.name s ^ apost ^ ")" 
+  if parens then 
+    Sym.symbol @@ "(State." ^ Sym.name s ^ apost ^ ")" 
+  else 
+    Sym.symbol @@ "State." ^ Sym.name s ^ apost
 
-let fst_char_of_typ tp =
+let fst_char_of_typ ty =
   let first_letter_of_sym (sym : Sym.symbol) = 
     let str = Sym.name sym in
     if String.length str = 0 then failwith "Empty symbol"
     else String.make 1 str.[0]
   in
   let fst_char_of_typ' = function
-  | TAst.TCustom{tp= Ident{sym}; _} -> Sym.symbol @@ String.lowercase_ascii @@ Sym.name sym
+  | TAst.TCustom{ty=Ident{sym}; _} -> Sym.symbol @@ String.lowercase_ascii @@ Sym.name sym
   | TString _ -> Sym.symbol "string"
   | TInt _ -> Sym.symbol "int"
   | _ -> failwith "Other types are not supported ..."    
 in
-first_letter_of_sym @@ fst_char_of_typ' tp
+first_letter_of_sym @@ fst_char_of_typ' ty
 
 let rec symbol_from_type = function 
-| TAst.TCustom{tp= Ident{sym}; _} -> sym
+| TAst.TCustom{ty= Ident{sym}; _} -> sym
 | TString _ -> Sym.symbol "String"
 | TInt _ -> Sym.symbol "Int"
 | TMap _ as t -> 
   let types = List.tl @@ Utility.type_to_list_of_types t in 
   (* construct the symbol of all types in types, delimit with " -> " *)
   let str = List.fold_left (
-    fun str tp -> 
-      let tp = symbol_from_type tp in
-      str ^ Sym.name tp ^ " -> "
+    fun str ty -> 
+      let ty = symbol_from_type ty in
+      str ^ Sym.name ty ^ " -> "
   ) "" types in
   let str = String.sub str 0 (String.length str - 4) in
   Sym.symbol str
 | _ -> failwith "Other types are not supported ..."
  
-let type_in_env env tp = 
-  List.mem tp env.custom_types
+let type_in_env env ty = 
+  List.mem ty env.custom_types
 
-let rec add_tp_to_env env = function 
-| TAst.TCustom{tp = Ident{sym}; _} -> 
+let rec add_ty_to_env env = function 
+| TAst.TCustom{ty = Ident{sym}; _} -> 
   if type_in_env env sym then env else {env with custom_types = sym::env.custom_types}
 | TMap{left;right} -> 
-  let env = add_tp_to_env env left in
-  add_tp_to_env env right
+  let env = add_ty_to_env env left in
+  add_ty_to_env env right
 | _ -> env
 
-let get_sym_from_parameter (TAst.Parameter{typ}) =
-  begin match typ with
-  | TCustom{tp = Ident{sym};_} -> sym
+let get_sym_from_parameter (TAst.Parameter{ty}) =
+  begin match ty with
+  | TCustom{ty = Ident{sym};_} -> sym
   | _ -> failwith "should never get here: get_sym_from_parameter. Semant or parsing broken"
   end
 
@@ -130,14 +133,13 @@ let mult_to_als = function
                           A model with "one" multiplicity should not have actions for removing the association entirely. *)
 | Some Set -> Set
 | Some Lone -> Lone
-| Some Som -> Some
 
 
-let rec typ_to_als = function
+let rec type_to_als = function
 | TAst.TInt {mult} -> Als.Int(mult_to_als mult)
 | TString {mult} -> Str(mult_to_als mult)
-| TCustom{tp;mult;_} -> Sig(sym_from tp, mult_to_als mult) (*Note that this is  assumes no explicit multiplicty and no fields*)
-| TMap{left;right} -> Rel(typ_to_als left, typ_to_als right)
+| TCustom{ty;mult;_} -> Sig(sym_from ty, mult_to_als mult) (*Note that this is  assumes no explicit multiplicty and no fields*)
+| TMap{left;right} -> Rel(type_to_als left, type_to_als right)
 | _  -> failwith "Other types not supported"
 
 let get_dist_join_str ?(with_arrow = true) env =
@@ -150,12 +152,12 @@ let get_dist_join_str ?(with_arrow = true) env =
 
 
 let rec lval_to_als env = function 
-| TAst.Var {name;tp} -> 
+| TAst.Var {name;ty} -> 
   let state_syms = List.map (fun var -> var.id) env.state_vars in
   if List.mem (sym_from name) state_syms then 
     Als.VarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
   (* check that type of lval matches the assignment to figure out whether to distributively add join args  *)
-  else if List.length env.distributive_joins <> 0 && Utility.same_base_type tp env.assignment_type |> not then (
+  else if List.length env.distributive_joins <> 0 && Utility.same_base_type ty env.assignment_type |> not then (
     let str = get_dist_join_str env ^ (Sym.name @@ sym_from name) in
     VarRef(Sym.symbol str)
   )
@@ -212,24 +214,24 @@ let rec trans_expr env expr =
         | _ -> Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
         end
       | In | NotIn -> 
-        let left_tp, right_tp = Utility.get_expr_type left, Utility.get_expr_type right in
-        if  Utility.is_relation right_tp then 
+        let left_ty, right_ty = Utility.get_expr_type left, Utility.get_expr_type right in
+        if  Utility.is_relation right_ty then 
           (* traverse the relation until we find the simple type *)
-          let type_list = Utility.type_to_list_of_types right_tp in 
+          let type_list = Utility.type_to_list_of_types right_ty in 
           let type_array = Array.of_list type_list in
-          (* split the array, return array with all elements up to when left_tp is first encountered
+          (* split the array, return array with all elements up to when left_ty is first encountered
             assumes left type is in array, but it should be or SEMANTIC ANALYSIS is broken*)
           let split_array arr = 
             let rec split_array' arr i = 
               if i = Array.length arr then arr
-              else if Utility.same_base_type arr.(i) left_tp then Array.sub arr 0 (i)
+              else if Utility.same_base_type arr.(i) left_ty then Array.sub arr 0 (i)
               else split_array' arr (i+1)
             in split_array' arr 0
           in 
           let partitioned_type_list = Array.to_list @@ split_array type_array in
           let fresh_sym = fresh_symbol 0 in
           let quant_vars = List.map (
-            fun (tp : TAst.typ) -> fresh_sym @@ fst_char_of_typ tp, typ_to_als tp 
+            fun (ty : TAst.ty) -> fresh_sym @@ fst_char_of_typ ty, type_to_als ty 
           ) partitioned_type_list in
           let qop = if op = In then Als.All else No in
           let expr = Als.Binop{left = _tr left; right = _tr right; op = Bop In} in
@@ -247,35 +249,35 @@ let rec trans_expr env expr =
   | Can{call} -> 
     begin match call with 
     (* | TAst.Call _ as c -> trans_expr env c *)
-    | Call{action;args;tp} ->
+    | Call{action;args;ty} ->
       let sym = Sym.symbol @@ "_can_" ^ Sym.name @@ sym_from action in
-      trans_expr env (Call{action=Ident{sym};args;tp});
+      trans_expr env (Call{action=Ident{sym};args;ty});
     | _ -> failwith "cg: cannot get non calls here due to semantic analysis";
     end;
   | SetComp{decls;cond;_} -> 
-    let als_decls = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ_to_als typ) decls in
+    let als_decls = List.map (fun (TAst.Decl{name;ty}) -> sym_from name, type_to_als ty) decls in
     let als_cond = _tr cond in
     SetComprehension{vars = als_decls; cond = als_cond}
 end
 
 
 let trans_stmt env = function 
-| TAst.Assignment{lval; rhs; tp }  -> 
+| TAst.Assignment{lval; rhs; ty }  -> 
   (* This finds the rightmost lval on the left side. This is the state variable that is modified. Return this, alongside the als.assignment *)
   let lval_syms_reversed = List.rev @@ traverse_relation lval in
   let lval_sym = List.hd lval_syms_reversed in
   let lval_syms_without_last = List.rev @@ List.tl lval_syms_reversed in 
-  let env = {env with assignment_type = tp;lhs_sym = lval_sym} in 
+  let env = {env with assignment_type = ty;lhs_sym = lval_sym} in 
   let env = if List.length lval_syms_without_last = 0 then env else {env with distributive_joins = lval_syms_without_last} in   
 
   (* If there is no relation on the RHS, it is a pure assignment of a relation. To translate these, we must explicitly empty the relation first before adding the new set
      There is no exclusivity in Alloy, even with one/lone keywords... *)
-  let rhs = if not @@ Utility.relation_in_expr rhs && Utility.is_relation tp && not @@ Utility.is_empty_set_expr rhs then
+  let rhs = if not @@ Utility.relation_in_expr rhs && Utility.is_relation ty && not @@ Utility.is_empty_set_expr rhs then
     TAst.Binop{
       op = TAst.Plus;
-      left = TAst.EmptySet{tp};
+      left = TAst.EmptySet{ty};
       right = rhs;
-      tp;
+      ty;
     } else rhs in
   let right = trans_expr env rhs in (*Do this before setting environment to left, which adds apostrophies *)
   lval_sym, Als.Assignment{left = lval_to_als {env with is_left = true} lval; right}
@@ -287,7 +289,7 @@ let trans_concept_signature = function
   let syms = List.map (fun p -> get_sym_from_parameter p) params in
   Module{name = sym_from name; parameters = Some syms;}, make_cg_env
 
-let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = Decl{name;typ};expr;const}) = 
+let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = Decl{name;ty};expr;const}) = 
   let fact = match expr with
   | None -> []
   | Some e ->  
@@ -296,9 +298,9 @@ let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{pa
   in 
   let new_var = {id = sym_from name; is_const = const; has_fact = List.length fact <> 0} in
   (* add new entry to list in state_vars *)
-  Als.FldDecl{id = sym_from name; ty = typ_to_als typ; expr = None;const} :: fields_so_far, 
+  Als.FldDecl{id = sym_from name; ty = type_to_als ty; expr = None;const} :: fields_so_far, 
   fact @ facts_so_far,
-  add_tp_to_env {env_so_far with state_vars = new_var :: env_so_far.state_vars} typ
+  add_ty_to_env {env_so_far with state_vars = new_var :: env_so_far.state_vars} ty
 
 let trans_concept_states env states = 
   List.fold_left trans_concept_state ([], [], env) states
@@ -358,11 +360,11 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
     ) syms_used als_body in
     als_body @ remaining_stmts
   ) in
-  let params = List.map (fun (TAst.Decl{name=Ident{sym};typ}) -> sym, typ_to_als typ) params in
+  let params = List.map (fun (TAst.Decl{name=Ident{sym};ty}) -> sym, type_to_als ty) params in
   let func = if Option.is_none out then 
     Als.Pred(Predicate{pred_id = sym_from name; cond; params; body})
   else (
-    Als.Func(Function{func_id = sym_from name; cond; params; out = typ_to_als @@ Option.get out; body})
+    Als.Func(Function{func_id = sym_from name; cond; params; out = type_to_als @@ Option.get out; body})
   ) in 
   env, func :: funcs
 
@@ -377,7 +379,7 @@ let trans_principle env (TAst.OP{principles; tmps}) =
       assert_id = emit "_principle";
       body = Quantifier{
         qop = All;
-        vars = List.map (fun (TAst.Decl{name;typ}) -> sym_from name, typ_to_als typ) tmps;
+        vars = List.map (fun (TAst.Decl{name;ty}) -> sym_from name, type_to_als ty) tmps;
         expr = Unop{
           op = Always;
           expr = trans_expr env expr
@@ -403,8 +405,8 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
   let als_deps = List.map (fun (TAst.Dependency{name;generics}) -> 
     let als_generics = List.map (fun (TAst.Generic{con;ty}) -> 
       match con with 
-      | None -> None, typ_to_als ty
-      | Some con -> Option.some @@ sym_from con, typ_to_als ty) generics in
+      | None -> None, type_to_als ty
+      | Some con -> Option.some @@ sym_from con, type_to_als ty) generics in
     Als.Dependency{id = sym_from name; generics = als_generics}
     ) deps in
 
@@ -415,25 +417,29 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
     fun (TAst.Sync{cond;body;tmps} as sync) ->  
       let _tr_sync (TAst.SyncCall{name=Ident{sym=con_sym};call}) =
         match call with 
-        | Call{action=Ident{sym};args;tp} -> 
-          let mangle_sym sym = Sym.symbol @@ (Sym.name con_sym) ^ "/" ^ (Sym.name sym) in
+        | Call{action=Ident{sym};args;ty} -> 
+          let mangle_sym left right = Sym.symbol @@ (Sym.name left) ^ "/" ^ (Sym.name right) in
+          let parens_sym sym = Sym.symbol @@ "(" ^ Sym.name sym ^ ")" in
           let args = List.map (fun arg ->
             let rec check_arg = function
-            | TAst.Lval Var{name=Ident{sym};tp} as l -> 
-              let con_vars = Sym.Table.find con_sym env.con_dict in
-              let is_state = List.mem sym con_vars in
-              if is_state then 
-                TAst.Lval(Var{name=Ident{sym=prepend_state_symbol @@ mangle_sym sym};tp})
+            | TAst.Lval Var{name=Ident{sym};ty} as l -> 
+              (* check if it is any state variable (other concepts too) *)
+              let is_state, ns = Sym.Table.fold (fun ns vars found -> 
+                if List.mem sym vars then true, Some ns else found
+              ) env.con_dict (false, None) in
+              if is_state then TAst.Lval(Var{name=Ident{sym= parens_sym @@ mangle_sym (Option.get ns) (prepend_state_symbol ~parens:false sym)};ty})
               else l
-            | TAst.Lval Relation{left;right;tp} -> 
+            | TAst.Lval Relation{left;right;ty} -> 
               let left = Utility.expr_to_lval @@ check_arg @@ Lval left in
               let right = Utility.expr_to_lval @@ check_arg @@ Lval right in
-              Lval(Relation{left; right; tp})
+              Lval(Relation{left; right; ty})
+            | Unop{op;operand;ty} -> Unop{op; operand = check_arg operand; ty}
+            | Binop{op;left;right;ty} -> Binop{op; left = check_arg left; right = check_arg right; ty}
             | _ as e -> e
             in
             check_arg arg
           ) args in 
-          trans_expr env (Call{action=Ident{sym=mangle_sym sym};args;tp})
+          trans_expr env (Call{action=Ident{sym=mangle_sym con_sym sym};args;ty})
         | _ -> failwith "CG: synchronization of non call, not supported, ruled out by semant"
         in
       let als_expression = Als.Binop{
@@ -453,23 +459,23 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
       (*We need the symbol from the trigger action for the namespace of tmps*)
       let (SyncCall{name=Ident{sym=con_sym};_}) = cond in 
       let new_tmps = List.map (
-        fun (TAst.Decl{name;typ;}) -> 
-          let typ = match typ with 
-          | TCustom{tp=Ident{sym};mult=None;ns} -> 
+        fun (TAst.Decl{name;ty;}) -> 
+          let ty = match ty with 
+          | TCustom{ty=Ident{sym};mult=None;ns} -> 
             let sym = match ns with (*Use trigger action's namespace unless one is explicitly given*)
             | None -> Sym.symbol @@ (Sym.name @@ con_sym) ^ "/" ^ (Sym.name sym) 
             | Some ns -> Sym.symbol @@ (Sym.name @@ sym_from ns) ^ "/" ^ (Sym.name sym) in
-            TAst.TCustom{tp=Ident{sym};mult=None;ns}
-          | _ -> typ
+            TAst.TCustom{ty=Ident{sym};mult=None;ns}
+          | _ -> ty
           in
-          TAst.Decl{name;typ}
+          TAst.Decl{name;ty}
       ) tmps in
       let fact_expr = Als.Unop{
         op = Always;
         expr = Quantifier{
           qop = All; 
-          vars = List.map (fun (TAst.Decl{name;typ}) ->
-            sym_from name, typ_to_als typ) new_tmps;
+          vars = List.map (fun (TAst.Decl{name;ty}) ->
+            sym_from name, type_to_als ty) new_tmps;
           expr = als_expression;
         }
       } in 
