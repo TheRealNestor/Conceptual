@@ -10,7 +10,7 @@ exception ParserError
 %}
 
 %token EOF (*End of file*)
-%token EQEQ NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ ? *)
+%token EQEQ IS NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ ? *)
 %token PLUS MINUS AMP SLASH PERCENT (*Binary operators*)
 %token EQ (* Mutators*)
 %token NOT TILDE CARET STAR CARD (*Unaries*)
@@ -18,9 +18,8 @@ exception ParserError
 %token LPAR RPAR LBRACK RBRACK LBRACE RBRACE PIPE (*Brackets and stuff*)
 %token WHEN CAN (*Precondition related*)
 %token THEN UNTIL NO (*Temporal operators*)
-%token IS EMPTY EMPTY_SET (*Set-related predicates*)
 %token INT STRING (*Primitive types*)
-%token ARROW SET ONE IN LONE (* Set-related tokens *)
+%token ARROW SET ONE IN LONE EMPTY(* Set-related tokens *)
 %token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 %token APP INCLUDE SYNC (*Composition related tokens*)
@@ -28,7 +27,6 @@ exception ParserError
 (*ACT: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
 %token <string> PURPOSE IDENT ACT STR_LIT
 %token <int64> INT_LIT
-
 
 // __________________
 // Explicit rule types go here, in case we want to use -ml as opposed to table-driven
@@ -66,9 +64,7 @@ exception ParserError
 %left LOR
 %left LAND
 %nonassoc NOT NO (*TODO: Should this be higher*)
-%nonassoc IS EMPTY (*Set-related predicates*) 
-
-
+%nonassoc IS (*Set-related predicates*) 
 
 %nonassoc EQEQ NEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
 %left PLUS MINUS 
@@ -108,7 +104,7 @@ call:
 
 const: 
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
-| EMPTY_SET { EmptySet{loc = mk_loc $loc} }
+| EMPTY { EmptySet{loc = mk_loc $loc} }
 | MINUS? INT_LIT { 
   match $1 with
   | None -> Integer{int = $2; loc = mk_loc $loc}
@@ -120,11 +116,6 @@ expr:
 | LPAR expr RPAR { $2 }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
-| expr IS NOT? EMPTY { 
-  match $3 with 
-  | None -> Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc} 
-  | Some _ -> Unop{op = Not{loc = mk_loc $loc}; operand = Unop{op = IsEmpty{loc = mk_loc $loc}; operand = $1; loc = mk_loc $loc}; loc = mk_loc $loc} 
-  }
 | lval %prec DOT { Lval($1) }
 | lval LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = Lval($1); right = $3; loc = mk_loc $loc} }
 | LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
@@ -146,7 +137,7 @@ expr:
 %inline binop: 
 | PLUS { Plus{loc = mk_loc $loc} }
 | MINUS { Minus{loc = mk_loc $loc} }
-| STAR { Times{loc = mk_loc $loc} } (*TODO: this might use wrong precedence due to unop*)
+| STAR { Times{loc = mk_loc $loc} } 
 | SLASH { Div{loc = mk_loc $loc} }
 | PERCENT { Mod{loc = mk_loc $loc} }
 | AMP { Intersection{loc = mk_loc $loc} }

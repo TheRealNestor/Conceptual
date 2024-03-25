@@ -90,7 +90,6 @@ let unop_to_tree = function
 | Star _ -> make_keyword_line "Star"
 | Tilde _ -> make_keyword_line "Tilde"
 | Caret _ -> make_keyword_line "Caret"
-| IsEmpty _ -> make_keyword_line "IsEmpty"
 | Card _ -> make_keyword_line "Card"
 | No _ -> make_keyword_line "No"
   

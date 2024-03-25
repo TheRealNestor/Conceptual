@@ -22,7 +22,6 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
     let check_relation e = if not (Utility.is_relation e) then Env.insert_error env (NotARelation{ty=e;loc}) in
     let op, ty = match op with 
       | Not _ -> TAst.Not, TAst.TBool
-      | IsEmpty _ -> IsEmpty, TBool
       | Tilde _ -> check_relation operand_ty; Tilde, Utility.reverse_relation_type operand_ty
       | Caret _ -> check_relation operand_ty; Caret, operand_ty
       | Star _ -> check_relation operand_ty; Star, operand_ty

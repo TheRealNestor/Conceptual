@@ -40,7 +40,6 @@ let token_to_string = function
   | Parser.TILDE -> "TILDE"
   | Parser.CARET -> "CARET"
   | Parser.STAR -> "STAR"
-  | Parser.EMPTY_SET -> "EMPTY_SET"
   | Parser.EMPTY -> "IS_EMPTY"
   | Parser.ONE -> "ONE"
   | Parser.CAN -> "CAN"

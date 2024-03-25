@@ -84,7 +84,7 @@ rule lex = parse
 | "||" | "or" { LOR }
 | "->" { ARROW }
 | "!=" { NEQ }
-| "none" | "{}" { EMPTY_SET }
+| "none" | "{}" | "empty" { EMPTY }
 | "when" { WHEN }
 | "in" { IN }
 | "not" | '!' { NOT }
@@ -94,7 +94,6 @@ rule lex = parse
 | "one" { ONE }
 | "String" { STRING }
 | "Int" { INT }
-| "empty" { EMPTY }
 (* Now operators for operational principles *)
 | "can" { CAN }
 | "until" { UNTIL }

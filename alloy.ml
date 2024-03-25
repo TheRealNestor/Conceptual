@@ -21,8 +21,6 @@ type aModule = Module of {
 
 type qop = All | No | One | Some | Lone 
 
-(* could possibly add the rest *)
-
 type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq
 | Join | In | NotIn | Arrow | Implication | Release 
 type int_bop = Add | Sub | Mul | Div | Rem 
@@ -31,9 +29,8 @@ type binop =
 | IntBop of int_bop
 | Bop of bop
 
-
-type unop = Not | Tilde | Caret | Star | IsEmpty | Card
-      | Always | Eventually | Before | After | Historically | Once 
+type unop = Not | Tilde | Caret | Star | IsEmpty | Card 
+            | Always | Eventually | Before | After | Historically | Once 
 type mul = One | Lone | Some | Set | Implicit 
 
 type ty = 
@@ -126,28 +123,10 @@ type cg_env = {
   can_functions : string list ref;
 }
 
-(*This is to remove signatures if the module is parameterized *)
-let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String";];
-                   indent_level = 0;
-                   can_functions = ref [];
+let make_cg_env = {generics = ref [Symbol.symbol "Int"; Symbol.symbol "String";]; (*This is to remove signatures if the module is parameterized *)
+                   indent_level = 0; (*Indentation*)
+                   can_functions = ref []; (*Translate all functions/predicates into separate predicates with just their precondition*)
                    }
-
-(* -------------------------- Helper functions --------------------------   *)  
-
-let rec compare_typ a b = match (a, b) with
-(* same as below but for als  *)
-| (Str _, Str _) | (Int _, Int _) -> 0
-| (Sig (a,_), Sig (b,_)) -> String.compare (Symbol.name a) (Symbol.name b)
-| (Rel (a1, a2), Rel (b1, b2)) -> 
-    let cmp_left = compare_typ a1 b1 in
-    if cmp_left = 0 then compare_typ a2 b2 else cmp_left
-| (a, b) -> Int.compare (tag_of_typ a) (tag_of_typ b)
-
-and tag_of_typ = function
-| Str _ -> 0
-| Int _ -> 1
-| Sig _ -> 2
-| Rel _ -> 3
 
 (* -------------------------- Serialization --------------------------   *)
 
@@ -218,12 +197,11 @@ let serializeMul = function
 | Lone -> "lone "
 | Implicit -> ""
 
-  let rec serializeType (t : ty) : string = 
-    match t with 
-    | Int m-> serializeMul m ^ "Int"
-    | Str m-> serializeMul m ^ "String"
-    | Sig (s,m)-> serializeMul m ^ S.name s
-    | Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
+let rec serializeType = function
+| Int m-> serializeMul m ^ "Int"
+| Str m-> serializeMul m ^ "String"
+| Sig (s,m)-> serializeMul m ^ S.name s
+| Rel (t1, t2) -> serializeType t1 ^ " -> " ^ serializeType t2
   
 let serializeParamList ?(with_type=true) l = 
   mapcat ", " (fun (id, ty) -> 
@@ -323,7 +301,6 @@ let serializeVars ?(group = false) ?(with_type = true) (vars : (paramId * ty) li
 let serializeQuantify qop vars = 
   let qopStr = serializeQop qop in
   qopStr ^ " " ^ serializeVars ~group:true vars ^ " | "
-
 
 let rec serializeLval (l : lval) : string = 
   match l with 

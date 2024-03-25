@@ -8,7 +8,6 @@ let mult_to_string = function
 | Some Set -> "Set of "
 | Some Lone -> "Lone of "
 
-
 let rec typ_to_string = function 
 | TInt {mult} -> mult_to_string mult ^ "Int"
 | TBool -> "Bool" 
@@ -59,7 +58,6 @@ let unop_to_tree = function
 | Tilde -> Pretty.make_keyword_line "Tilde"
 | Caret -> Pretty.make_keyword_line "Caret"
 | Star -> Pretty.make_keyword_line "Star"
-| IsEmpty -> Pretty.make_keyword_line "IsEmpty"
 | Card -> Pretty.make_keyword_line "Card"
 | No -> Pretty.make_keyword_line "No"
 

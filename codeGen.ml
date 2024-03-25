@@ -100,7 +100,6 @@ let unop_to_als = function
 | Tilde -> Tilde
 | Caret -> Caret
 | Star -> Star
-| IsEmpty -> IsEmpty
 | Card -> Card
 | No -> Historically
 

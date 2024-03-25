@@ -1,7 +1,6 @@
 module Sym = Symbol
 
 type ident = Ident of { sym : Sym.symbol }
-
 type mult = One | Set | Lone 
 
 type ty =
@@ -16,43 +15,10 @@ type ty =
 type parameter = Parameter of { ty : ty } (*This is for the concept signature *)
 type decl = Decl of { name : ident; ty : ty; } (*State declarations, action signatures*)
   
-type binop = 
-| Plus  
-| Minus
-| Land
-| Lor
-| Eq
-| Neq
-| Lt
-| Lte
-| Gt
-| Gte
-| In
-| NotIn
-| Intersection 
-| Join
-| MapsTo
-| Times
-| Div
-| Mod
-| Then 
-| Until
+type binop = Plus  | Minus | Land | Lor | Eq | Neq | Lt | Lte | Gt | Gte | In | NotIn
+             | Intersection | Join | MapsTo | Times | Div | Mod | Then | Until
 
-type unop = 
-| Not 
-| Tilde 
-| Caret
-| Star
-| IsEmpty
-| Card
-| No 
-
-(* This is opeators for operational principle *)
-(* Could possibly include all of Alloy6's temporal operators? *)
-(* type opop =
-| After of  }
-| Then of  }
-| Until of  } *)
+type unop = | Not | Tilde | Caret | Star | Card | No 
 
 type expr = 
 | EmptySet of {ty : ty}
@@ -63,7 +29,6 @@ type expr =
 | Binop of {left : expr; op : binop; right : expr; ty : ty}
 | BoxJoin of {left : expr; right : expr list ; ty : ty}
 | SetComp of { decls : decl list; cond : expr; ty : ty}
-(* Move operational principle expressions? *)
 | Call of {action : ident; args : expr list; ty : ty}
 | Can of {call : expr; }
 and lval = 
@@ -95,7 +60,6 @@ type action_sig = ActionSignature of {
   out : ty option ;
   params : decl list;
 }
-
 
 type action = Action of {
   signature : action_sig; 

@@ -1,9 +1,7 @@
 module Loc = Location
 
-exception TODO
 
 type ident = Ident of { name : string; loc : Loc.location }
-
 type mult = One | Set | Lone 
 
 type ty =
@@ -43,16 +41,8 @@ type unop =
 | Tilde of { loc : Loc.location }
 | Caret of { loc : Loc.location }
 | Star of { loc : Loc.location }
-| IsEmpty of { loc : Loc.location }
 | Card of { loc : Loc.location }
 | No of { loc : Loc.location }
-
-(* This is opeators for operational principle *)
-(* Could possibly include all of Alloy6's temporal operators? *)
-(* type opop =
-| After of { loc : Loc.location }
-| Then of { loc : Loc.location }
-| Until of { loc : Loc.location } *)
 
 type expr = 
 | EmptySet of { loc : Loc.location }
@@ -68,7 +58,6 @@ type expr =
 and lval = 
 | Var of ident
 | Relation of {left : lval; right : lval; loc : Loc.location}
-
 
 type stmt = 
 | Assignment of {lval : lval; rhs : expr; is_compound : bool; loc : Loc.location}
@@ -124,7 +113,6 @@ type operational_principle = OP of {
   loc : Loc.location;
 }
 
-
 type concept = Concept of {
   signature : concept_sig;
   purpose : concept_purpose; 
@@ -146,12 +134,8 @@ type dependency = Dependency of {
   loc : Loc.location;
 }
 
-
 type sync_call = 
 | SyncCall of {name : ident; call :   expr; loc : Loc.location;}
-(* Assignment without new (from returned values...) *)
-(* | NewDecl of {decl : decl; loc : Loc.location;} *)
-
 
 type sync = Sync of {
   cond : sync_call;
