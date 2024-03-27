@@ -78,9 +78,10 @@ let rec same_base_type ty1 ty2 =
   | TBool, TBool -> true
   | TString _, TString _ -> true
   | TCustom {ty=ty1;_}, TCustom {ty=ty2;_} -> ty1 = ty2
-  | NullSet _, NullSet _ -> true
   | NullSet _, _ -> true
   | _, NullSet _ -> true
+  | _, ErrorType -> true
+  | ErrorType, _ -> true
   | TMap {left=left1;right=right1}, TMap {left=left2;right=right2} -> 
     same_base_type left1 left2 && same_base_type right1 right2
   | _ -> false
@@ -309,4 +310,23 @@ let rec relation_in_expr = function
 | TAst.Binop {left;right;_} -> relation_in_expr left || relation_in_expr right
 | Lval Relation _ -> true
 | _ -> false
+
+
+(* TODO: remove this? *)
+(* function for suppressing stdout temporarily *)
+let suppress_stdout f =
+  let original_stdout = Unix.descr_of_out_channel stdout in
+  (* Redirect stdout to /dev/null *)
+  let dev_null = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
+  Unix.dup2 dev_null original_stdout;
+  Unix.close dev_null;
+  try
+    let ret = f in (* Execute the function f, whose output to stdout will be suppressed *)
+    (* Restore the original stdout *)
+    Unix.dup2 original_stdout original_stdout;
+    ret;
+  with _ ->
+    (* Ensure that stdout is restored even if an error occurs *)
+    Unix.dup2 original_stdout original_stdout;
+    None
 

@@ -1,12 +1,10 @@
 # Could optionally add --inspection flag here
 # insepection flag can only be used when table flag is used. 
 make:
-	rm -f parser.ml parser.mli
+	dune clean
 	dune build
-	menhir --explain --inspection --table --dump parser.mly
 
 clean:
-	rm -f parser.ml parser.mli
 	dune clean
 
 # Use the second word in the MAKECMDGOALS as the RUN_ARG (first word is run)
@@ -22,7 +20,6 @@ endif
 run:
 	rm -f parser.ml parser.mli
 	dune exec ./conceptual.exe $(RUN_ARG)
-
 
 #Ensure that the grammar rule is always run
 # https://github.com/Lelio-Brun/Obelisk?tab=readme-ov-file

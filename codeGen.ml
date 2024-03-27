@@ -103,7 +103,6 @@ let unop_to_als = function
 | Card -> Card
 | No -> Historically
 
-
 let binop_to_als = function
 | TAst.Plus -> Als.Bop Plus
 | Minus -> Bop Minus
@@ -118,13 +117,13 @@ let binop_to_als = function
 | Neq -> Bop Neq
 | Join -> Bop Join
 | In -> Bop In 
-| NotIn -> Bop NotIn
 | MapsTo -> Bop Arrow
 | Times -> IntBop Mul
 | Div -> IntBop Div
 | Mod -> IntBop Rem
 | Then -> Bop Implication
 | Until -> Bop Release
+| _ -> failwith "other cases (not in) handled explicitly"
 
 let mult_to_als = function
 | None -> Als.Implicit
@@ -237,7 +236,8 @@ let rec trans_expr env expr =
           let box_right_syms = List.map (fun (sym,_) -> Als.Lval(VarRef(sym))) quant_vars in
           Quantifier{qop; vars = quant_vars; expr=BoxJoin{left = expr; right = box_right_syms}}    
         else
-          Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
+          if op = In then Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
+          else Unop{op = Not; expr = Binop{left = _tr left; right = _tr right; op = binop_to_als In}}
       | Then -> 
         Binop{left = _tr left; right = Unop{op = After; expr = _tr right}; op = binop_to_als op;}
       | _ -> Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
@@ -247,7 +247,6 @@ let rec trans_expr env expr =
   | Call{action;args;_} -> Call({func = Lval(VarRef(sym_from action)); args = List.map _tr args;})
   | Can{call} -> 
     begin match call with 
-    (* | TAst.Call _ as c -> trans_expr env c *)
     | Call{action;args;ty} ->
       let sym = Sym.symbol @@ "_can_" ^ Sym.name @@ sym_from action in
       trans_expr env (Call{action=Ident{sym};args;ty});

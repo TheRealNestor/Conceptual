@@ -22,7 +22,7 @@ type aModule = Module of {
 type qop = All | No | One | Some | Lone 
 
 type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq
-| Join | In | NotIn | Arrow | Implication | Release 
+| Join | In | Arrow | Implication | Release 
 type int_bop = Add | Sub | Mul | Div | Rem 
 
 type binop = 
@@ -177,7 +177,7 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
     | And | Or -> 0
     | Release -> 1
     | Implication -> 2
-    | In | NotIn | Eq | Neq | Lt | Gt | Lte | Gte -> 3
+    | In | Eq | Neq | Lt | Gt | Lte | Gte -> 3
     | Plus | Minus -> 4 
     | Intersection -> 5
     | Arrow -> 6
@@ -209,23 +209,22 @@ let serializeParamList ?(with_type=true) l =
   ) l
 
 let serializeBinop = function
-| Plus -> "+"
-| Minus -> "-"
-| Intersection -> "&"
-| And -> "and"
-| Or -> "or"
-| Lt -> "<"
-| Gt -> ">"
-| Lte -> "<="
-| Gte -> ">="
-| Eq -> "="
-| Neq -> "!="
+| Plus -> " + "
+| Minus -> " - "
+| Intersection -> " & "
+| And -> " and "
+| Or -> " or "
+| Lt -> " < "
+| Gt -> " > "
+| Lte -> " <= "
+| Gte -> " >= "
+| Eq -> " = "
+| Neq -> " != "
 | Join -> "."
-| In -> "in"
-| NotIn -> failwith "not in operation is not applied directly like this"
+| In -> " in "
 | Arrow -> "->"
-| Implication -> "=>"
-| Release -> "releases"
+| Implication -> " => "
+| Release -> " releases "
 
 let serializeUnop = function
 | Not -> "not "
@@ -334,11 +333,8 @@ let rec serializeExpr env (e : expr) =
         end
       | Bop op -> 
         begin match op with 
-        | NotIn -> "not " ^ parenthesized_left ^ " in " ^ parenthesized_right
-        | In -> parenthesized_left ^ " in " ^ parenthesized_right
-        | Arrow | Join -> parenthesized_left ^ serializeBinop op ^ parenthesized_right
-        | Release -> parenthesized_right ^ " " ^ serializeBinop op ^ " " ^ parenthesized_left	
-        | _ as bop -> parenthesized_left ^ " " ^ serializeBinop bop ^ " "  ^ parenthesized_right
+        | Release -> parenthesized_right ^ serializeBinop op ^ parenthesized_left	
+        | _ as bop -> parenthesized_left ^ serializeBinop bop ^ parenthesized_right
         end
       end
     | Assignment {left; right} -> serializeLval left ^ " = " ^ _serializeExpr right

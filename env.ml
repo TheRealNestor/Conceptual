@@ -6,9 +6,9 @@ type env_object =
 | Var of TAst.ty * bool (*The type of variable and whether the variable is a const or not...*)
 | Act of TAst.action_sig
 
-type environment = {env_objects : env_object Sym.Table.t; 
-                    errors : Errors.error list ref;
-                    valid_custom_types : TAst.ty list;
+type environment = {env_objects : env_object Sym.Table.t; (*Keep track of named objects such as variables*)
+                    errors : Errors.error list ref; (* Semantic errors accumulated during analysis*)
+                    valid_custom_types : TAst.ty list; (* For a particular concept*)
                     con_dict : (environment * TAst.ty list) Sym.Table.t; (*The environment for that concept, in addition to the generic types *)
                     app_ns : TAst.ident list; (* The namespace for apps, ensures no apps with the same name is declared simultaneously. This is for EDGE cases*)
                     set_comp_type : TAst.ty option; (* Type of set comprehensions cannot be inferred without context... This is context from state or stmt *)
@@ -17,7 +17,8 @@ type environment = {env_objects : env_object Sym.Table.t;
                     in_sync : bool; (* Whether the current context is in synchronizations. Certain expressions are allowed here, e.g call... *)
                     call_tmps : TAst.decl list ref; (* Temporary variables for the operational principle *)
                     trigger_sync : bool; (* Whether the current context is in a trigger sync. Trigger synchronizations can introduce new variables *)
-                    left_lval : TAst.lval option (* The left hand side of the current assignment *)
+                    left_lval : TAst.lval option; (* The left hand side of the current assignment *)
+                    dir : string; (* The directory of the file being compiled *)
                     }
    
 (* create an initial environment with the given functions defined *)
@@ -34,7 +35,8 @@ let make_env =
   call_tmps = ref [];
   trigger_sync = false;
   left_lval = None; 
-  }
+  dir = "";
+}
 
 
 let insert env sym obj =
@@ -78,6 +80,7 @@ let rec lookup env sym =
       begin match Sym.Table.find_opt sym env_objects with 
       | None -> (*if not there, the only option left is a different concept namespace (synchronizations only)*)
         if env.in_sync then 
+          (* TODO: Perhaps try to include current namespace somehow in environment? *)
           (* try all namespaces (env.con_dict), look for variables only, not actions *)
           Sym.Table.fold (fun _ (env',_) acc -> 
             match acc with 

@@ -1,6 +1,6 @@
 (executables
  (names conceptual)
- (libraries printbox printbox-text ounit2 menhirLib zarith str)
+ (libraries printbox printbox-text ounit2 menhirLib menhirCST zarith str)
  (modes byte exe)
 )
 
@@ -10,14 +10,17 @@
  (deps   lexer.mll)
  (action (chdir %{workspace_root}
           (run %{bin:ocamllex} -q -ml -o %{target} %{deps}))))
+          ; add the desired flags here
 
 ; Or simply use if the bytecode compiler is used. This uses the automata-intepreter.
 ; (ocamllex lexer)
 
 (menhir
- (merge_into parser)
+ (flags --dump)
+ (infer true) ; this flag and explain are enabled by default (in this version of dune/menhir) but explicitly included for clarity
+ (explain true) 
  (modules parser)
- (flags --explain --inspection --table --dump))
+)
 
 (env
  (dev

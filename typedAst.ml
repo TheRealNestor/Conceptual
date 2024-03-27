@@ -15,60 +15,44 @@ type ty =
 type parameter = Parameter of { ty : ty } (*This is for the concept signature *)
 type decl = Decl of { name : ident; ty : ty; } (*State declarations, action signatures*)
   
-type binop = Plus  | Minus | Land | Lor | Eq | Neq | Lt | Lte | Gt | Gte | In | NotIn
-             | Intersection | Join | MapsTo | Times | Div | Mod | Then | Until
+type binop = Plus | Minus | Land | Lor | Eq | Neq | Lt | Lte | Gt | Gte 
+| In | NotIn | Intersection | Join | MapsTo | Times | Div | Mod | Then | Until
 
-type unop = | Not | Tilde | Caret | Star | Card | No 
+type unop = Not | Tilde | Caret | Star | Card | No 
 
 type expr = 
-| EmptySet of {ty : ty}
-| String of {str : string }
-| Integer of {int : int64 }
+| EmptySet of { ty : ty }
+| String of { str : string }
+| Integer of { int : int64 }
 | Lval of lval 
-| Unop of {op : unop; operand : expr; ty : ty}
-| Binop of {left : expr; op : binop; right : expr; ty : ty}
-| BoxJoin of {left : expr; right : expr list ; ty : ty}
-| SetComp of { decls : decl list; cond : expr; ty : ty}
-| Call of {action : ident; args : expr list; ty : ty}
-| Can of {call : expr; }
+| Unop of { op : unop; operand : expr; ty : ty }
+| Binop of { left : expr; op : binop; right : expr; ty : ty }
+| BoxJoin of { left : expr; right : expr list ; ty : ty }
+| SetComp of { decls : decl list; cond : expr; ty : ty }
+| Call of { action : ident; args : expr list; ty : ty }
+| Can of { call : expr; }
 and lval = 
-| Var of {name : ident; ty : ty}
-| Relation of {left : lval; right : lval; ty : ty}
+| Var of { name : ident; ty : ty }
+| Relation of { left : lval; right : lval; ty : ty }
 
-type stmt = Assignment of {lval : lval; rhs : expr ; ty : ty } 
+type stmt = Assignment of { lval : lval; rhs : expr ; ty : ty } 
 
 type action_body = 
-| Mutators of {stmts : stmt list}
-| Query of {expr : expr}
-
-type state = State of {
-  param : decl;
-  expr : expr option;
-  const : bool;
-}
+| Mutators of { stmts : stmt list }
+| Query of { expr : expr }
 
 type concept_sig = 
-| Signature of {name : ident}
-| ParameterizedSignature of {name : ident; params : parameter list}
+| Signature of { name : ident }
+| ParameterizedSignature of { name : ident; params : parameter list }
 
-type firing_cond = When of {cond : expr}
-type concept_purpose = Purpose of {doc_str : string;}
-type concept_states = States of {states : state list;}
-
-type action_sig = ActionSignature of {
-  name : ident; 
-  out : ty option ;
-  params : decl list;
-}
-
-type action = Action of {
-  signature : action_sig; 
-  cond : firing_cond option;
-  body : action_body;
-}
-
-type concept_actions = Actions of {actions : action list;}
-type operational_principle = OP of {principles : expr list; tmps : decl list;} (*decls are for code generation.*)
+type state = State of { param : decl; expr : expr option; const : bool; }
+type firing_cond = When of { cond : expr }
+type concept_purpose = Purpose of { doc_str : string; }
+type concept_states = States of { states : state list; }
+type action_sig = ActionSignature of { name : ident; out : ty option ; params : decl list; }
+type action = Action of { signature : action_sig; cond : firing_cond option; body : action_body; }
+type concept_actions = Actions of { actions : action list; }
+type operational_principle = OP of { principles : expr list; tmps : decl list; } (*tmps are for code generation, new temporary veriables *)
 
 type concept = Concept of {
   signature : concept_sig;
@@ -78,31 +62,10 @@ type concept = Concept of {
   op : operational_principle;
 }
 
-type generic = Generic of {
-  con : ident option;
-  ty : ty;
-}
-
-type dependency = Dependency of {
-  name : ident; (*concept being included *)
-  generics: generic list; (*parameter instantiation of generics, other concept name and type from it.*)
-}
-
-type sync_call = SyncCall of {
-  name : ident; (*concept*)
-  call : expr; (*action, can check for valid expressions in semantic analysis...*)
-}
-
-type sync = Sync of {
-  cond : sync_call;
-  body : sync_call list;
-  tmps : decl list; (* This is just to make things simpler in code generation, we already construct this list in semant as is...*)
-}
-
-type app = App of {
-  name : ident;
-  deps : dependency list;
-  syncs : sync list;
-}
+type generic = Generic of { con : ident option; ty : ty; }
+type dependency = Dependency of { name : ident; generics: generic list; }
+type sync_call = SyncCall of { name : ident; call : expr; }
+type sync = Sync of { cond : sync_call; body : sync_call list; tmps : decl list; } (*Tmps simplify code generation, new temporary variables*)
+type app = App of { name : ident; deps : dependency list; syncs : sync list; }
 
 type program = concept list * app list

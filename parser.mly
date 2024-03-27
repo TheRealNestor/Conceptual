@@ -6,11 +6,10 @@ let add_mult_to_typ mult = function
 | TInt t -> TInt{t with mult}
 | TCustom t -> TCustom{t with mult}
 | _ as t -> t
-exception ParserError
 %}
 
 %token EOF (*End of file*)
-%token EQEQ IS NEQ LAND LOR LT GT LTE GTE (*Comparisons, TODO: Do we need NEQ ? *)
+%token EQEQ IS NEQ LAND LOR LT GT LTE GTE (*Comparisons*)
 %token PLUS MINUS AMP SLASH PERCENT (*Binary operators*)
 %token EQ (* Mutators*)
 %token NOT TILDE CARET STAR CARD (*Unaries*)
@@ -27,34 +26,6 @@ exception ParserError
 (*ACT: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
 %token <string> PURPOSE IDENT ACT STR_LIT
 %token <int64> INT_LIT
-
-// __________________
-// Explicit rule types go here, in case we want to use -ml as opposed to table-driven
-%type <Ast.decl list> decl
-%type <Ast.ty> ty
-
-%type <Ast.state list> state
-// %type <Ast.expr> expr op_expr
-%type <Ast.lval> lval
-%type <Ast.stmt> stmt
-%type <Ast.action> action
-%type <Ast.action_sig> action_sig
-%type <Ast.firing_cond option> action_firing_cond
-%type <Ast.concept> concept
-%type <Ast.concept_sig> c_sig
-%type <Ast.concept_purpose> c_purpose
-%type <Ast.concept_states> c_state
-%type <Ast.concept_actions> c_actions
-
-%type <string list>  separated_nonempty_list(COMMA, IDENT) loption(separated_nonempty_list(COMMA, IDENT))
-%type <Ast.concept list> concept*
-%type <Ast.stmt list> stmt* 
-%type <Ast.state list list> state*
-%type <Ast.action list> action+
-%type <Ast.expr list> separated_nonempty_list(COMMA, expr) loption(separated_nonempty_list(COMMA, expr))
-
-// %type <Ast.operational_principle> c_op
-// __________________
 
 // Associativity and precedence
 
@@ -119,11 +90,13 @@ expr:
 | lval %prec DOT { Lval($1) }
 | lval LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = Lval($1); right = $3; loc = mk_loc $loc} }
 | LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
-| call { $1 } (*can only happen in op/syncs*)
-| CAN NOT? call { (*The NOT option here is just to allow a different way of writing this, rather than NOT in front 'not can...' vs 'can not ...'*)
-  match $2 with
-  | None -> Can{call = $3; loc = mk_loc $loc}
-  | Some _ -> Unop{op = Not{loc = mk_loc $loc}; operand = Can{call = $3; loc = mk_loc $loc}; loc = mk_loc $loc}
+| pair(CAN, NOT?)? call {
+  match $1 with 
+  | None -> $2
+  | Some (_, not_opt) -> begin match not_opt with
+    | None -> Can{call = $2; loc = mk_loc $loc}
+    | Some _ -> Unop{op = Not{loc = mk_loc $loc}; operand = Can{call = $2; loc = mk_loc $loc}; loc = mk_loc $loc}
+    end
   }
 
 %inline unary:
@@ -155,8 +128,6 @@ expr:
 | ARROW { MapsTo{loc = mk_loc $loc} } 
 | THEN { Then{loc = mk_loc $loc} }
 | UNTIL { Until{loc = mk_loc $loc} }
-
-(* Relation "literals" *)
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
@@ -194,8 +165,8 @@ stmt:
   match $2 with
   | None -> Assignment{lval = $1; rhs = $4; is_compound = false; loc = mk_loc $loc}
   | Some op -> 
-  let _ = match op with
-  | Lt _ | Gt _ | Lte _ | Gte _ | In _ | NotIn _ | MapsTo _  -> Errors.print_error @@ Errors.InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op}; raise ParserError;
+  let () = match op with
+  | Lt _ | Gt _ | Lte _ | Gte _ | In _ | NotIn _ | MapsTo _  -> raise @@ Errors.ParserError(InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op});
   | _ -> ()
   in
   Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; is_compound = true; loc = mk_loc $loc} 
@@ -203,7 +174,7 @@ stmt:
 
 action_sig:
 | ACT LPAR flatten(separated_list(COMMA, decl)) RPAR {
-  ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params=$3; out = None; loc = mk_loc $loc} 
+  ActionSignature{name = Ident{name = $1; loc = mk_loc $loc}; params = $3; out = None; loc = mk_loc $loc} 
   }
 
 action_firing_cond:
@@ -213,8 +184,8 @@ action_firing_cond:
 action:
 | action_sig action_firing_cond stmt*
   { Action{signature = $1; cond = $2; body = Mutators{stmts = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
-| action_sig COLON ty expr 
-  { let ActionSignature{name;params;out;loc} = $1 in
+| action_sig COLON ty expr (*Could include "COLON ty" in action_sig but this might introduce ambiguities*)
+  { let ActionSignature{name;params;loc;_} = $1 in
     let signature = ActionSignature{name;params;out = Some $3; loc} in
     Action{signature; cond = None; body = Query{expr = $4; loc = mk_loc $loc}; loc = mk_loc $loc} 
   }
@@ -226,7 +197,7 @@ c_op:
 | OP separated_list(COMMA, expr) { OP{principles = $2; loc = mk_loc $loc} }
 
 concept: 
-| c_sig c_purpose c_state c_actions c_op  (*TODO: Temporary until OP is implemented*)
+| c_sig c_purpose c_state c_actions c_op  
   { Concept{signature = $1; purpose = $2; states = $3; actions = $4; op = $5; loc = mk_loc $loc} }
 
 app_dep:
