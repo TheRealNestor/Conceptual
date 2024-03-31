@@ -31,7 +31,7 @@ type binop =
 | NotIn of { loc : Loc.location }
 | Intersection of { loc : Loc.location } 
 | Join of { loc : Loc.location }
-| MapsTo of { loc : Loc.location }
+| Product of { loc : Loc.location }
 | Then of { loc : Loc.location }
 | Until of { loc : Loc.location }
 

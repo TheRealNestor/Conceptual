@@ -46,7 +46,7 @@ let binop_to_tree  = function
 | NotIn -> Pretty.make_keyword_line "NotIn"
 | Intersection -> Pretty.make_keyword_line "Intersection"
 | Join -> Pretty.make_keyword_line "Join"
-| MapsTo -> Pretty.make_keyword_line "MapsTo"
+| Product -> Pretty.make_keyword_line "Product"
 | Times -> Pretty.make_keyword_line "Times"
 | Div -> Pretty.make_keyword_line "Div"
 | Mod -> Pretty.make_keyword_line "Mod"

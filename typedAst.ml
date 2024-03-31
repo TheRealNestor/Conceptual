@@ -16,7 +16,7 @@ type parameter = Parameter of { ty : ty } (*This is for the concept signature *)
 type decl = Decl of { name : ident; ty : ty; } (*State declarations, action signatures*)
   
 type binop = Plus | Minus | Land | Lor | Eq | Neq | Lt | Lte | Gt | Gte 
-| In | NotIn | Intersection | Join | MapsTo | Times | Div | Mod | Then | Until
+| In | NotIn | Intersection | Join | Product | Times | Div | Mod | Then | Until
 
 type unop = Not | Tilde | Caret | Star | Card | No 
 

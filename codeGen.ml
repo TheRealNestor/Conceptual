@@ -117,7 +117,7 @@ let binop_to_als = function
 | Neq -> Bop Neq
 | Join -> Bop Join
 | In -> Bop In 
-| MapsTo -> Bop Arrow
+| Product -> Bop Arrow
 | Times -> IntBop Mul
 | Div -> IntBop Div
 | Mod -> IntBop Rem
@@ -200,17 +200,6 @@ let rec trans_expr env expr =
           else binop_to_als op
         in
         Binop{left = _tr left; right = _tr right; op;}
-      | Join ->
-        begin match left,right with 
-        | _ , TAst.Lval (Var{name;_}) -> 
-          let state_syms = List.map (fun var -> var.id) env.state_vars in
-          let sym = if List.mem (sym_from name) state_syms then 
-            prepend_state_symbol ~left:env.is_left (sym_from name)
-          else sym_from name in
-          Binop{left = _tr left; right = Lval(VarRef(sym)); op = Bop Join}
-          (* Als.Call({func = sym; args = _tr left :: []}) Navigation.... *) (* <---- if we want navigation syntax ...*)
-        | _ -> Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
-        end
       | In | NotIn -> 
         let left_ty, right_ty = Utility.get_expr_type left, Utility.get_expr_type right in
         if  Utility.is_relation right_ty then 
@@ -287,21 +276,23 @@ let trans_concept_signature = function
   let syms = List.map (fun p -> get_sym_from_parameter p) params in
   Module{name = sym_from name; parameters = Some syms;}, make_cg_env
 
-let trans_concept_state (fields_so_far, facts_so_far, env_so_far) (TAst.State{param = Decl{name;ty};expr;const}) = 
+let trans_concept_state env (fields_so_far, facts_so_far) (TAst.State{param = Decl{name;ty};expr;const}) = 
   let fact = match expr with
   | None -> []
   | Some e ->  
-    let fact_constraint = (Als.Assignment{left = VarRef (prepend_state_symbol ~left:env_so_far.is_left (sym_from name)); right = trans_expr env_so_far e})
+    let fact_constraint = (Als.Assignment{left = VarRef (prepend_state_symbol ~left:env.is_left (sym_from name)); right = trans_expr env e})
     in [Als.Fact{fact_id = sym_from name; body=Unop{op = Always; expr = fact_constraint}}] (*Facts must hold in all States!*)
   in 
-  let new_var = {id = sym_from name; is_const = const; has_fact = List.length fact <> 0} in
-  (* add new entry to list in state_vars *)
   Als.FldDecl{id = sym_from name; ty = type_to_als ty; expr = None;const} :: fields_so_far, 
-  fact @ facts_so_far,
-  add_ty_to_env {env_so_far with state_vars = new_var :: env_so_far.state_vars} ty
+  fact @ facts_so_far
 
 let trans_concept_states env states = 
-  List.fold_left trans_concept_state ([], [], env) states
+  (* first add each state to the environment like is done above*)
+  let env = List.fold_left (fun env (TAst.State{param = Decl{name;ty};const;_}) -> 
+    let new_var = {id = sym_from name; is_const = const; has_fact = false} in
+    add_ty_to_env {env with state_vars = new_var :: env.state_vars} ty
+  ) env states in
+  List.fold_left (trans_concept_state env) ([], []) states, env
 
 let trans_action (env, funcs) (TAst.Action{signature;cond;body}) = 
   let ActionSignature{name;params;out} = signature in 
@@ -388,7 +379,7 @@ let trans_principle env (TAst.OP{principles; tmps}) =
 
 let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{doc_str};states=States{states};actions = Actions{actions}; op} as c) = 
   let module_header, env = trans_concept_signature signature in
-  let als_states, facts, cg_env = trans_concept_states env states in 
+  let (als_states, facts), cg_env = trans_concept_states env states in 
   (* need a list of signatures, first from the primitive types stored in cg_env *)
   let primitive_sigs = List.map (fun sym -> Als.SigDecl{sig_id = sym; fields = []; mult = Implicit}) cg_env.custom_types in
   let sigs = Als.SigDecl{sig_id = Sym.symbol "State"; fields = als_states; mult = One} :: primitive_sigs in

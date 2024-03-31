@@ -9,7 +9,7 @@ let add_mult_to_typ mult = function
 %}
 
 %token EOF (*End of file*)
-%token EQEQ IS NEQ LAND LOR LT GT LTE GTE (*Comparisons*)
+%token EQEQ LAND LOR LT GT LTE GTE (*Comparisons*)
 %token PLUS MINUS AMP SLASH PERCENT (*Binary operators*)
 %token EQ (* Mutators*)
 %token NOT TILDE CARET STAR CARD (*Unaries*)
@@ -17,7 +17,7 @@ let add_mult_to_typ mult = function
 %token LPAR RPAR LBRACK RBRACK LBRACE RBRACE PIPE (*Brackets and stuff*)
 %token WHEN CAN (*Precondition related*)
 %token THEN UNTIL NO (*Temporal operators*)
-%token INT STRING (*Primitive types*)
+%token INT STR (*Primitive types*)
 %token ARROW SET ONE IN LONE EMPTY(* Set-related tokens *)
 %token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
@@ -27,32 +27,29 @@ let add_mult_to_typ mult = function
 %token <string> PURPOSE IDENT ACT STR_LIT
 %token <int64> INT_LIT
 
-// Associativity and precedence
-
+// Associativity and precedence, lowest precedence first....
+%nonassoc EQ 
 %right THEN 
 %left UNTIL 
-
+%nonassoc NO 
 %left LOR
 %left LAND
-%nonassoc NOT NO (*TODO: Should this be higher*)
-%nonassoc IS (*Set-related predicates*) 
-
-%nonassoc EQEQ NEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
+%nonassoc EQEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
+%nonassoc NOT 
 %left PLUS MINUS 
 %left SLASH PERCENT
 %nonassoc CARD
-
 %left AMP
 %right ARROW 
-// %nonassoc SET LONE  ONE 
-%left DOT 
+%left LBRACK (*box join*)
+%left DOT (*dot join*)
 %nonassoc TILDE CARET STAR (*Set and relation unary operators*)
 
 %start <Ast.program> program 
 %%
 
 prim_ty:
-| STRING { TString{loc = mk_loc $loc; mult = None} }
+| STR { TString{loc = mk_loc $loc; mult = None} }
 | INT { TInt{loc = mk_loc $loc; mult = None} }
 | IDENT { TCustom{ty = Ident{name = $1; loc = mk_loc $loc}; loc = mk_loc $loc; mult = None} }
 
@@ -88,7 +85,7 @@ expr:
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
 | unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
 | lval %prec DOT { Lval($1) }
-| lval LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = Lval($1); right = $3; loc = mk_loc $loc} }
+| expr LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = $1; right = $3; loc = mk_loc $loc} }
 | LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
 | pair(CAN, NOT?)? call {
   match $1 with 
@@ -116,16 +113,16 @@ expr:
 | AMP { Intersection{loc = mk_loc $loc} }
 | LAND { Land{loc = mk_loc $loc} }
 | LOR { Lor{loc = mk_loc $loc} }
-| EQEQ | IS { Eq{loc = mk_loc $loc} }
-| NEQ { Neq{loc = mk_loc $loc} }
+| EQEQ { Eq{loc = mk_loc $loc} }
 | LT { Lt{loc = mk_loc $loc} }
 | GT { Gt{loc = mk_loc $loc} }
 | LTE { Lte{loc = mk_loc $loc} }
 | GTE { Gte{loc = mk_loc $loc} }
 | IN { In{loc = mk_loc $loc} }
+| NOT EQ { Neq{loc = mk_loc $loc} }
 | NOT IN { NotIn{loc = mk_loc $loc} }
 | DOT { Join{loc = mk_loc $loc} } 
-| ARROW { MapsTo{loc = mk_loc $loc} } 
+| ARROW { Product{loc = mk_loc $loc} } 
 | THEN { Then{loc = mk_loc $loc} }
 | UNTIL { Until{loc = mk_loc $loc} }
 // Inlining binops to avoid shift/reduce conflicts is standard:
@@ -152,10 +149,8 @@ c_purpose:
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 
-| CONST? decl 
-  { List.map ( fun param -> State{param; expr = None; loc = mk_loc $loc; const = Option.is_some $1} ) $2 }
-| CONST? decl EQ expr 
-  { List.map ( fun param -> State{param; expr = Some $4; loc = mk_loc $loc; const = Option.is_some $1}  ) $2 }
+| CONST? decl pair(EQ, expr)? 
+  { List.map ( fun param -> State{param; expr = Option.map snd $3; loc = mk_loc $loc; const = Option.is_some $1}  ) $2 }
 
 c_state:
 | STATE flatten(state*) ACTIONS { States{ states = $2; loc = mk_loc $loc } }
@@ -166,7 +161,7 @@ stmt:
   | None -> Assignment{lval = $1; rhs = $4; is_compound = false; loc = mk_loc $loc}
   | Some op -> 
   let () = match op with
-  | Lt _ | Gt _ | Lte _ | Gte _ | In _ | NotIn _ | MapsTo _  -> raise @@ Errors.ParserError(InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op});
+  | Lt _ | Gt _ | Lte _ | Gte _ | In _ | NotIn _ | Product _  -> raise @@ Errors.ParserError(InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op});
   | _ -> ()
   in
   Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; is_compound = true; loc = mk_loc $loc} 

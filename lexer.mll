@@ -59,6 +59,7 @@ rule lex = parse
 | '=' { EQ }
 | '+' { PLUS }
 | '-' { MINUS }
+| '&' { AMP } 
 | ':' { COLON }
 | '.' { DOT } 
 | ',' { COMMA }
@@ -71,8 +72,8 @@ rule lex = parse
 | '[' { LBRACK }
 | ']' { RBRACK }
 | '{' { LBRACE }
-| '|' { PIPE }
 | '}' { RBRACE }
+| '|' { PIPE }
 | '"' { Buffer.clear string_buf; string lexbuf; STR_LIT (Buffer.contents string_buf) }  (*Clear current buffer, do the string rule, return contents of buffer afterwards as a STRING token *)
 | whitespace+ { lex lexbuf } (* Skip whitespace *)
 | '\n' { Lexing.new_line lexbuf; lex lexbuf} (* Increment line number *)
@@ -82,13 +83,10 @@ rule lex = parse
 | '>' { GT }
 | "<=" { LTE }
 | ">=" { GTE }
-| "==" { EQEQ }
-| "is"  { IS }
-| '&' { AMP } 
+| "==" | "is" { EQEQ }
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
 | "->" { ARROW }
-| "!=" { NEQ }
 | "none" | "{}" | "empty" { EMPTY }
 | "when" { WHEN }
 | "in" { IN }
@@ -97,7 +95,7 @@ rule lex = parse
 | "lone" { LONE }
 | "const" { CONST }
 | "one" { ONE }
-| "String" { STRING }
+| "String" { STR }
 | "Int" { INT }
 | "can" { CAN }
 | "until" { UNTIL }

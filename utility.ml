@@ -2,62 +2,60 @@ module TAst = TypedAst
 
 let token_to_string = function
   | Parser.EOF -> "EOF"
-  | Parser.EQEQ -> "EQEQ"
-  | Parser.NEQ -> "NEQ"
-  | Parser.PLUS -> "PLUS"
-  | Parser.MINUS -> "MINUS"
-  | Parser.EQ -> "EQ"
-  | Parser.NOT -> "NOT"
-  | Parser.COLON -> "COLON"
-  | Parser.COMMA -> "COMMA"
-  | Parser.DOT -> "DOT"
-  | Parser.LPAR -> "LPAR"
-  | Parser.RPAR -> "RPAR"
-  | Parser.LBRACK -> "LBRACK"
-  | Parser.RBRACK -> "RBRACK"
-  | Parser.WHEN -> "WHEN"
-  | Parser.ARROW -> "ARROW"
-  | Parser.SET -> "SET"
-  | Parser.IN -> "IN"
-  | Parser.CONCEPT -> "CONCEPT"
-  | Parser.STATE -> "STATE"
-  | Parser.ACTIONS -> "ACTIONS"
-  | Parser.OP -> "OP"
-  | Parser.PURPOSE s -> Printf.sprintf "PURPOSE(%s)" s
-  | Parser.IDENT s -> Printf.sprintf "IDENT(%s)" s
-  | Parser.LTE -> "LTE"
-  | Parser.GTE -> "GTE"
-  | Parser.LT -> "LT"
-  | Parser.GT -> "GT"
-  | Parser.LOR -> "LOR"
-  | Parser.LAND -> "LAND"
-  | Parser.INT -> "INT"
-  | Parser.INT_LIT i -> Printf.sprintf "INT_LIT(%Ld)" i
-  | Parser.ACT s -> Printf.sprintf "ACT(%s)" s
-  | Parser.AMP -> "AMP"
-  | Parser.STRING -> "STRING"
-  | Parser.STR_LIT s -> Printf.sprintf "STR_LIT(%s)" s
-  | Parser.TILDE -> "TILDE"
-  | Parser.CARET -> "CARET"
-  | Parser.STAR -> "STAR"
-  | Parser.EMPTY -> "IS_EMPTY"
-  | Parser.ONE -> "ONE"
-  | Parser.CAN -> "CAN"
-  | Parser.CARD -> "CARD"
-  | Parser.LONE -> "LONE"
-  | Parser.APP -> "APP"
-  | Parser.INCLUDE -> "INCLUDE"
-  | Parser.SYNC -> "SYNC"
-  | Parser.CONST -> "CONST"
-  | Parser.LBRACE -> "LBRACE"
-  | Parser.RBRACE -> "RBRACE"
-  | Parser.PIPE -> "PIPE"
-  | Parser.IS -> "IS"
-  | Parser.SLASH -> "SLASH"
-  | Parser.PERCENT -> "PERCENT"
-  | Parser.THEN -> "THEN"
-  | Parser.UNTIL -> "UNTIL"
-  | Parser.NO -> "NO"
+  | EQEQ -> "EQEQ"
+  | PLUS -> "PLUS"
+  | MINUS -> "MINUS"
+  | EQ -> "EQ"
+  | NOT -> "NOT"
+  | COLON -> "COLON"
+  | COMMA -> "COMMA"
+  | DOT -> "DOT"
+  | LPAR -> "LPAR"
+  | RPAR -> "RPAR"
+  | LBRACK -> "LBRACK"
+  | RBRACK -> "RBRACK"
+  | WHEN -> "WHEN"
+  | ARROW -> "ARROW"
+  | SET -> "SET"
+  | IN -> "IN"
+  | CONCEPT -> "CONCEPT"
+  | STATE -> "STATE"
+  | ACTIONS -> "ACTIONS"
+  | OP -> "OP"
+  | PURPOSE s -> Printf.sprintf "PURPOSE(%s)" s
+  | IDENT s -> Printf.sprintf "IDENT(%s)" s
+  | LTE -> "LTE"
+  | GTE -> "GTE"
+  | LT -> "LT"
+  | GT -> "GT"
+  | LOR -> "LOR"
+  | LAND -> "LAND"
+  | INT -> "INT"
+  | INT_LIT i -> Printf.sprintf "INT_LIT(%Ld)" i
+  | ACT s -> Printf.sprintf "ACT(%s)" s
+  | AMP -> "AMP"
+  | STR -> "STRING"
+  | STR_LIT s -> Printf.sprintf "STR_LIT(%s)" s
+  | TILDE -> "TILDE"
+  | CARET -> "CARET"
+  | STAR -> "STAR"
+  | EMPTY -> "IS_EMPTY"
+  | ONE -> "ONE"
+  | CAN -> "CAN"
+  | CARD -> "CARD"
+  | LONE -> "LONE"
+  | APP -> "APP"
+  | INCLUDE -> "INCLUDE"
+  | SYNC -> "SYNC"
+  | CONST -> "CONST"
+  | LBRACE -> "LBRACE"
+  | RBRACE -> "RBRACE"
+  | PIPE -> "PIPE"
+  | SLASH -> "SLASH"
+  | PERCENT -> "PERCENT"
+  | THEN -> "THEN"
+  | UNTIL -> "UNTIL"
+  | NO -> "NO"
 
 
 let lex_and_print_tokens tokenizer lexbuf =
@@ -189,7 +187,7 @@ let ast_binop_to_tast = function
 | NotIn _ -> NotIn
 | Intersection _ -> Intersection
 | Join _ -> Join
-| MapsTo _ -> MapsTo
+| Product _ -> Product
 | Times _ -> Times
 | Div _ -> Div
 | Mod _ -> Mod

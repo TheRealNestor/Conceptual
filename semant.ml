@@ -27,8 +27,7 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
       | Star _ -> check_relation operand_ty; Star, operand_ty
       | Card _ -> Card, TInt{mult = None}
       | No _ -> 
-        if not env.in_op then 
-          Env.insert_error env (LTLsNotAllowed{loc})
+        if not env.in_op then Env.insert_error env (LTLsNotAllowed{loc})
         else match operand, operand_ty with 
           | Call _, TBool -> ();
           | _, TBool -> Env.insert_error env (NoNotAllowed{loc}); 
@@ -41,7 +40,7 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
     let t_left, left_ty = infertype_expr env left in
     let t_right, right_ty = infertype_expr env right in
     let typed_op = Utility.ast_binop_to_tast op in 
-    let operators_with_special_type_comparisons = [TAst.MapsTo; Join; In; NotIn;] in
+    let operators_with_special_type_comparisons = [TAst.Product; Join; In; NotIn;] in
     let null_ops = operators_with_special_type_comparisons @ [TAst.Eq; Neq] in 
     let is_same_valid_type = 
       if Utility.same_base_type left_ty right_ty then true
@@ -67,10 +66,9 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
         if (Utility.is_relation right_ty) && not (Utility.type_is_in_relation left_ty right_ty) then
           Env.insert_error env (InvalidInExpression{left = left_ty; right = right_ty; loc});
         TBool
-      | MapsTo _ -> TMap{left = left_ty; right = right_ty}
+      | Product _ -> TMap{left = left_ty; right = right_ty}
       | Then _ | Until _ -> 
-        if not env.in_op then 
-          Env.insert_error env (LTLsNotAllowed{loc});
+        if not env.in_op then Env.insert_error env (LTLsNotAllowed{loc});
         TBool
       | _ -> left_ty
     ) else ErrorType in
