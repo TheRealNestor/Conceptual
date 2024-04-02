@@ -22,7 +22,7 @@ type aModule = Module of {
 type qop = All | No | One | Some | Lone 
 
 type bop = Plus | Minus | Intersection | And | Or | Lt | Gt | Lte | Gte | Eq | Neq
-| Join | In | Arrow | Implication | Release 
+          | Join | In | Product | Implication | Release 
 type int_bop = Add | Sub | Mul | Div | Rem 
 
 type binop = 
@@ -30,7 +30,7 @@ type binop =
 | Bop of bop
 
 type unop = Not | Tilde | Caret | Star | IsEmpty | Card 
-            | Always | Eventually | Before | After | Historically | Once 
+          | Always | Eventually | Before | After | Historically | Once 
 type mul = One | Lone | Some | Set | Implicit 
 
 type ty = 
@@ -57,7 +57,6 @@ and sigDecl = SigDecl of {
   mult : mul;
   fields : fieldDecl list;
 }
-
 
 and expr =
 | This | Univ | None 
@@ -115,7 +114,6 @@ type prog = Program of {
   assertions : assertion list;
   preds_and_funcs : func_type list;
 }
-
 
 type cg_env = {
   generics : S.symbol list ref;
@@ -180,7 +178,7 @@ let needs_parentheses (outer : expr) (inner : expr) : bool  =
     | In | Eq | Neq | Lt | Gt | Lte | Gte -> 3
     | Plus | Minus -> 4 
     | Intersection -> 5
-    | Arrow -> 6
+    | Product -> 6
     | Join -> 7
     end
   in
@@ -222,7 +220,7 @@ let serializeBinop = function
 | Neq -> " != "
 | Join -> "."
 | In -> " in "
-| Arrow -> "->"
+| Product -> "->"
 | Implication -> " => "
 | Release -> " releases "
 

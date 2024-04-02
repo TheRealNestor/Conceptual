@@ -117,7 +117,7 @@ let binop_to_als = function
 | Neq -> Bop Neq
 | Join -> Bop Join
 | In -> Bop In 
-| Product -> Bop Arrow
+| Product -> Bop Product
 | Times -> IntBop Mul
 | Div -> IntBop Div
 | Mod -> IntBop Rem
@@ -161,14 +161,14 @@ let rec lval_to_als env = function
   )
   else VarRef(sym_from name)
 | Relation{right;_} -> 
-  (* you only get this on lhs. And there lefts are saved in the environment.... *)
+  (* When relations appear on the lhs of mutations, this is the variable that is actually mutated*)
   lval_to_als env right
      
 let rec trans_expr env expr =
   let _tr = trans_expr env in 
   let _mk_lit lit =   
     if List.length env.distributive_joins <> 0 then
-      Als.Binop {op = Bop(Arrow); left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); right = lit}
+      Als.Binop {op = Bop(Product); left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); right = lit}
     else lit 
   in
   begin match expr with
@@ -176,9 +176,9 @@ let rec trans_expr env expr =
     if List.length env.distributive_joins <> 0 then 
       (*e.g. i.labels = {} 
     should be translated to: (State.labels') = (State.labels') - i->Label *)
-      let right = Als.Binop{op = Bop Arrow; 
-      left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
-      right = Lval(VarRef(symbol_from_type env.assignment_type))
+      let right = Als.Binop{op = Bop Product; 
+        left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
+        right = Lval(VarRef(symbol_from_type env.assignment_type))
     } in
     let e = Als.Binop{op=Bop Minus; left = Lval(VarRef(prepend_state_symbol @@ env.lhs_sym)); right} in 
     Als.Parenthesis e
@@ -202,27 +202,32 @@ let rec trans_expr env expr =
       | In | NotIn -> 
         let left_ty, right_ty = Utility.get_expr_type left, Utility.get_expr_type right in
         if  Utility.is_relation right_ty then 
-          (* traverse the relation until we find the simple type *)
           let type_list = Utility.type_to_list_of_types right_ty in 
-          let type_array = Array.of_list type_list in
-          (* split the array, return array with all elements up to when left_ty is first encountered
-            assumes left type is in array, but it should be or SEMANTIC ANALYSIS is broken*)
-          let split_array arr = 
-            let rec split_array' arr i = 
-              if i = Array.length arr then arr
-              else if Utility.same_base_type arr.(i) left_ty then Array.sub arr 0 (i)
-              else split_array' arr (i+1)
-            in split_array' arr 0
-          in 
-          let partitioned_type_list = Array.to_list @@ split_array type_array in
           let fresh_sym = fresh_symbol 0 in
-          let quant_vars = List.map (
-            fun (ty : TAst.ty) -> fresh_sym @@ fst_char_of_typ ty, type_to_als ty 
-          ) partitioned_type_list in
-          let qop = if op = In then Als.All else No in
-          let expr = Als.Binop{left = _tr left; right = _tr right; op = Bop In} in
-          let box_right_syms = List.map (fun (sym,_) -> Als.Lval(VarRef(sym))) quant_vars in
-          Quantifier{qop; vars = quant_vars; expr=BoxJoin{left = expr; right = box_right_syms}}    
+          (* For the set inclusion, check if left type is in any of the types in the relation on the right side:
+             traverse the list of types in the relation, (suppose A -> B -> C -> B),
+             then I want to quantify over all variables, a1 : A1, b1,b2 : B, c1 : C,
+             the expression should then be a product of these variables in the order they appear, e.g. a1 -> b1 -> c1 -> b2
+          *)
+          let quant_vars, quant_vars_left_type = List.fold_left (
+            fun (vars, left_vars) ty -> 
+              let sym = fresh_sym @@ fst_char_of_typ ty in
+              let new_qvars = (sym, type_to_als ty) :: vars in
+              new_qvars, if Utility.same_base_type ty left_ty then sym :: left_vars else left_vars
+            ) ([], []) type_list 
+          in 
+          let quant_vars = List.rev quant_vars in
+          let als_product = List.fold_left (
+            fun expr (sym, _) -> Als.Binop{left = expr; right = Als.Lval(VarRef(sym)); op = Bop Product}
+          ) (Als.Lval(VarRef(fst @@ List.hd quant_vars))) (List.tl quant_vars) in
+          let product_in_state_variable = Als.Binop{left = als_product; right = _tr right; op = Bop In} in
+          let als_union = List.fold_left (
+            fun expr (sym) -> Als.Binop{left = expr; right = Als.Lval(VarRef(sym)); op = Bop Plus}
+          ) (Als.Lval(VarRef(List.hd quant_vars_left_type))) (List.tl quant_vars_left_type) in
+          let left_in_union = Als.Binop{left = _tr left; right = als_union; op = Bop In} in
+          let qop = if op = In then Als.All else Als.No in
+          let als_expr = Als.Binop{left = left_in_union; right = product_in_state_variable; op = Bop And} in
+          Als.Quantifier{qop; vars = quant_vars; expr = als_expr}
         else
           if op = In then Binop{left = _tr left; right = _tr right; op = binop_to_als op;}
           else Unop{op = Not; expr = Binop{left = _tr left; right = _tr right; op = binop_to_als In}}
@@ -242,10 +247,8 @@ let rec trans_expr env expr =
     end;
   | SetComp{decls;cond;_} -> 
     let als_decls = List.map (fun (TAst.Decl{name;ty}) -> sym_from name, type_to_als ty) decls in
-    let als_cond = _tr cond in
-    SetComprehension{vars = als_decls; cond = als_cond}
+    SetComprehension{vars = als_decls; cond = _tr cond}
 end
-
 
 let trans_stmt env = function 
 | TAst.Assignment{lval; rhs; ty }  -> 
