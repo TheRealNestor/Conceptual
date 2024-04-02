@@ -27,10 +27,9 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
       | Star _ -> check_relation operand_ty; Star, operand_ty
       | Card _ -> Card, TInt{mult = None}
       | No _ -> 
-        if not env.in_op then Env.insert_error env (LTLsNotAllowed{loc})
+        if not env.in_op then Env.insert_error env (NoNotAllowed{loc})
         else match operand, operand_ty with 
-          | Call _, TBool -> ();
-          | _, TBool -> Env.insert_error env (NoNotAllowed{loc}); 
+          | _ , TBool -> ();
           | _, _ -> Env.insert_error env (TypeMismatch{actual = operand_ty; expected = TBool; loc});
         ;
         No, TBool
@@ -274,7 +273,7 @@ let typecheck_action env (Ast.Action{signature;cond;body;loc}) =
 
 let typecheck_principle (env : Env.environment) (Ast.OP{principles;_}) = 
   let env = {env with in_op = true} in
-  let t_principles = List.map (fun (expr) -> 
+  let t_principles = List.map (fun (expr) ->
     env.call_tmps := [];
     typecheck_expr env expr TBool
   ) principles in

@@ -37,6 +37,7 @@ type error =
 | LTLsNotAllowed of {loc : Loc.location}
 | NoNotAllowed of {loc : Loc.location;}
 | CanNotAllowed of {loc : Loc.location;}
+| InvalidNegation of {loc : Loc.location;input : string;}
 
 exception ParserError of error
 exception LexerError of error
@@ -75,7 +76,7 @@ let print_error err =
   | LTLsNotAllowed {loc} -> Printf.printf "LTLsNotAllowed. LTLs are only allowed in the operational principle. \t"; Loc.print_location loc;
   | NoNotAllowed {loc} -> Printf.printf "NoNotAllowed. No is only allowed with action calls. \t"; Loc.print_location loc;
   | CanNotAllowed {loc} -> Printf.printf "CanNotAllowed. Can expressions are only allowed in the operational principle. \t"; Loc.print_location loc;
-  
+  | InvalidNegation {loc; input} -> Printf.printf "InvalidNegation. Invalid negation operator %s \t" input; Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

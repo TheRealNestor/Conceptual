@@ -18,7 +18,6 @@ endif
 # dune exec ./conceptual.bc $(RUN_ARG)
 # above is for bytecode compilers
 run:
-	rm -f parser.ml parser.mli
 	dune exec ./conceptual.exe $(RUN_ARG)
 
 #Ensure that the grammar rule is always run

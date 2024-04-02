@@ -6,6 +6,22 @@ let add_mult_to_typ mult = function
 | TInt t -> TInt{t with mult}
 | TCustom t -> TCustom{t with mult}
 | _ as t -> t
+
+let get_loc = function 
+| Plus {loc} | Minus {loc} | Times {loc} | Div {loc} | Mod {loc}
+| Land {loc} | Lor {loc} | Eq {loc} | Neq {loc} | Lt {loc} | Lte {loc}
+| Gt {loc} | Gte {loc} | In {loc} | NotIn {loc} | Intersection {loc}
+| Join {loc} | Product {loc} | Then {loc} | Until {loc} -> loc
+
+let negate_compare_op = function
+| Eq{loc} -> Neq{loc}
+| Lt{loc}  -> Gte{loc}
+| Gt{loc}  -> Lte{loc}
+| Lte{loc} -> Gt{loc}
+| Gte{loc} -> Lt{loc}
+| In{loc}  -> NotIn{loc}
+| Neq{loc} -> Eq{loc}
+| _ as op -> raise @@ Errors.ParserError(InvalidNegation{loc = get_loc op; input = Pretty.binop_to_string op})
 %}
 
 %token EOF (*End of file*)
@@ -28,22 +44,21 @@ let add_mult_to_typ mult = function
 %token <int64> INT_LIT
 
 // Associativity and precedence, lowest precedence first....
-%nonassoc EQ 
 %right THEN 
 %left UNTIL 
 %nonassoc NO 
 %left LOR
 %left LAND
-%nonassoc EQEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
 %nonassoc NOT 
+%nonassoc EQEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
+%nonassoc COMP_NOT (*Negation of comparisons*) 
 %left PLUS MINUS 
-%left SLASH PERCENT
 %nonassoc CARD
-%left AMP
-%right ARROW 
+%left AMP SLASH PERCENT STAR 
+%left ARROW 
 %left LBRACK (*box join*)
 %left DOT (*dot join*)
-%nonassoc TILDE CARET STAR (*Set and relation unary operators*)
+%nonassoc TILDE CARET UNARY_STAR (*relation unary operators*)
 
 %start <Ast.program> program 
 %%
@@ -83,7 +98,13 @@ expr:
 | const { $1 }
 | LPAR expr RPAR { $2 }
 | expr binop expr { Binop{left = $1; op = $2; right = $3; loc = mk_loc $loc} }
-| unary expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
+| expr ioption(NOT) compare_op expr %prec COMP_NOT { 
+  match $2 with
+  | None -> Binop{left = $1; op = $3; right = $4; loc = mk_loc $loc}
+  | Some _ -> Binop{left = $1; op = negate_compare_op $3; right = $4; loc = mk_loc $loc}
+  }
+| unop expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
+| STAR expr %prec UNARY_STAR { Unop {op = Star{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} } (*Include explicitly here to overwrite precedence of star. Cannot assign in inlined nonterminals? *)
 | lval %prec DOT { Lval($1) }
 | expr LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = $1; right = $3; loc = mk_loc $loc} }
 | LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
@@ -96,11 +117,11 @@ expr:
     end
   }
 
-%inline unary:
+%inline unop:
 | NOT { Not{loc = mk_loc $loc} }
 | TILDE { Tilde{loc = mk_loc $loc} }
 | CARET { Caret{loc = mk_loc $loc} }
-| STAR { Star{loc = mk_loc $loc} }
+// | STAR %prec CARET { Star{loc = mk_loc $loc} }
 | CARD { Card{loc = mk_loc $loc} }
 | NO { No{loc = mk_loc $loc} }
 
@@ -113,20 +134,21 @@ expr:
 | AMP { Intersection{loc = mk_loc $loc} }
 | LAND { Land{loc = mk_loc $loc} }
 | LOR { Lor{loc = mk_loc $loc} }
-| EQEQ { Eq{loc = mk_loc $loc} }
-| LT { Lt{loc = mk_loc $loc} }
-| GT { Gt{loc = mk_loc $loc} }
-| LTE { Lte{loc = mk_loc $loc} }
-| GTE { Gte{loc = mk_loc $loc} }
-| IN { In{loc = mk_loc $loc} }
-| NOT EQ { Neq{loc = mk_loc $loc} }
-| NOT IN { NotIn{loc = mk_loc $loc} }
 | DOT { Join{loc = mk_loc $loc} } 
 | ARROW { Product{loc = mk_loc $loc} } 
 | THEN { Then{loc = mk_loc $loc} }
 | UNTIL { Until{loc = mk_loc $loc} }
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
+
+%inline compare_op: 
+| EQEQ { Eq{loc = mk_loc $loc} }
+| LT { Lt{loc = mk_loc $loc} }
+| GT { Gt{loc = mk_loc $loc} }
+| LTE { Lte{loc = mk_loc $loc} }
+| GTE { Gte{loc = mk_loc $loc} }
+| IN { In{loc = mk_loc $loc} }
+
 
 decl:
 | separated_nonempty_list(COMMA, IDENT) COLON ty {

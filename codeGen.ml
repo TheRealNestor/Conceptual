@@ -10,7 +10,7 @@ type cg_env = {
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
   assignment_type : TAst.ty; (* type of the assignment in typed AST, used with distributive join to add things if it does not match*)
   is_left : bool; (* number of statements in the action, used for code generation*)
-  lhs_sym : Sym.symbol; (* TODO: this could likely be refactored/removed... symbol of the left hand side of the assignment, used for empty set expression*)
+  lhs_sym : Sym.symbol; (* Keep track of the variable that is being modified...*)
   con_dict : (Symbol.symbol list) Sym.Table.t; (* concept name to list of state variables *)
 }
 
@@ -176,7 +176,6 @@ let rec trans_expr env expr =
     if List.length env.distributive_joins <> 0 then 
       (*e.g. i.labels = {} 
     should be translated to: (State.labels') = (State.labels') - i->Label *)
-    (* TODO: How to generalize this? If a relation is only on the left but not on the right??? *)
       let right = Als.Binop{op = Bop Arrow; 
       left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
       right = Lval(VarRef(symbol_from_type env.assignment_type))
