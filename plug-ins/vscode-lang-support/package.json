@@ -1,0 +1,25 @@
+{
+  "name": "conceptual-dsl",
+  "displayName": "Conceptual",
+  "description": "Syntax highlighting for Conceptual",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.87.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "conceptual",
+      "aliases": ["Conceptual", "conceptual"],
+      "extensions": [".con"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "conceptual",
+      "scopeName": "source.con",
+      "path": "./syntaxes/conceptual.tmLanguage.json"
+    }]
+  }
+}

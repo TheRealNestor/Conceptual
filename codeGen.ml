@@ -25,10 +25,10 @@ let make_cg_env = {
 }
 
 
-let fresh_symbol initial_counter =
+let fresh_symbol ?(mangle=false) initial_counter =
   let c = ref initial_counter in
   fun initial ->
-    let n = !c in c := n + 1; Sym.symbol (initial ^ (string_of_int n))
+    let n = !c in c := n + 1; Sym.symbol @@ (if mangle then "_" else "") ^initial ^ (string_of_int n)
     
 let prepend_state_symbol ?(left = false) ?(parens=true) (s : Sym.symbol) : Sym.symbol = 
   let apost = if left then "'" else "" in
@@ -203,7 +203,7 @@ let rec trans_expr env expr =
         let left_ty, right_ty = Utility.get_expr_type left, Utility.get_expr_type right in
         if  Utility.is_relation right_ty then 
           let type_list = Utility.type_to_list_of_types right_ty in 
-          let fresh_sym = fresh_symbol 0 in
+          let fresh_sym = fresh_symbol ~mangle:true 0 in
           (* For the set inclusion, check if left type is in any of the types in the relation on the right side:
              traverse the list of types in the relation, (suppose A -> B -> C -> B),
              then I want to quantify over all variables, a1 : A1, b1,b2 : B, c1 : C,
@@ -324,15 +324,29 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
 
     (* fold over this symbol table, creating a single expression for each key, 
       expressions can be "+" separated (i.e. binop) *)
-      let sym_to_expr_map = Sym.Table.fold (
-        fun sym exprs body_so_far -> 
-          let expr = List.fold_left (
-            fun expr_so_far expr -> 
-              Als.Binop{left = expr_so_far; right = expr; op = Bop Plus}
-              ) (List.hd exprs) (List.tl exprs)
-            in
-            (sym, expr) :: body_so_far
-            ) als_sym_table [] in
+    let sym_to_expr_map = Sym.Table.fold (
+      fun sym exprs body_so_far -> 
+        let exprs = List.rev exprs in
+        let expr = List.fold_left (
+          fun expr_so_far expr -> 
+            (* if there are more stmts, they are "compound" statements (not compound in AST though) *)
+            let lval_expr_of_sym = Als.Lval(Als.VarRef(prepend_state_symbol sym)) in
+            match expr with 
+            | Als.Binop{op; left; right} -> 
+              begin match op with 
+              | Bop Plus | Bop Minus | Bop Intersection -> 
+                (* if left sym matches sym *)
+                if left = lval_expr_of_sym then 
+                  Als.Binop{op; left = expr_so_far; right}
+                else (*right must match then*)
+                  Als.Binop{op; left = expr_so_far; right = expr}
+              | _ -> failwith "CG: other binops cannot happen in stmt compound statements"
+              end
+            | _ -> failwith "CG: other stmts cannot happen in sequence"
+          ) (List.hd exprs) (List.tl exprs)
+          in
+          (sym, expr) :: body_so_far
+        ) als_sym_table [] in
 
     (* This is equivalent to Map.Bindings and then collecting all the first arguments *)
     let syms_used, als_body = List.split sym_to_expr_map in

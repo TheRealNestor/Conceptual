@@ -56,7 +56,6 @@ let whitespace = [' ' '\t' '\r']
 
 rule lex = parse 
 | eof { EOF }
-| '=' { EQ }
 | '+' { PLUS }
 | '-' { MINUS }
 | '&' { AMP } 
@@ -83,7 +82,7 @@ rule lex = parse
 | '>' { GT }
 | "<=" { LTE }
 | ">=" { GTE }
-| "==" | "is" { EQEQ }
+| '=' | "is" { EQ }
 | "&&" | "and" { LAND }
 | "||" | "or" { LOR }
 | "->" { ARROW }
@@ -103,7 +102,6 @@ rule lex = parse
 | "no" { NO }
 | "concept" { CONCEPT }
 | "purpose" { Buffer.clear string_buf; purpose_str lexbuf; PURPOSE (Buffer.contents string_buf) } (* Embed the string into the token *)
-(* | "state" { STATE } This is never actually run *)
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
 | "principle" { add_token_to_cache OP; OP }
 | "app" { APP }

@@ -25,9 +25,8 @@ let negate_compare_op = function
 %}
 
 %token EOF (*End of file*)
-%token EQEQ LAND LOR LT GT LTE GTE (*Comparisons*)
+%token EQ LAND LOR LT GT LTE GTE (*Comparisons*)
 %token PLUS MINUS AMP SLASH PERCENT (*Binary operators*)
-%token EQ (* Mutators*)
 %token NOT TILDE CARET STAR CARD (*Unaries*)
 %token COLON COMMA DOT (*Punctuation*)
 %token LPAR RPAR LBRACK RBRACK LBRACE RBRACE PIPE (*Brackets and stuff*)
@@ -50,7 +49,7 @@ let negate_compare_op = function
 %left LOR
 %left LAND
 %nonassoc NOT 
-%nonassoc EQEQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
+%nonassoc EQ LT GT LTE GTE IN (*Comparisons: do we want to allow chaining these?*)
 %nonassoc COMP_NOT (*Negation of comparisons*) 
 %left PLUS MINUS 
 %nonassoc CARD
@@ -142,7 +141,7 @@ expr:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
 %inline compare_op: 
-| EQEQ { Eq{loc = mk_loc $loc} }
+| EQ { Eq{loc = mk_loc $loc} }
 | LT { Lt{loc = mk_loc $loc} }
 | GT { Gt{loc = mk_loc $loc} }
 | LTE { Lte{loc = mk_loc $loc} }
@@ -178,10 +177,8 @@ c_state:
 | STATE flatten(state*) ACTIONS { States{ states = $2; loc = mk_loc $loc } }
 
 stmt:
-| lval binop? EQ expr {
-  match $2 with
-  | None -> Assignment{lval = $1; rhs = $4; is_compound = false; loc = mk_loc $loc}
-  | Some op -> 
+| lval COLON EQ expr { Assignment{lval = $1; rhs = $4; is_compound = false; loc = mk_loc $loc} }
+| lval op=binop EQ expr {
   let () = match op with
   | Lt _ | Gt _ | Lte _ | Gte _ | In _ | NotIn _ | Product _  -> raise @@ Errors.ParserError(InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op});
   | _ -> ()

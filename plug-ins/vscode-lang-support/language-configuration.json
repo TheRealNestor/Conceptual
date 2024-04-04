@@ -1,0 +1,44 @@
+{
+	"comments": {
+		"lineComment": "//",
+		"blockComment": [ "/*", "*/" ]
+	},
+	"brackets": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"]
+	],
+	"autoClosingPairs": [
+		{ "open": "{", "close": "}" },
+		{ "open": "[", "close": "]" },
+		{ "open": "(", "close": ")" },
+		{ "open": "'", "close": "'", "notIn": ["string", "comment"] },
+		{ "open": "\"", "close": "\"", "notIn": ["string"] },
+		{ "open": "`", "close": "`", "notIn": ["string", "comment"] },
+		{ "open": "/**", "close": " */", "notIn": ["string"] }
+	],
+	"autoCloseBefore": ";:.,=}])> \n\t",
+	"surroundingPairs": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"],
+		["<", ">"],
+		["'", "'"],
+		["\"", "\""],
+		["`", "`"]
+	],	
+	"folding": {
+		"offSide": true,
+		"markers": {
+				"start": "^\\s*concept\\b | ^ \\s*purpose\\b | ^ \\s*state\\b | ^ \\s*actions\\b | ^ \\s*principle\\b | ^ \\s*app\\b ",				
+				"end": "^\\s*purpose\\b | ^ \\s*state\\b | ^ \\s*actions\\b | ^ \\s*principle\\b | ^ \\s*app\\b | ^ \\s*concept\\b ",	
+		}
+	},
+	"wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
+	"onEnterRules": [
+		{
+			"beforeText" : "^\\s*(?:concept|purpose|state|actions|principle|app|include)\\b\\s*$|^\\s*(sync|when)\\b.*\\s*$",
+			"action" : { "indent": "indent" }
+		},
+	]
+}

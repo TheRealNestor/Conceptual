@@ -2,10 +2,9 @@ module TAst = TypedAst
 
 let token_to_string = function
   | Parser.EOF -> "EOF"
-  | EQEQ -> "EQEQ"
+  | EQ -> "EQ"
   | PLUS -> "PLUS"
   | MINUS -> "MINUS"
-  | EQ -> "EQ"
   | NOT -> "NOT"
   | COLON -> "COLON"
   | COMMA -> "COMMA"
