@@ -27,13 +27,6 @@
 		["\"", "\""],
 		["`", "`"]
 	],	
-	"folding": {
-		"offSide": true,
-		"markers": {
-				"start": "^\\s*concept\\b | ^ \\s*purpose\\b | ^ \\s*state\\b | ^ \\s*actions\\b | ^ \\s*principle\\b | ^ \\s*app\\b ",				
-				"end": "^\\s*purpose\\b | ^ \\s*state\\b | ^ \\s*actions\\b | ^ \\s*principle\\b | ^ \\s*app\\b | ^ \\s*concept\\b ",	
-		}
-	},
 	"wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
 	"onEnterRules": [
 		{
