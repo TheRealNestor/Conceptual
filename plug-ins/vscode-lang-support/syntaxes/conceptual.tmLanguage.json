@@ -4,10 +4,10 @@
   "patterns": [
     {"include": "#comments"},
     {"include": "#strings"},
-    {"include": "#literals"},
     {"include": "#operators"},
     {"include": "#keywords"},
 		{"include": "#entities"},
+    {"include": "#literals"},
 		{"include": "#concept"},
 		{"include": "#app"},
     {"include": "#punctuations"}

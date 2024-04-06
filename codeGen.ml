@@ -290,8 +290,8 @@ let trans_concept_state env (fields_so_far, facts_so_far) (TAst.State{param = De
 
 let trans_concept_states env states = 
   (* first add each state to the environment like is done above*)
-  let env = List.fold_left (fun env (TAst.State{param = Decl{name;ty};const;_}) -> 
-    let new_var = {id = sym_from name; is_const = const; has_fact = false} in
+  let env = List.fold_left (fun env (TAst.State{param = Decl{name;ty};const;expr}) -> 
+    let new_var = {id = sym_from name; is_const = const; has_fact = Option.is_some expr} in
     add_ty_to_env {env with state_vars = new_var :: env.state_vars} ty
   ) env states in
   List.fold_left (trans_concept_state env) ([], []) states, env
@@ -350,7 +350,9 @@ let trans_action (env, funcs) (TAst.Action{signature;cond;body}) =
 
     (* This is equivalent to Map.Bindings and then collecting all the first arguments *)
     let syms_used, als_body = List.split sym_to_expr_map in
-    let remaining = List.filter (fun var -> not @@ List.mem var.id syms_used && not var.is_const && not var.has_fact) env.state_vars in
+    let remaining = List.filter (
+      fun var -> not var.is_const &&  not var.has_fact && not @@ List.mem var.id syms_used 
+    ) env.state_vars in
     let remaining_syms = List.map (fun var -> var.id) remaining in
 
     let assign_from_syms syms = List.map (fun sym -> 

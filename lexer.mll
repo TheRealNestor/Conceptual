@@ -39,7 +39,7 @@
     let () = List.iter (fun x -> Hashtbl.add alloy_keywords x ()) 
       ["abstract"; "after"; "all"; "always"; "and"; "as"; "assert"; "before"; "but"; "check"; "disj"; "else"; 
       "enabled"; "event"; "eventually"; "exactly"; "extends"; "fact"; "for"; "fun"; "historically"; "iden"; "iff"; 
-      "implies"; "in"; "Int"; "invariant"; "let"; "lone"; "modifies"; "module"; "no"; "none"; "not"; "once"; "one"; "open"; 
+      "implies"; "in"; "int"; "Int"; "invariant"; "let"; "lone"; "modifies"; "module"; "no"; "none"; "not"; "once"; "one"; "open"; 
       "or"; "pred"; "releases"; "run"; "set"; "sig"; "since"; "some"; "steps"; "sum"; "triggered"; "univ"; "until"; "var"] 
     let mangle_ident ident = 
       if Hashtbl.mem alloy_keywords ident then "_" ^ ident

@@ -24,10 +24,10 @@ type error =
 | PrimitiveType of {loc : Loc.location; ty : TAst.ty}
 | UndeclaredType of {loc : Loc.location; ty : TAst.ty}
 | ActionAsLval of {loc : Loc.location; name : TAst.ident}
+| EmptySetComp of {loc : Loc.location}
 | NotASet of {loc : Loc.location; ty : TAst.ty}
 | InvalidCStyle of {loc : Loc.location; input : string}
 | ConstAssignment of {loc : Loc.location; name : TAst.ident}
-| CannotInferSetCompType of {loc : Loc.location}
 | SelfDependency of {loc : Loc.location; name : TAst.ident}
 | FirstClassFunction of {loc : Loc.location; name : TAst.ident}
 | UndeclaredAction of {loc : Loc.location; name : TAst.ident}
@@ -64,9 +64,9 @@ let print_error err =
   | UndeclaredType {loc; ty} -> Printf.printf "UndeclaredType. The type %s is not declared \t" (TPretty.typ_to_string ty); Loc.print_location loc;
   | ActionAsLval {loc; name} -> Printf.printf "ActionAsLval. The name %s is an action \t" (string_of_t_ident name); Loc.print_location loc;
   | NotASet {loc; ty} -> Printf.printf "NotASet. The type %s is not a set \t" (TPretty.typ_to_string ty); Loc.print_location loc;
+  | EmptySetComp {loc} -> Printf.printf "EmptySetComp. Empty set comprehension \t"; Loc.print_location loc;
   | InvalidCStyle {loc; input} -> Printf.printf "InvalidShorthand. Invalid C-style shorthand: %s= \t" input; Loc.print_location loc;
   | ConstAssignment {loc; name} -> Printf.printf "ConstAssignment. The name %s is a constant and cannot be mutated \t" (string_of_t_ident name); Loc.print_location loc;
-  | CannotInferSetCompType {loc} -> Printf.printf "CannotInferSetCompType. Cannot infer the type of the set comprehension \t"; Loc.print_location loc;
   | SelfDependency {loc; name} -> Printf.printf "SelfDependency. The name %s is self-dependent \t" (string_of_t_ident name); Loc.print_location loc;
   | FirstClassFunction {loc; name} -> Printf.printf "FirstClassFunction. The name %s is a first-class function. Not supported. \t" (string_of_t_ident name); Loc.print_location loc;
   | UndeclaredAction {loc; name} -> Printf.printf "UndeclaredAction. The action \"%s\" is not declared \t" (string_of_t_ident name); Loc.print_location loc;

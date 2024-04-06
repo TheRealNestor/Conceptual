@@ -137,6 +137,7 @@ expr:
 | ARROW { Product{loc = mk_loc $loc} } 
 | THEN { Then{loc = mk_loc $loc} }
 | UNTIL { Until{loc = mk_loc $loc} }
+
 // Inlining binops to avoid shift/reduce conflicts is standard:
 // See menhir manual (p. 17-18): https://gallium.inria.fr/~fpottier/menhir/manual.pdf
 
@@ -176,15 +177,32 @@ state:
 c_state:
 | STATE flatten(state*) ACTIONS { States{ states = $2; loc = mk_loc $loc } }
 
+
+// include this also, primarily because it does not contain DOT, which is used in lval (so this helps avoid ambiguities)
+compound_op:
+| PLUS { Plus{loc = mk_loc $loc} }
+| MINUS { Minus{loc = mk_loc $loc} }
+| STAR { Times{loc = mk_loc $loc} } 
+| SLASH { Div{loc = mk_loc $loc} }
+| PERCENT { Mod{loc = mk_loc $loc} }
+| AMP { Intersection{loc = mk_loc $loc} }
+
+assign:
+| COLON EQ; { None }
+| compound_op EQ { Some $1 }
+
 stmt:
-| lval COLON EQ expr { Assignment{lval = $1; rhs = $4; is_compound = false; loc = mk_loc $loc} }
-| lval op=binop EQ expr {
-  let () = match op with
+| separated_nonempty_list(COMMA, lval) assign expr { 
+  match $2 with
+  | None ->  List.map (fun lval -> Assignment{lval; rhs = $3; is_compound = false; loc = mk_loc $loc}) $1 
+  | Some op -> 
+  let () = match op with (*Syntax errors should never be rasied when using compound_op instead of binop*)
   | Lt _ | Gt _ | Lte _ | Gte _ | In _ | NotIn _ | Product _  -> raise @@ Errors.ParserError(InvalidCStyle{loc = mk_loc $loc; input = Pretty.binop_to_string op});
   | _ -> ()
-  in
-  Assignment{lval = $1; rhs = Binop{left=Lval($1); op; right = $4; loc = mk_loc $loc}; is_compound = true; loc = mk_loc $loc} 
+  in 
+  List.map (fun lval -> Assignment{lval; rhs = Binop{left=Lval(lval); op; right = $3; loc = mk_loc $loc}; is_compound = true; loc = mk_loc $loc}) $1
   }
+
 
 action_sig:
 | ACT LPAR flatten(separated_list(COMMA, decl)) RPAR {
@@ -197,7 +215,7 @@ action_firing_cond:
 
 action:
 | action_sig action_firing_cond stmt*
-  { Action{signature = $1; cond = $2; body = Mutators{stmts = $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
+  { Action{signature = $1; cond = $2; body = Mutators{stmts = List.flatten $3; loc = mk_loc $loc}; loc = mk_loc $loc} }
 | action_sig COLON ty expr (*Could include "COLON ty" in action_sig but this might introduce ambiguities*)
   { let ActionSignature{name;params;loc;_} = $1 in
     let signature = ActionSignature{name;params;out = Some $3; loc} in

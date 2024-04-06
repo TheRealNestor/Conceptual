@@ -88,12 +88,12 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
         let env, t_decl = add_decl_to_env env (Decl{name;ty;loc}) in
         env, t_decl :: t_decls
     ) (env, []) decls in
+    let ty = if List.length t_decls = 0 then (Env.insert_error env (EmptySetComp{loc}); TAst.ErrorType) else
+      List.fold_left (
+        fun accumulated_ty (TAst.Decl{ty;_}) -> TAst.TMap{left = ty; right = accumulated_ty}
+      ) (let TAst.Decl{ty;_} = List.hd t_decls in ty) (List.tl t_decls) 
+    in
     let t_cond = typecheck_expr env cond (TAst.TBool) in 
-    (* To infertype we need to have information in the environment  *)
-    let ty = match env.set_comp_type with 
-    | Some t -> t
-    | None -> Env.insert_error env (CannotInferSetCompType{loc}); ErrorType
-    in 
     SetComp{decls = List.rev t_decls; cond = t_cond; ty}, ty
   | BoxJoin{left;right;_} -> 
     let t_left, left_ty = infertype_expr env left in
@@ -201,7 +201,6 @@ let typecheck_stmt env = function
     | None -> Hashtbl.add env.pure_assigns lval true
     | Some _ -> if not !error_already_inserted then Env.insert_error env (NonDeterministicAction{loc; name = Utility.get_lval_name lval;});
   ;
-  let env = match env.set_comp_type with | None -> {env with set_comp_type = Some ty} | Some _ -> env in
   let rhs = typecheck_expr env rhs ty in  
   begin match lval with 
   | Var{name=Ident{sym} as name;_} -> 
@@ -238,7 +237,7 @@ let typecheck_state (env, states_so_far) (Ast.State{param;expr;const;_}) =
   begin match expr with
   | None -> env_with_type, TAst.State{param; expr = None;const} :: states_so_far
   | Some expr -> 
-    let t_expr = typecheck_expr {env_with_type with set_comp_type = Some ty} expr ty in
+    let t_expr = typecheck_expr env_with_type expr ty in
     env_with_type, State{param; expr = Some t_expr;const} :: states_so_far
   end
 
