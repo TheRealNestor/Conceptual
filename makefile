@@ -1,8 +1,19 @@
-# Could optionally add --inspection flag here
-# insepection flag can only be used when table flag is used. 
 make:
-	dune clean
+	opam update
+	opam install . --deps-only	
 	dune build
+
+build:
+	dune build
+
+install:
+	opam update
+	opam install --yes . --deps-only
+
+.PHONY: test
+test:
+	dune runtest	
+	
 
 clean:
 	dune clean
@@ -15,10 +26,8 @@ ifeq (run,$(firstword $(MAKECMDGOALS)))
 endif
 # Beware that vscode is configured to use tabs for indentation in makefiles, but scripting requires space indentation
 
-# dune exec ./conceptual.bc $(RUN_ARG)
-# above is for bytecode compilers
 run:
-	dune exec ./conceptual.exe $(RUN_ARG)
+	dune exec ./bin/main.exe $(RUN_ARG)
 
 #Ensure that the grammar rule is always run
 # https://github.com/Lelio-Brun/Obelisk?tab=readme-ov-file

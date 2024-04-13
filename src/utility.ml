@@ -309,21 +309,3 @@ let rec relation_in_expr = function
 | _ -> false
 
 
-(* TODO: remove this? *)
-(* function for suppressing stdout temporarily *)
-let suppress_stdout f =
-  let original_stdout = Unix.descr_of_out_channel stdout in
-  (* Redirect stdout to /dev/null *)
-  let dev_null = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0 in
-  Unix.dup2 dev_null original_stdout;
-  Unix.close dev_null;
-  try
-    let ret = f in (* Execute the function f, whose output to stdout will be suppressed *)
-    (* Restore the original stdout *)
-    Unix.dup2 original_stdout original_stdout;
-    ret;
-  with _ ->
-    (* Ensure that stdout is restored even if an error occurs *)
-    Unix.dup2 original_stdout original_stdout;
-    None
-

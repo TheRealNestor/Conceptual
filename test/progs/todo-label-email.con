@@ -1,0 +1,70 @@
+concept email
+purpose 
+  communicate with private messages 
+state
+  inbox: User -> set Message
+  from, to: Message -> User
+  content: Message -> Content
+actions
+  send(by, t : User, m : Message, c : Content)
+    // original wording: "when m is a fresh message not in a user's inbox" <----- this could be any users inbox? Fresh message?
+    when m not in t.inbox 
+      m.content := c
+      m.from := by
+      m.to := t
+  receive(by:User, m:Message)
+    when m not in by.inbox and m.to = by
+      by.inbox += m 
+  delete(u : User, m:Message)  // <---- Abbreviated MSG in DNJs book, figure 6.5. Added user here.
+    when m in u.inbox 
+      u.inbox -= m
+      m.from, m.to, m.content := {}
+principle 
+  send(b,t,m,c); receive(t,m); m in t.inbox and m.content = c
+
+concept todo [Task]
+purpose keep track of tasks
+state 
+  done, pending: set Task
+actions
+  add(t : Task)
+    when t not in done+pending
+    pending += t
+  delete(t : Task)
+    when t in done+pending 
+    done -= t
+    pending -= t
+  complete(t : Task)
+    when t in pending 
+    pending -= t
+    done += t
+principle
+  add(t) then t in pending until delete(t) or complete(t),
+  complete(t) then t in done until delete(t)
+
+concept label [Item]
+purpose organize items into overlapping categories
+state
+  labels: Item -> set Label 
+actions 
+  affix(i: Item, l : Label)
+    i.labels += l
+  detach(i : Item, l : Label)
+    i.labels -= l
+  find(l: Label) : Item 
+    l.~labels
+  clear(i : Item)
+    i.labels := {}
+principle
+  affix(i,l) then i in find(l) until detach(i,l) or clear(i),
+  no affix(i,l) or detach(i,l) then i not in find(l)
+
+app todo_label_mail
+include
+  todo [email.Content]
+  label [email.Content]
+  email 
+sync todo.delete(t)
+  label.clear(t)
+sync email.receive(u,m)
+  todo.add(m.content)

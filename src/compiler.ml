@@ -1,9 +1,6 @@
-module TAst = TypedAst
-module TPretty = TypedPretty
 
-let pretty_print_t_program prog = PrintBox_text.output stdout (TPretty.program_to_tree prog); output_string stdout "\n"
 
-let compile_program (filepath : string) = 
+let compile_program filepath = 
     let prog = match AstCompiler.compile_program_to_ast filepath with
       | Some p -> p
       | None -> raise (Failure "Failed to lex or parse program")

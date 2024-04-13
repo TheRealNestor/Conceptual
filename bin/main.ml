@@ -9,4 +9,4 @@ let () =
     let filename = Sys.argv.(1) in
     if not (Filename.check_suffix filename ".con") then 
       failwith (Printf.sprintf "File %s is not a .con file" filename);
-    Compiler.compile_program filename
+    Conceptual.Compiler.compile_program filename

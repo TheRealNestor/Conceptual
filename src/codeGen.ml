@@ -503,6 +503,8 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
 let translate_program (prog : TAst.program) = 
   let concepts, apps = prog in 
 
+  if not @@ Sys.file_exists "alloy" then Sys.mkdir "alloy" 0o777;
+
   let env, concepts = List.fold_left trans_concept (make_cg_env, []) concepts in 
   List.iter (fun c_prog -> 
     let string_prog = Als.string_of_program c_prog in

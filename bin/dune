@@ -1,0 +1,11 @@
+
+(executable
+ (name main)
+ (libraries conceptual)
+ (modes byte exe ) 
+)
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))

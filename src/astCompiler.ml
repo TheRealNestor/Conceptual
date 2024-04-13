@@ -1,5 +1,3 @@
-let pretty_print_program prog = PrintBox_text.output stdout (Pretty.program_to_tree prog); output_string stdout "\n"
-
 let compile_program_to_ast (filepath : string) : Ast.program option = 
   let file_in = try Some(open_in filepath) with Sys_error _ -> None in
   if Option.is_none file_in then None 

@@ -1,0 +1,25 @@
+opam-version: "2.0"
+synopsis: "Concept-DSL and compiler to Alloy"
+version: "0.1"
+maintainer: "nikolajkjakobsen@gmail.com"
+authors: ["Nikolaj Kühne Jakobsen"]
+# license: "MIT"
+homepage: "https://github.com/TheRealNestor/ConceptDSL"
+bug-reports: "https://github.com/TheRealNestor/ConceptDSL/issues"
+build: [
+  ["dune" "subst"] # substitution if they are used at some point
+  ["dune" "build" "-p" name "-j" jobs]
+]
+
+# The specific versions are mostly estimated, and should be updated when the project is more mature
+depends: [
+  "dune" {>= "3.14"} 
+  "menhir" {>= "20231231"}
+  "ppx_expect" 
+  "printbox" 
+  "printbox-text" 
+  "menhirLib"
+  "menhirCST"
+  "zarith"
+  # "obelisk" # to print the syntax in a nice way
+]

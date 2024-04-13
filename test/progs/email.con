@@ -1,0 +1,21 @@
+concept email
+purpose communicate with private messages 
+state
+  inbox: User -> set Message
+  from, to: Message -> User
+  content: Message -> Content
+actions
+  send(by, for : User, m : Message, c : Content)
+    when m not in for.inbox 
+      m.content := c
+      m.from := by
+      m.to := for
+  receive(by : User, m : Message)
+    when m not in by.inbox and m.to = by
+      by.inbox += m 
+  delete(u : User, m : Message)  
+    when m in u.inbox 
+      u.inbox -= m
+      m.from, m.to, m.content := {}
+principle 
+  send(f,t,m,c); receive(t,m); m in t.inbox and m.content = c

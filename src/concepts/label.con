@@ -1,0 +1,17 @@
+concept label [Item]
+purpose organize items into overlapping categories
+state labels: Item -> set Label 
+actions 
+  affix(i : Item, l : Label)
+    i.labels += l
+  detach(i : Item, l : Label)
+    i.labels -= l
+  find(l : Label) : Item 
+    l.~labels
+  clear(i : Item)
+    i.labels := {}
+principle
+  affix(i,l) then i in find(l) until detach(i,l) or clear(i),
+  no affix(i,l) or detach(i,l) then i not in find(l)
+
+
