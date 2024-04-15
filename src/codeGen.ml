@@ -1,5 +1,6 @@
 module TAst = TypedAst
 module Als = Alloy
+module Serialize = SerializeAlloy
 module Sym = Symbol
 
 type variable = {id : Sym.symbol; is_const : bool; has_fact : bool}
@@ -499,23 +500,17 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
     preds_and_funcs = [];
     assertions = []
   } :: apps
-
-let translate_program (prog : TAst.program) = 
-  let concepts, apps = prog in 
-
-  if not @@ Sys.file_exists "alloy" then Sys.mkdir "alloy" 0o777;
-
-  let env, concepts = List.fold_left trans_concept (make_cg_env, []) concepts in 
-  List.iter (fun c_prog -> 
-    let string_prog = Als.string_of_program c_prog in
-    let oc = open_out ("alloy/" ^ Als.get_prog_name c_prog ^ ".als") in
-    Printf.fprintf oc "%s\n" string_prog;
-  ) concepts;
-
-  let apps = List.fold_left (trans_app env) [] apps in
-  List.iter (
-    fun app_prog ->
-      let string_prog = Als.string_of_program app_prog in
-      let oc = open_out ("alloy/" ^ Als.get_prog_name app_prog ^ ".als") in
+  let translate_program_to_ir (prog : TAst.program) = 
+    let concepts, apps = prog in 
+    let env, als_concepts = List.fold_left trans_concept (make_cg_env, []) concepts in
+    let als_apps = List.fold_left (trans_app env) [] apps in
+    als_concepts @ als_apps
+  
+  let translate_program (prog : TAst.program) = 
+    let progs = translate_program_to_ir prog in
+    if not @@ Sys.file_exists "alloy" then Sys.mkdir "alloy" 0o777;
+    List.iter (fun prog -> 
+      let string_prog = Serialize.serializeProgram prog in
+      let oc = open_out ("alloy/" ^ Serialize.get_prog_name prog ^ ".als") in
       Printf.fprintf oc "%s\n" string_prog;
-  ) apps;
+    ) progs;

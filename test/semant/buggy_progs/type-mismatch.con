@@ -1,0 +1,8 @@
+concept test
+purpose something
+state
+  x : Int
+actions
+  a() 
+  x := "type mismatch"
+principle

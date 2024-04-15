@@ -106,7 +106,7 @@ expr:
 | STAR expr %prec UNARY_STAR { Unop {op = Star{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} } (*Include explicitly here to overwrite precedence of star. Cannot assign in inlined nonterminals? *)
 | lval %prec DOT { Lval($1) }
 | expr LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = $1; right = $3; loc = mk_loc $loc} }
-| LBRACE flatten(separated_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
+| LBRACE flatten(separated_nonempty_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
 | pair(CAN, NOT?)? call {
   match $1 with 
   | None -> $2
@@ -177,7 +177,6 @@ state:
 c_state:
 | STATE flatten(state*) ACTIONS { States{ states = $2; loc = mk_loc $loc } }
 
-
 // include this also, primarily because it does not contain DOT, which is used in lval (so this helps avoid ambiguities)
 compound_op:
 | PLUS { Plus{loc = mk_loc $loc} }
@@ -232,9 +231,16 @@ concept:
 | c_sig c_purpose c_state c_actions c_op  
   { Concept{signature = $1; purpose = $2; states = $3; actions = $4; op = $5; loc = mk_loc $loc} }
 
+filepath:
+| IDENT pair(SLASH, IDENT)* {
+  let path = List.map snd $2 in
+  let path_str = List.fold_left Filename.concat $1 path in
+  if Filename.check_suffix path_str ".con" then path_str else path_str ^ ".con"
+}
+
 app_dep:
-| IDENT pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
-| IDENT delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_ty)), RBRACK) { 
+| filepath pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
+| filepath delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_ty)), RBRACK) { 
   let generics = List.map (
     fun (con, ty) -> 
       match con with

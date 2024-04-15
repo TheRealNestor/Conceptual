@@ -1,0 +1,9 @@
+concept test
+purpose something
+state
+  x : Int -> Int
+  y : String -> String
+  z : String = x.y
+actions
+  a() 
+principle

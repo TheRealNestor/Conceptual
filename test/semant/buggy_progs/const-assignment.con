@@ -1,0 +1,8 @@
+concept test
+purpose something
+state
+  const x : Int 
+actions
+  a()
+  x := 1
+principle

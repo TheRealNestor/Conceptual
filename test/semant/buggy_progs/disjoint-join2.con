@@ -1,0 +1,9 @@
+concept test
+purpose something
+state
+  x : Int
+  y : Int
+  z : Int = x.y
+actions
+  a()
+principle

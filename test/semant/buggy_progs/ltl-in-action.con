@@ -1,0 +1,7 @@
+concept test
+purpose something
+state
+actions
+  a() 
+  when 1=1 then 2=2
+principle

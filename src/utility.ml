@@ -120,13 +120,10 @@ let get_mult = function
 
 (* create a function that checks that a given ty is included somewhere in a TMap{left;right} *)
 let type_is_in_relation ty rel = 
-  if not (is_relation rel) then false
-  else
-
-let rec dfs = function
-  | TAst.TMap{left;right} -> dfs left || dfs right
-  | t -> same_base_type t ty
-  in dfs rel
+  let rec dfs = function
+    | TAst.TMap{left;right} -> dfs left || dfs right
+    | t -> same_base_type t ty
+    in dfs rel
 
 let is_lval = function
 | TAst.Lval _ -> true
@@ -219,10 +216,9 @@ let construct_join_type env expr left_ty right_ty =
   let left_history, right_history = type_to_list_of_types left_ty, type_to_list_of_types right_ty in
   let leftmost_type_of_right, rightmost_type_of_left = List.hd right_history, List.hd @@ List.rev left_history in
   let unwrapped_right_ty, unwrapped_left_ty = set_typ_mult None leftmost_type_of_right, set_typ_mult None rightmost_type_of_left in
-  if not (is_relation left_ty || is_relation right_ty) then (
-    Env.insert_error env (IllFormedRelation{loc = get_lval_or_expr_location expr; left = left_ty; right = right_ty}); TAst.ErrorType
-  ) else if unwrapped_right_ty <> unwrapped_left_ty then (
-    Env.insert_error env (DisjointRelation{loc = get_lval_or_expr_location expr; left = unwrapped_left_ty; right = unwrapped_right_ty}); ErrorType
+  if (not (is_relation left_ty || is_relation right_ty)) || 
+    unwrapped_right_ty <> unwrapped_left_ty then (
+      Env.insert_error env (DisjointRelation{loc = get_lval_or_expr_location expr; left = unwrapped_left_ty; right = unwrapped_right_ty}); TAst.ErrorType
   ) else (
     (* Construct the resulting type of the join  *)
     (* This includes everything in left_history except its last element, everything in right_history except for head *)
@@ -308,4 +304,10 @@ let rec relation_in_expr = function
 | Lval Relation _ -> true
 | _ -> false
 
-
+let concept_in_list c l = 
+  let c_name = Symbol.symbol @@ get_concept_name c in
+  List.exists (fun (TAst.Concept{signature;_}) -> 
+    match signature with 
+    | TAst.Signature{name = TAst.Ident{sym};_} -> sym = c_name
+    | TAst.ParameterizedSignature{name = TAst.Ident{sym};_} -> sym = c_name
+  ) l

@@ -18,7 +18,7 @@ type environment = {env_objects : env_object Sym.Table.t; (*Keep track of named 
                     call_tmps : TAst.decl list ref; (* Temporary variables for the operational principle *)
                     trigger_sync : bool; (* Whether the current context is in a trigger sync. Trigger synchronizations can introduce new variables *)
                     left_lval : TAst.lval option; (* The left hand side of the current assignment *)
-                    dir : string; (* The directory of the file being compiled *)
+                    dir : string; (* The directory of the current file that is run *)
                     }
    
 (* create an initial environment with the given functions defined *)
@@ -35,7 +35,7 @@ let make_env =
   call_tmps = ref [];
   trigger_sync = false;
   left_lval = None; 
-  dir = "";
+  dir ="";
 }
 
 

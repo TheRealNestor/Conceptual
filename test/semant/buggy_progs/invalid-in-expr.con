@@ -1,0 +1,11 @@
+concept test
+purpose something
+state
+  x : Int
+  y : String
+actions
+  a()
+  when x in y
+  
+principle
+  

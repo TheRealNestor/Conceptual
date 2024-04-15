@@ -1,0 +1,8 @@
+concept test
+purpose something
+state
+  x : Int
+  x : Int
+actions
+  a()
+principle

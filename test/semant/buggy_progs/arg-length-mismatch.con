@@ -1,0 +1,10 @@
+concept test
+purpose something
+state
+  x : Int
+  y : String 
+actions
+  a() : Int
+  1
+principle
+  1 = a(x) 

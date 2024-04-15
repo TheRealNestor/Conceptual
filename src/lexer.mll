@@ -65,6 +65,8 @@ rule lex = parse
 | '~' { TILDE }
 | '^' { CARET }
 | '*' { STAR }
+| '/' { SLASH }
+| '%' { PERCENT }
 | '#' { CARD }
 | '(' { LPAR }
 | ')' { RPAR }

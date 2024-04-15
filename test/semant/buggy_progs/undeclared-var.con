@@ -1,0 +1,7 @@
+concept test
+purpose something
+state
+actions
+  a()
+  x := 1
+principle

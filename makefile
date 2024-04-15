@@ -34,6 +34,6 @@ run:
 .PHONY: grammar
 grammar:
 	rm -f grammar/*
-	obelisk latex parser.mly > grammar/obelisk.tex
+	obelisk latex src/parser.mly > grammar/obelisk.tex
 	sed -i '/\\documentclass/a \\n\\\usepackage[right=0.1cm]{geometry}' grammar/obelisk.tex
 	pdflatex -output-directory=grammar grammar/obelisk.tex

@@ -16,9 +16,9 @@
 ; (ocamllex lexer)
 
 (menhir
- (flags --dump)
+ (flags --dump )
  (infer true) ; this flag and explain are enabled by default (in this version of dune/menhir) but explicitly included for clarity
- (explain true) 
+ (explain true)
  (modules parser)
 )
 

@@ -12,19 +12,18 @@ let add_decl_to_env ?(insert_error = true) ?(const = false) env (Ast.Decl{name;t
     Env.insert_error env (DuplicateDeclaration{name;loc;ns="variable/action"});
   Env.insert env sym (Var(ty,const)), TAst.Decl{name; ty; }
 
-let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty = 
+let rec infertype_expr (env : Env.environment) (expr : Ast.expr) : TAst.expr * TAst.ty = 
   begin match expr with 
   | EmptySet _ -> EmptySet{ty=NullSet{ty=None}}, NullSet{ty = None}
   | String {str;_} -> String{str}, TString{mult = None}
   | Integer {int;_} -> Integer{int}, TInt{mult = None}
   | Unop {op;operand;loc} ->
     let operand, operand_ty = infertype_expr env operand  in
-    let check_relation e = if not (Utility.is_relation e) then Env.insert_error env (NotARelation{ty=e;loc}) in
     let op, ty = match op with 
       | Not _ -> TAst.Not, TAst.TBool
-      | Tilde _ -> check_relation operand_ty; Tilde, Utility.reverse_relation_type operand_ty
-      | Caret _ -> check_relation operand_ty; Caret, operand_ty
-      | Star _ -> check_relation operand_ty; Star, operand_ty
+      | Tilde _ -> Tilde, Utility.reverse_relation_type operand_ty
+      | Caret _ -> Caret, operand_ty
+      | Star _ -> Star, operand_ty
       | Card _ -> Card, TInt{mult = None}
       | No _ -> 
         if not env.in_op then Env.insert_error env (NoNotAllowed{loc})
@@ -62,7 +61,7 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
       | Join _ -> Utility.construct_join_type env expr left_ty right_ty
       | Eq _ | Neq _ -> TBool
       | In _ | NotIn _ -> 
-        if (Utility.is_relation right_ty) && not (Utility.type_is_in_relation left_ty right_ty) then
+        if not (Utility.type_is_in_relation left_ty right_ty) then
           Env.insert_error env (InvalidInExpression{left = left_ty; right = right_ty; loc});
         TBool
       | Product _ -> TMap{left = left_ty; right = right_ty}
@@ -71,9 +70,9 @@ let rec infertype_expr env (expr : Ast.expr) : TAst.expr * TAst.ty =
         TBool
       | _ -> left_ty
     ) else ErrorType in
-      let t_left = if Utility.is_empty_set left_ty && not @@ Utility.is_relation right_ty && List.mem typed_op null_ops then 
+      let t_left = if Utility.is_empty_set left_ty && List.mem typed_op null_ops then 
         Utility.change_expr_type right_ty t_left else t_left in
-      let t_right = if Utility.is_empty_set right_ty && not @@ Utility.is_relation left_ty && List.mem typed_op null_ops then
+      let t_right = if Utility.is_empty_set right_ty && List.mem typed_op null_ops then
         Utility.change_expr_type left_ty t_right else t_right in  
       let bop = TAst.Binop{op = typed_op; left = t_left; right = t_right; ty} in 
       (* if the expression is join, left lval is relation and these match, change node to a relation
@@ -315,41 +314,40 @@ let typecheck_concepts env concepts =
     if is_decl <> None then Env.insert_error env (DuplicateDeclaration{name = Ident{sym}; loc; ns = "concept"});
     let con_dict = Sym.Table.add sym (env, no_generics) env.con_dict in
     let errors = env.errors in
-    {Env.make_env with errors = errors; con_dict = con_dict}, t_concept :: t_concepts
+    {Env.make_env with errors = errors; con_dict = con_dict; dir=env.dir}, t_concept :: t_concepts
   ) (env, []) concepts
   
-let include_concepts (env : Env.environment) (Ast.Dependency{name;loc;_}) =
-  (* look the concept (name) up, if found do nothing, 
-     if not found, try to compile a .con file with that name to AST *)
-  let Ident{sym} as name = convert_ident name in
+let include_concepts ((env : Env.environment), (new_concepts)) (Ast.Dependency{name=Ident{name=path;_};loc;_}) =
+  let concept_name = Filename.basename path |> Filename.remove_extension in 
+  let TAst.Ident{sym} as name = TAst.Ident{sym = Sym.symbol concept_name;} in
   let con_opt = Sym.Table.find_opt sym env.con_dict in
   match con_opt with
-  | Some _ -> env
-  | None -> 
-    let filename = Filename.concat env.dir (Sym.name sym ^ ".con") in
-    (* try to compile the file if available in current dir *)
-    let prog_opt = AstCompiler.compile_program_to_ast filename in 
+  | Some _ -> env, new_concepts (* concept already in environment, no new concepts to add *)
+  | None -> (* try to compile the file if available *)
+    let filepath = Filename.concat env.dir path in
+    if not @@ Sys.file_exists filepath then (Env.insert_error env (FileNotFound{input=filepath; loc}); env, new_concepts) else 
+    let prog_opt = AstCompiler.compile_program_to_ast filepath in 
     match prog_opt with
-    | None -> Env.insert_error env (Undeclared{name; loc}); env
-    | Some (concepts,_) -> 
-      (* look for the concept with "name" in external file*)
+    | None -> Env.insert_error env (InvalidProgram{input=filepath; loc}); env, new_concepts (* file not found or program is incorrect *)
+    | Some (concepts,_) -> (* look for the concept with "name" in external file*)
       let concept_found = List.find_opt (fun (Ast.Concept{signature;_}) -> match signature with 
         | Signature{name = Ident{name;_};_} | ParameterizedSignature{name = Ident{name;_};_} -> name = Sym.name sym
       ) concepts in
       match concept_found with 
-      | None -> Env.insert_error env (Undeclared{name; loc}); env
-      | Some concept -> 
-      let tmp_env, Concept{signature;_} = typecheck_concept Env.make_env concept in
-      let con_generics = match signature with 
-        | Signature _ -> []
-        | ParameterizedSignature{params;_} -> List.map (fun (TAst.Parameter{ty;_}) -> ty) params
-      in
-      env.errors := !(tmp_env.errors) @ !(env.errors);
-      let con_dict = Sym.Table.add sym (tmp_env, con_generics) env.con_dict in
-      {env with con_dict = con_dict}
+      | None ->Env.insert_error env (Undeclared{name; loc}); env, new_concepts (* concept not found in external file *)
+      | Some concept -> (*concept found *)
+        let tmp_env, (Concept{signature;_} as c) = typecheck_concept Env.make_env concept in
+        let con_generics = match signature with 
+          | Signature _ -> []
+          | ParameterizedSignature{params;_} -> List.map (fun (TAst.Parameter{ty;_}) -> ty) params
+        in
+        env.errors := !(tmp_env.errors) @ !(env.errors);
+        let con_dict = Sym.Table.add sym (tmp_env, con_generics) env.con_dict in
+        {env with con_dict = con_dict}, c :: new_concepts
 
-let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;generics;loc}) = 
-  let Ident{sym} as t_con = convert_ident name in
+let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name=Ident{name;_};generics;loc}) = 
+  let concept_name = Filename.basename name |> Filename.remove_extension in
+  let Ident{sym} as t_con = TAst.Ident{sym = Sym.symbol concept_name;} in
   let t_generics = List.map (
     fun (Ast.Generic{con;ty;loc}) -> 
       let ty = Utility.convert_type ty in
@@ -362,7 +360,6 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
             | None -> Env.insert_error env (Undeclared{name = t_con; loc}); 
             | Some (con_env, _) ->  
               if not (List.mem ty con_env.valid_custom_types) then Env.insert_error env (UndeclaredType{ty; loc});
-              if t_con = convert_ident name then Env.insert_error env (SelfDependency{name = t_con; loc});
           ; TAst.Generic{con = Some t_con; ty = ty;}          
   ) generics in    
 
@@ -372,7 +369,6 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
   in
   if List.length t_generics <> List.length con_generics then 
     Env.insert_error env (LengthMismatch{expected = List.length con_generics; actual = List.length t_generics; loc});
-
   (* update the actions in the environment of that concept, with actions that have new types *)
   (* get the concept associated with the concept *)
   let new_con_env = Sym.Table.fold (fun _ obj con_env ->
@@ -406,10 +402,10 @@ let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name;ge
   let new_con_dict = Sym.Table.add sym (new_con_env, con_generics) env.con_dict in
   {env with con_dict = new_con_dict}, TAst.Dependency{name = t_con; generics = t_generics;} :: deps
 
-let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;syncs;loc}) = 
-  let env = {env with in_sync = true} in 
+let typecheck_app ((env : Env.environment), (apps_so_far), (new_concepts)) (Ast.App{name;deps;syncs;loc}) = 
+  let env = {env with in_sync = true;} in (*add con_dict = Sym.Table.empty here to disallow concepts in current file*)
   let app_name = convert_ident name in
-  let env = List.fold_left include_concepts env deps in (*Include concepts not in the document*)
+  let env, new_app_cons = List.fold_left include_concepts (env, new_concepts) deps in (*Include concepts not in the document*)
   let env, t_deps = List.fold_left typecheck_dependency (env, []) deps in
   let t_deps = List.rev t_deps in
   let t_syncs = List.map (
@@ -439,17 +435,24 @@ let typecheck_app ((env : Env.environment), (apps_so_far)) (Ast.App{name;deps;sy
   let t_app = TAst.App{name = app_name; deps = t_deps; syncs = t_syncs;} in
   if List.mem app_name env.app_ns then 
     Env.insert_error env (DuplicateDeclaration{name = app_name; loc; ns = "app"});
-  {env with app_ns = app_name :: env.app_ns}, t_app :: apps_so_far
+  {env with app_ns = app_name :: env.app_ns}, t_app :: apps_so_far, new_app_cons @ new_concepts
   
 let typecheck_apps env apps = 
-  List.fold_left (typecheck_app) (env, []) apps
+  List.fold_left (typecheck_app) (env, [], []) apps
 
-(* filedir lets us compile other progs to ast on demand *)
-let typecheck_prog (filedir : string) (prog : Ast.program) : Env.environment * TAst.program =
-  let env = Env.make_env in 
+let typecheck_prog (filepath : string) (prog : Ast.program) : Errors.error list * TAst.program =
+  let env = Env.make_env in
+  let filedir = Filename.dirname filepath in
   let concepts, apps = prog in 
-  let concept_env, t_cons = typecheck_concepts env concepts in 
-  let app_env, t_apps = typecheck_apps {concept_env with dir=filedir} apps in
+  let concept_env, t_cons = typecheck_concepts env concepts in
+  let app_env, t_apps, new_cons = typecheck_apps {concept_env with dir = filedir} apps in
+  (* Include any concepts that might have been missing and included through apps *)
+  let t_cons = List.fold_left (
+    fun (t_cons_so_far) new_con ->
+      if Utility.concept_in_list new_con t_cons then t_cons_so_far
+      else new_con :: t_cons_so_far
+  ) t_cons new_cons
+  in 
   let t_prog = (t_cons, t_apps) in
-  {Env.make_env with errors = app_env.errors}, t_prog
+  !(app_env.errors), t_prog
 
