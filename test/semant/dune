@@ -2,6 +2,5 @@
  (name semant_test)
  (inline_tests (deps (source_tree ../progs) (source_tree buggy_progs)))
  (libraries conceptual)
- (preprocess
-  (pps ppx_expect)))
-
+ (preprocess (pps ppx_expect))
+)

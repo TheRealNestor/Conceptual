@@ -149,7 +149,6 @@ expr:
 | GTE { Gte{loc = mk_loc $loc} }
 | IN { In{loc = mk_loc $loc} }
 
-
 decl:
 | separated_nonempty_list(COMMA, IDENT) COLON ty {
   let idents = List.map (fun id -> Ident{name = id; loc = mk_loc $loc}) $1 in
@@ -231,16 +230,25 @@ concept:
 | c_sig c_purpose c_state c_actions c_op  
   { Concept{signature = $1; purpose = $2; states = $3; actions = $4; op = $5; loc = mk_loc $loc} }
 
-filepath:
-| IDENT pair(SLASH, IDENT)* {
-  let path = List.map snd $2 in
-  let path_str = List.fold_left Filename.concat $1 path in
-  if Filename.check_suffix path_str ".con" then path_str else path_str ^ ".con"
+filename: 
+| IDENT %prec LBRACK { $1 }
+| IDENT DOT IDENT %prec DOT { $1 ^ "." ^ $3 }
+
+path_expr: 
+| path_expr DOT DOT SLASH { Filename.concat $1 ".." }
+| path_expr IDENT SLASH { Filename.concat $1 $2 }
+| {""}
+
+path:
+| path_expr filename {
+  let full_path = Filename.concat $1 $2 in
+  if Filename.check_suffix full_path ".con" then full_path else full_path ^ ".con"
 }
 
+
 app_dep:
-| filepath pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
-| filepath delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_ty)), RBRACK) { 
+| path pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
+| path delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_ty)), RBRACK) { 
   let generics = List.map (
     fun (con, ty) -> 
       match con with

@@ -15,29 +15,29 @@ principle
   affix(i,l) then i in find(l) until detach(i,l) or clear(i),
   no affix(i,l) or detach(i,l) then i not in find(l)
 
-concept todo 
-purpose keep track of tasks
-state 
-  done, pending: set Task
-actions
-  add(t : Task)
-    when t not in done+pending
-      pending += t
-  delete(t : Task)
-    when t in done+pending 
-      done -= t
-      pending -= t
-  complete(t : Task)
-    when t in pending 
-      pending -= t
-      done += t
-principle
-  add(t) then t in pending until delete(t) or complete(t),
-  complete(t) then t in done until delete(t)
+// concept todo 
+// purpose keep track of tasks
+// state 
+//   done, pending: set Task
+// actions
+//   add(t : Task)
+//     when t not in done+pending
+//       pending += t
+//   delete(t : Task)
+//     when t in done+pending 
+//       done -= t
+//       pending -= t
+//   complete(t : Task)
+//     when t in pending 
+//       pending -= t
+//       done += t
+// principle
+//   add(t) then t in pending until delete(t) or complete(t),
+//   complete(t) then t in done until delete(t)
 
 app todo_label 
 include 
-  todo 
+  ../todo 
   label [todo.Task, String]
 sync todo.delete(t)
   label.clear(t)
