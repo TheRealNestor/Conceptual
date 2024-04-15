@@ -239,7 +239,7 @@ path_expr:
 | path_expr IDENT SLASH { Filename.concat $1 $2 }
 | {""}
 
-path:
+filepath:
 | path_expr filename {
   let full_path = Filename.concat $1 $2 in
   if Filename.check_suffix full_path ".con" then full_path else full_path ^ ".con"
@@ -247,8 +247,8 @@ path:
 
 
 app_dep:
-| path pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
-| path delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_ty)), RBRACK) { 
+| filepath pair(LBRACK,RBRACK)? { Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics = []; loc = mk_loc $loc} }
+| filepath delimited(LBRACK, separated_nonempty_list(COMMA, pair(ioption(pair(IDENT, DOT)), prim_ty)), RBRACK) { 
   let generics = List.map (
     fun (con, ty) -> 
       match con with
