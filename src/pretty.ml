@@ -117,8 +117,6 @@ and lval_to_tree = function
 and arg_to_tree = function 
 | Arg{mult;expr;_} -> PBox.tree (make_info_node_line "Arg") [ make_info_node_line (mult_to_string mult); expr_to_tree expr;]
 
-
-
 let rec statement_to_tree = function
 | Assignment{lval; rhs; _} -> PBox.tree (make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs]
 and statement_seq_to_forest stms = List.map statement_to_tree stms
