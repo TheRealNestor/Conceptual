@@ -33,6 +33,7 @@ type error =
 | InvalidNegation of {loc : Loc.location;input : string;}
 | FileNotFound of {loc : Loc.location; input : string}
 | InvalidProgram of {loc : Loc.location; input : string}
+| MultNotAllowed of {loc : Loc.location;}
 
 exception ParserError of error
 exception LexerError of error
@@ -67,6 +68,7 @@ let print_error err =
   | InvalidNegation {loc; input} -> Printf.printf "InvalidNegation. Invalid negation operator %s \t" input; Loc.print_location loc;
   | FileNotFound {loc; input} -> Printf.printf "FileNotFound. File %s not found \t" input; Loc.print_location loc;
   | InvalidProgram {loc; input} -> Printf.printf "InvalidProgram. %s \t" input; Loc.print_location loc;
+  | MultNotAllowed {loc} -> Printf.printf "MultNotAllowed. Multiplcity is not allowed in this context - must be used with a variable. \t"; Loc.print_location loc;
 ;;
 
 let print_errors errors = List.iter(fun err -> print_error err) (List.rev errors)

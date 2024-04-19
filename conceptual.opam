@@ -18,8 +18,7 @@ depends: [
   "ppx_expect" 
   "printbox" 
   "printbox-text" 
-  "menhirLib"
   "menhirCST"
   "zarith"
-  # "obelisk" # to print the syntax in a nice way
+  # "obelisk" # to print the syntax in a "nice" way
 ]

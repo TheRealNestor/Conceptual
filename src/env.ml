@@ -15,7 +15,7 @@ type environment = {env_objects : env_object Sym.Table.t; (*Keep track of named 
                     pure_assigns : (TAst.lval,bool) Hashtbl.t; (* Keep track of whether a non-compound assignment has taken place *)
                     in_op : bool; (* Whether the current context is in the operational principle. Certain expressions are only allowed here, e.g. LTL operators... *)
                     in_sync : bool; (* Whether the current context is in synchronizations. Certain expressions are allowed here, e.g call... *)
-                    call_tmps : TAst.decl list ref; (* Temporary variables for the operational principle *)
+                    call_tmps : TAst.tmp list ref; (* Temporary variables for the operational principle *)
                     trigger_sync : bool; (* Whether the current context is in a trigger sync. Trigger synchronizations can introduce new variables *)
                     left_lval : TAst.lval option; (* The left hand side of the current assignment *)
                     dir : string; (* The directory of the current file that is run *)
@@ -73,14 +73,14 @@ let rec lookup env sym =
   let {env_objects; _} = env in
   if env.in_op || env.in_sync then 
     (* first look through tmps, most likely here *)
-    let found_opt = List.find_opt (fun (TAst.Decl{name=TAst.Ident{sym=sym'};_}) -> sym = sym') !(env.call_tmps) in 
+    let tmps = List.map (fun (TAst.Tmp{decl;_}) -> decl) !(env.call_tmps) in
+    let found_opt = List.find_opt (fun (TAst.Decl{name=TAst.Ident{sym=sym'};_}) -> sym = sym') tmps in 
     match found_opt with
     (* did not find in tmps, so try the current environment *)
     | None -> 
       begin match Sym.Table.find_opt sym env_objects with 
       | None -> (*if not there, the only option left is a different concept namespace (synchronizations only)*)
         if env.in_sync then 
-          (* TODO: Perhaps try to include current namespace somehow in environment? *)
           (* try all namespaces (env.con_dict), look for variables only, not actions *)
           Sym.Table.fold (fun _ (env',_) acc -> 
             match acc with 

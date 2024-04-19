@@ -25,12 +25,103 @@ let make_cg_env = {
   con_dict = Sym.Table.empty;
 }
 
+let sym_from (TAst.Ident {sym}) = sym
+
+let unop_to_als = function 
+| TAst.Not -> Als.Not
+| Tilde -> Tilde
+| Caret -> Caret
+| Star -> Star
+| Card -> Card
+| No -> Historically
+
+let binop_to_als = function
+| TAst.Plus -> Als.Bop Plus
+| Minus -> Bop Minus
+| Intersection -> Bop Intersection
+| Land -> Bop And
+| Lor -> Bop Or
+| Lt -> Bop Lt (* Note that these are not domain restrictions like Alloy, only integer comparisons *)
+| Lte -> Bop Lte
+| Gt -> Bop Gt
+| Gte -> Bop Gte
+| Eq -> Bop Eq
+| Neq -> Bop Neq
+| Join -> Bop Join
+| In -> Bop In 
+| Product -> Bop Product
+| Times -> IntBop Mul
+| Div -> IntBop Div
+| Mod -> IntBop Rem
+| Then -> Bop Implication
+| Until -> Bop Release
+| _ -> failwith "other cases (not in) handled explicitly"
+
+let mult_to_als = function
+| None -> Als.Implicit
+| Some TAst.One -> Lone (*The problem with defining this to One, is that we cannot just use the empty set as initial state. 
+                          A model with "one" multiplicity should not have actions for removing the association entirely. *)
+| Some Set -> Set
+| Some Lone -> Lone
+| Some Some -> Some 
+
+let rec type_to_als = function
+| TAst.TInt {mult} -> Als.Int(mult_to_als mult)
+| TString {mult} -> Str(mult_to_als mult)
+| TCustom{ty;mult;_} -> Sig(sym_from ty, mult_to_als mult) (*Note that this is  assumes no explicit multiplicty and no fields*)
+| TMap{left;right} -> Rel(type_to_als left, type_to_als right)
+| _  -> failwith "Other types not supported"
+
 
 let fresh_symbol ?(mangle=false) initial_counter =
   let c = ref initial_counter in
   fun initial ->
     let n = !c in c := n + 1; Sym.symbol @@ (if mangle then "_" else "") ^initial ^ (string_of_int n)
     
+
+
+module Tmp = struct
+  let update_tmps_with_ns tmps ns_sym = 
+    List.map (fun (TAst.Tmp{decl=Decl{name;ty};mult}) -> 
+      let ty = match ty with 
+      | TCustom{ty=Ident{sym};mult=None;ns} -> 
+        let sym = match ns with (*Use trigger action's namespace unless one is explicitly given*)
+        | None -> Sym.symbol @@ (Sym.name @@ ns_sym) ^ "/" ^ (Sym.name sym) 
+        | Some TAst.Ident{sym=ns_sym} -> Sym.symbol @@ (Sym.name ns_sym) ^ "/" ^ (Sym.name sym) in
+        TAst.TCustom{ty=Ident{sym};mult=None;ns}
+      | _ -> ty
+      in
+      TAst.Tmp{decl=Decl{name;ty};mult}
+  ) tmps 
+
+  let create_dict_of_decls_by_mult_from_tmps tmps = 
+    let tmp_dict = Hashtbl.create (1 + (List.length tmps * 3) / 2) in (*some arbitrary size of table that is reasonably efficient ~1.3x*)        
+    List.iter (fun (TAst.Tmp{decl;mult}) -> 
+      if not @@ Hashtbl.mem tmp_dict mult then 
+        Hashtbl.add tmp_dict mult [decl]
+      else 
+        let tmp_decls = Hashtbl.find tmp_dict mult in
+        Hashtbl.replace tmp_dict mult (decl :: tmp_decls)  
+    ) tmps;
+    tmp_dict
+
+  let fold_decl_dict_over_expr decl_dict expr = 
+    let mult_to_als_qop = function 
+    | None -> Als.All
+    | _ -> Some
+    in
+    Hashtbl.fold (fun (mult) decls expr_so_far -> 
+      let als_decls = List.map (fun (TAst.Decl{name;ty}) -> sym_from name, type_to_als ty) decls in
+      Als.Quantifier{
+        qop = mult_to_als_qop mult;
+        vars = als_decls;
+        expr = expr_so_far
+      }
+    ) decl_dict expr
+end
+
+
+
 let prepend_state_symbol ?(left = false) ?(parens=true) (s : Sym.symbol) : Sym.symbol = 
   let apost = if left then "'" else "" in
   if parens then 
@@ -81,11 +172,10 @@ let rec add_ty_to_env env = function
 
 let get_sym_from_parameter (TAst.Parameter{ty}) =
   begin match ty with
-  | TCustom{ty = Ident{sym};_} -> sym
+  | TCustom{ty;_} -> sym_from ty
   | _ -> failwith "should never get here: get_sym_from_parameter. Semant or parsing broken"
   end
 
-let sym_from (TAst.Ident {sym}) = sym
 
 (* constructs list of parts in a relation *)
 let rec traverse_relation = function
@@ -95,51 +185,6 @@ let rec traverse_relation = function
 
 let get_lval_sym lval = 
   List.hd @@ List.rev @@ traverse_relation lval
-
-let unop_to_als = function 
-| TAst.Not -> Als.Not
-| Tilde -> Tilde
-| Caret -> Caret
-| Star -> Star
-| Card -> Card
-| No -> Historically
-
-let binop_to_als = function
-| TAst.Plus -> Als.Bop Plus
-| Minus -> Bop Minus
-| Intersection -> Bop Intersection
-| Land -> Bop And
-| Lor -> Bop Or
-| Lt -> Bop Lt (* Note that these are not domain restrictions like Alloy, only integer comparisons *)
-| Lte -> Bop Lte
-| Gt -> Bop Gt
-| Gte -> Bop Gte
-| Eq -> Bop Eq
-| Neq -> Bop Neq
-| Join -> Bop Join
-| In -> Bop In 
-| Product -> Bop Product
-| Times -> IntBop Mul
-| Div -> IntBop Div
-| Mod -> IntBop Rem
-| Then -> Bop Implication
-| Until -> Bop Release
-| _ -> failwith "other cases (not in) handled explicitly"
-
-let mult_to_als = function
-| None -> Als.Implicit
-| Some TAst.One -> Lone (*The problem with defining this to One, is that we cannot just use the empty set as initial state. 
-                          A model with "one" multiplicity should not have actions for removing the association entirely. *)
-| Some Set -> Set
-| Some Lone -> Lone
-
-
-let rec type_to_als = function
-| TAst.TInt {mult} -> Als.Int(mult_to_als mult)
-| TString {mult} -> Str(mult_to_als mult)
-| TCustom{ty;mult;_} -> Sig(sym_from ty, mult_to_als mult) (*Note that this is  assumes no explicit multiplicty and no fields*)
-| TMap{left;right} -> Rel(type_to_als left, type_to_als right)
-| _  -> failwith "Other types not supported"
 
 let get_dist_join_str ?(with_arrow = true) env =
   List.fold_left (
@@ -238,7 +283,10 @@ let rec trans_expr env expr =
   end
   | Lval lval -> Lval(lval_to_als env lval)
   | BoxJoin{left;right;_} -> BoxJoin({left = _tr left; right = List.map _tr right;})
-  | Call{action;args;_} -> Call({func = Lval(VarRef(sym_from action)); args = List.map _tr args;})
+  | Call{action;args;_} -> 
+    Call({func = Lval(VarRef(sym_from action)); 
+          args = List.map (fun (TAst.Arg{expr;_}) -> _tr expr) args}
+        )
   | Can{call} -> 
     begin match call with 
     | Call{action;args;ty} ->
@@ -387,7 +435,7 @@ let trans_principle env (TAst.OP{principles; tmps}) =
       assert_id = emit "_principle";
       body = Quantifier{
         qop = All;
-        vars = List.map (fun (TAst.Decl{name;ty}) -> sym_from name, type_to_als ty) tmps;
+        vars = List.map (fun (TAst.Tmp{decl=TAst.Decl{name;ty};_}) -> sym_from name, type_to_als ty) tmps;
         expr = Unop{
           op = Always;
           expr = trans_expr env expr
@@ -428,7 +476,7 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
         | Call{action=Ident{sym};args;ty} -> 
           let mangle_sym left right = Sym.symbol @@ (Sym.name left) ^ "/" ^ (Sym.name right) in
           let parens_sym sym = Sym.symbol @@ "(" ^ Sym.name sym ^ ")" in
-          let args = List.map (fun arg ->
+          let args = List.map (fun (TAst.Arg{expr;mult}) ->
             let rec check_arg = function
             | TAst.Lval Var{name=Ident{sym};ty} as l -> 
               (* check if it is any state variable (other concepts too) *)
@@ -445,7 +493,7 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
             | Binop{op;left;right;ty} -> Binop{op; left = check_arg left; right = check_arg right; ty}
             | _ as e -> e
             in
-            check_arg arg
+            TAst.Arg{expr = check_arg expr; mult}
           ) args in 
           trans_expr env (Call{action=Ident{sym=mangle_sym con_sym sym};args;ty})
         | _ -> failwith "CG: synchronization of non call, not supported, ruled out by semant"
@@ -466,26 +514,12 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
         
       (*We need the symbol from the trigger action for the namespace of tmps*)
       let (SyncCall{name=Ident{sym=con_sym};_}) = cond in 
-      let new_tmps = List.map (
-        fun (TAst.Decl{name;ty;}) -> 
-          let ty = match ty with 
-          | TCustom{ty=Ident{sym};mult=None;ns} -> 
-            let sym = match ns with (*Use trigger action's namespace unless one is explicitly given*)
-            | None -> Sym.symbol @@ (Sym.name @@ con_sym) ^ "/" ^ (Sym.name sym) 
-            | Some ns -> Sym.symbol @@ (Sym.name @@ sym_from ns) ^ "/" ^ (Sym.name sym) in
-            TAst.TCustom{ty=Ident{sym};mult=None;ns}
-          | _ -> ty
-          in
-          TAst.Decl{name;ty}
-      ) tmps in
+    
+      let new_tmps = Tmp.update_tmps_with_ns tmps con_sym in
+      let decl_dict = Tmp.create_dict_of_decls_by_mult_from_tmps new_tmps in
       let fact_expr = Als.Unop{
         op = Always;
-        expr = Quantifier{
-          qop = All; 
-          vars = List.map (fun (TAst.Decl{name;ty}) ->
-            sym_from name, type_to_als ty) new_tmps;
-          expr = als_expression;
-        }
+        expr = Tmp.fold_decl_dict_over_expr decl_dict als_expression
       } in 
       let fact_id = emit_fresh_symbol @@ "_sync_" ^ Utility.get_sync_name sync in 
       Als.Fact{fact_id; body = fact_expr}
@@ -500,17 +534,19 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
     preds_and_funcs = [];
     assertions = []
   } :: apps
-  let translate_program_to_ir (prog : TAst.program) = 
-    let concepts, apps = prog in 
-    let env, als_concepts = List.fold_left trans_concept (make_cg_env, []) concepts in
-    let als_apps = List.fold_left (trans_app env) [] apps in
-    als_concepts @ als_apps
-  
-  let translate_program (prog : TAst.program) = 
-    let progs = translate_program_to_ir prog in
-    if not @@ Sys.file_exists "alloy" then Sys.mkdir "alloy" 0o777;
-    List.iter (fun prog -> 
-      let string_prog = Serialize.serializeProgram prog in
-      let oc = open_out ("alloy/" ^ Serialize.get_prog_name prog ^ ".als") in
-      Printf.fprintf oc "%s\n" string_prog;
-    ) progs;
+
+
+let translate_program_to_ir (prog : TAst.program) = 
+  let concepts, apps = prog in 
+  let env, als_concepts = List.fold_left trans_concept (make_cg_env, []) concepts in
+  let als_apps = List.fold_left (trans_app env) [] apps in
+  als_concepts @ als_apps
+
+let translate_program (prog : TAst.program) = 
+  let progs = translate_program_to_ir prog in
+  if not @@ Sys.file_exists "alloy" then Sys.mkdir "alloy" 0o777;
+  List.iter (fun prog -> 
+    let string_prog = Serialize.serializeProgram prog in
+    let oc = open_out ("alloy/" ^ Serialize.get_prog_name prog ^ ".als") in
+    Printf.fprintf oc "%s\n" string_prog;
+  ) progs;

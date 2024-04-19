@@ -55,7 +55,7 @@ let token_to_string = function
   | THEN -> "THEN"
   | UNTIL -> "UNTIL"
   | NO -> "NO"
-
+  | SOME -> "SOME"
 
 let lex_and_print_tokens tokenizer lexbuf =
       let rec aux () =
@@ -154,10 +154,10 @@ let ast_mult_to_tast = Option.map (function
   | Ast.One -> TAst.One
   | Set -> Set
   | Lone -> Lone
+  | Som -> Some
 )
 
-let get_ret_type (TAst.ActionSignature{out;_}) = 
-  match out with
+let get_ret_type (TAst.ActionSignature{out;_}) = match out with
   | None -> TAst.TBool
   | Some ty -> ty
 

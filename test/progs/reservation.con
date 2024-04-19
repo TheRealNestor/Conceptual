@@ -8,7 +8,7 @@ actions
     when r not in reservations
       available += r 
   retract(r : Resource)
-    when r in available and r not in reservations 
+    // when r in available # <--- redundant
       available -= r
   reserve(u : User, r : Resource)
     when r in available

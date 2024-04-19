@@ -117,21 +117,21 @@ let rec infertype_expr (env : Env.environment) (expr : Ast.expr) : TAst.expr * T
     | Some Act(ActionSignature{params;_} as act) ->
       if env.in_op || env.trigger_sync then ( (*add new variables to environment (not symbol table)*)
         try 
-          List.iter2 (fun e (TAst.Decl{ty;_}) -> 
-            match e with 
+          List.iter2 (fun (Ast.Arg{expr;mult;_}) (TAst.Decl{ty;_}) -> 
+            match expr with 
             | Ast.Lval(Var i) ->  
               let Ident{sym} as name = convert_ident i in           
               (* lookup the symbol in environment *)   
-              let obj_opt = Env.lookup env sym in
+              let obj_opt = Env.lookup env sym in        
               match obj_opt with
-              | None -> env.call_tmps := Decl{name;ty} :: !(env.call_tmps); (*Not a state variable *)
+              | None -> env.call_tmps := TAst.Tmp{decl = Decl{name;ty}; mult = Utility.ast_mult_to_tast mult} :: !(env.call_tmps); (*Not a state variable *)
               | Some obj -> 
                 match obj with 
                 | Var _ -> ()  (*State variable, do not need to do anything....*)
                 | Act _ -> Env.insert_error env (FirstClassFunction{loc;name});
                 ;
               ;
-            | _ -> () 
+            | _ -> if Option.is_some mult then Env.insert_error env (MultNotAllowed{loc}) else () 
             ) args params;
             with Invalid_argument _ -> Env.insert_error env (LengthMismatch{expected = List.length params; actual = List.length args; loc});  
           ;
@@ -140,7 +140,10 @@ let rec infertype_expr (env : Env.environment) (expr : Ast.expr) : TAst.expr * T
       if List.length args <> List.length params then (*Error is already inserted above, with *)
         Call{action = name; args = []; ty = ret}, ret
       else 
-        let t_args = List.map2 (fun (TAst.Decl{ty;_}) expr -> typecheck_expr env expr ty) params args in
+        let t_args = List.map2 (
+          fun (TAst.Decl{ty;_}) (Ast.Arg{mult;expr;_}) -> 
+            TAst.Arg{expr = typecheck_expr env expr ty; mult = Utility.ast_mult_to_tast mult}
+        ) params args in
         Call{action = name; args = t_args; ty = ret}, ret
     end
   | Can{call;loc} -> 
@@ -276,6 +279,7 @@ let typecheck_principle (env : Env.environment) (Ast.OP{principles;_}) =
     typecheck_expr env expr TBool
   ) principles in
   TAst.OP{principles = t_principles; tmps = !(env.call_tmps)}
+
 
 (* Only passed the environment to accumulate errors over multiple concepts at once,
    otherwise we could omit "env" parameter and call Env.make_env to create empty environment *)

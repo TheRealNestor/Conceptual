@@ -33,7 +33,7 @@ let negate_compare_op = function
 %token WHEN CAN (*Precondition related*)
 %token THEN UNTIL NO (*Temporal operators*)
 %token INT STR (*Primitive types*)
-%token ARROW SET ONE IN LONE EMPTY(* Set-related tokens *)
+%token ARROW SET ONE IN LONE SOME EMPTY(* Set-related tokens *)
 %token CONST 
 %token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 %token APP INCLUDE SYNC (*Composition related tokens*)
@@ -71,6 +71,7 @@ mult:
 | ONE { One }
 | SET { Set }
 | LONE { Lone }
+| SOME { Som }
 
 ty: 
 | ioption(mult) prim_ty { add_mult_to_typ $1 $2 }
@@ -80,8 +81,11 @@ lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
+arg: 
+| mult? expr { Arg{mult = $1; expr = $2; loc = mk_loc $loc} }
+
 call: 
-| ACT LPAR separated_list(COMMA, expr) RPAR 
+| ACT LPAR separated_list(COMMA, arg) RPAR 
   { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc} }
 
 const: 
@@ -107,13 +111,11 @@ expr:
 | lval %prec DOT { Lval($1) }
 | expr LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = $1; right = $3; loc = mk_loc $loc} }
 | LBRACE flatten(separated_nonempty_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
-| pair(CAN, NOT?)? call {
+| pair(CAN, NOT?)? call { 
   match $1 with 
   | None -> $2
-  | Some (_, not_opt) -> begin match not_opt with
-    | None -> Can{call = $2; loc = mk_loc $loc}
-    | Some _ -> Unop{op = Not{loc = mk_loc $loc}; operand = Can{call = $2; loc = mk_loc $loc}; loc = mk_loc $loc}
-    end
+  | Some (_, None) -> Can{call = $2; loc = mk_loc $loc}
+  | Some (_, Some _) -> Unop{op = Not{loc = mk_loc $loc}; operand = Can{call = $2; loc = mk_loc $loc}; loc = mk_loc $loc}
   }
 
 %inline unop:
@@ -232,7 +234,7 @@ concept:
 
 filename: 
 | IDENT %prec LBRACK { $1 }
-| IDENT DOT IDENT %prec DOT { $1 ^ "." ^ $3 }
+| IDENT DOT IDENT { $1 ^ "." ^ $3 }
 
 path_expr: 
 | path_expr DOT DOT SLASH { Filename.concat $1 ".." }

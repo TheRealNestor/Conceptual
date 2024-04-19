@@ -1,7 +1,7 @@
 module Sym = Symbol
 
 type ident = Ident of { sym : Sym.symbol }
-type mult = One | Set | Lone 
+type mult = One | Set | Lone | Some
 
 type ty =
 | TString of { mult : mult option }
@@ -14,6 +14,7 @@ type ty =
 
 type parameter = Parameter of { ty : ty } (*This is for the concept signature *)
 type decl = Decl of { name : ident; ty : ty; } (*State declarations, action signatures*)
+type tmp = Tmp of { decl : decl; mult : mult option}
   
 type binop = Plus | Minus | Land | Lor | Eq | Neq | Lt | Lte | Gt | Gte 
 | In | NotIn | Intersection | Join | Product | Times | Div | Mod | Then | Until
@@ -29,11 +30,12 @@ type expr =
 | Binop of { left : expr; op : binop; right : expr; ty : ty }
 | BoxJoin of { left : expr; right : expr list ; ty : ty }
 | SetComp of { decls : decl list; cond : expr; ty : ty }
-| Call of { action : ident; args : expr list; ty : ty }
+| Call of { action : ident; args : arg list; ty : ty }
 | Can of { call : expr; }
 and lval = 
 | Var of { name : ident; ty : ty }
 | Relation of { left : lval; right : lval; ty : ty }
+and arg = Arg of { mult : mult option; expr : expr }
 
 type stmt = Assignment of { lval : lval; rhs : expr ; ty : ty } 
 
@@ -52,7 +54,7 @@ type concept_states = States of { states : state list; }
 type action_sig = ActionSignature of { name : ident; out : ty option ; params : decl list; }
 type action = Action of { signature : action_sig; cond : firing_cond option; body : action_body; }
 type concept_actions = Actions of { actions : action list; }
-type operational_principle = OP of { principles : expr list; tmps : decl list; } (*tmps are for code generation, new temporary veriables *)
+type operational_principle = OP of { principles : expr list; tmps : tmp list; } (*tmps are for code generation, new temporary veriables *)
 
 type concept = Concept of {
   signature : concept_sig;
@@ -65,7 +67,7 @@ type concept = Concept of {
 type generic = Generic of { con : ident option; ty : ty; }
 type dependency = Dependency of { name : ident; generics: generic list; }
 type sync_call = SyncCall of { name : ident; call : expr; }
-type sync = Sync of { cond : sync_call; body : sync_call list; tmps : decl list; } (*Tmps simplify code generation, new temporary variables*)
+type sync = Sync of { cond : sync_call; body : sync_call list; tmps : tmp list; } (*Tmps simplify code generation, new temporary variables*)
 type app = App of { name : ident; deps : dependency list; syncs : sync list; }
 
 type program = concept list * app list

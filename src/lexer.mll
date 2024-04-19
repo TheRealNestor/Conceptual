@@ -96,6 +96,7 @@ rule lex = parse
 | "lone" { LONE }
 | "const" { CONST }
 | "one" { ONE }
+| "some" { SOME }
 | "String" { STR }
 | "Int" { INT }
 | "can" { CAN }

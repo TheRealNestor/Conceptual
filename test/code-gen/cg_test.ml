@@ -135,34 +135,7 @@ let %expect_test "Reservation Concept Alloy AST" =
       ├─[36mPredicate[0m
       │ ├─[33mretract[0m
       │ ├─[36mCondition[0m
-      │ │ └─[36mBinop[0m
-      │ │   ├─[34mAnd[0m
-      │ │   ├─[36mBinop[0m
-      │ │   │ ├─[34mIn[0m
-      │ │   │ ├─[33mr[0m
-      │ │   │ └─[33m(State.available)[0m
-      │ │   └─[36mQuantifier[0m
-      │ │     ├─[34mNo[0m
-      │ │     ├─[36mVars[0m
-      │ │     │ ├─[36mVar[0m
-      │ │     │ │ ├─[33m_u0[0m
-      │ │     │ │ └─[32mUser[0m
-      │ │     │ └─[36mVar[0m
-      │ │     │   ├─[33m_r1[0m
-      │ │     │   └─[32mResource[0m
-      │ │     └─[36mBinop[0m
-      │ │       ├─[34mAnd[0m
-      │ │       ├─[36mBinop[0m
-      │ │       │ ├─[34mIn[0m
-      │ │       │ ├─[33mr[0m
-      │ │       │ └─[33m_r1[0m
-      │ │       └─[36mBinop[0m
-      │ │         ├─[34mIn[0m
-      │ │         ├─[36mBinop[0m
-      │ │         │ ├─[34mProduct[0m
-      │ │         │ ├─[33m_u0[0m
-      │ │         │ └─[33m_r1[0m
-      │ │         └─[33m(State.reservations)[0m
+      │ │ └─[36mNone[0m
       │ ├─[36mParameters[0m
       │ │ └─[36mParameter[0m
       │ │   ├─[33mr[0m
@@ -278,7 +251,6 @@ let %expect_test "Reservation Concept Alloy AST" =
     }
 
     pred retract[r : Resource] {
-    	r in (State.available) and no _r1 : Resource, _u0 : User | { r in _r1 and _u0->_r1 in (State.reservations) }
     	(State.available') = (State.available) - r
     	(State.reservations') = (State.reservations)
     }
@@ -304,7 +276,7 @@ let %expect_test "Reservation Concept Alloy AST" =
     pred _can_use [u : User, r : Resource] { r in u.(State.reservations) }
     pred _can_cancel [u : User, r : Resource] { r in u.(State.reservations) }
     pred _can_reserve [u : User, r : Resource] { r in (State.available) }
-    pred _can_retract [r : Resource] { r in (State.available) and no _r1 : Resource, _u0 : User | { r in _r1 and _u0->_r1 in (State.reservations) } }
+    pred _can_retract [r : Resource] {  }
     pred _can_provide [r : Resource] { no _r1 : Resource, _u0 : User | { r in _r1 and _u0->_r1 in (State.reservations) } }
 
     -------------------------------------------

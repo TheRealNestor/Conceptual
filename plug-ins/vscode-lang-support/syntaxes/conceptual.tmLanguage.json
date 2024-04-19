@@ -78,7 +78,7 @@
 			"patterns": [
 				{
 					"name": "keyword.other.set",
-					"match": "\\b(set|lone|one)\\b"
+					"match": "\\b(set|lone|one|some)\\b"
 				},
 				{
 					"name": "keyword.other.modifier",

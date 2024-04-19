@@ -26,6 +26,7 @@ let mult_to_string = function
 | Some One -> "One of "
 | Some Set -> "Set of "
 | Some Lone -> "Lone of "
+| Some Som -> "Some of "
 
 let rec typ_to_string = function
 | TString {mult;_} -> mult_to_string mult ^ "String"
@@ -108,14 +109,14 @@ let rec expr_to_tree = function
 | Lval l -> PBox.tree (make_info_node_line "Lval") [lval_to_tree l]
 | SetComp{decls; cond; _} -> PBox.tree (make_info_node_line "SetComp") [PBox.tree (make_info_node_line "Decls") (List.map decl_to_tree decls); expr_to_tree cond]
 | BoxJoin {left;right;_} -> PBox.tree (make_info_node_line "BoxJoin") [expr_to_tree left; List.map expr_to_tree right |> PBox.tree (make_info_node_line "Right")] 
-| Call {action; args; _ } -> PBox.tree (make_info_node_line "Call") [ident_to_tree action; PBox.tree (make_info_node_line "Arguments") (List.map expr_to_tree args)]
+| Call {action; args; _ } -> PBox.tree (make_info_node_line "Call") [ident_to_tree action; PBox.tree (make_info_node_line "Arguments") (List.map arg_to_tree args)]
 | Can {call;_} -> PBox.tree (make_info_node_line "Can") [expr_to_tree call]
-
-
-
 and lval_to_tree = function
 | Var ident -> PBox.hlist ~bars:false [make_info_node_line "Var("; ident_to_tree ident; make_info_node_line ")"]
 | Relation{left;right;_} -> PBox.tree (make_info_node_line "Relation") [lval_to_tree left; lval_to_tree right]
+and arg_to_tree = function 
+| Arg{mult;expr;_} -> PBox.tree (make_info_node_line "Arg") [ make_info_node_line (mult_to_string mult); expr_to_tree expr;]
+
 
 
 let rec statement_to_tree = function

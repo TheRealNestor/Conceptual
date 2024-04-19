@@ -1,7 +1,7 @@
 ; Rather than having two separate stanzas like this, should probably refactor into a /lib and /bin directory
 (library
  (name conceptual)
- (libraries printbox printbox-text menhirLib menhirCST zarith)
+ (libraries printbox printbox-text menhirCST zarith)
 )
 
 ; Below is for building lexer with -ml flag. 

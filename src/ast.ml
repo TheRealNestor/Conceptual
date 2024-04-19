@@ -1,7 +1,8 @@
 module Loc = Location
 
 type ident = Ident of { name : string; loc : Loc.location }
-type mult = One | Set | Lone 
+type mult = One | Set | Lone | Som
+(* use Som instead of Some because Some is reserved keyword, and mly files can hardly disamabiguate them  *)
 
 type ty =
   | TString of { loc : Loc.location; mult : mult option }
@@ -12,7 +13,7 @@ type ty =
 
 type parameter = Parameter of { ty : ty; loc : Loc.location } (*This is for the concept signature *)
 type decl = Decl of { name : ident; ty : ty; loc : Loc.location } (*State declarations, action signatures*)
-  
+
 type binop = 
 | Plus of { loc : Loc.location }
 | Minus of { loc : Loc.location }
@@ -50,13 +51,14 @@ type expr =
 | Lval of lval 
 | Unop of { op : unop; operand : expr; loc : Loc.location }
 | Binop of { left : expr; op : binop; right : expr; loc : Loc.location }
-| Call of { action : ident; args : expr list; loc : Loc.location }
+| Call of { action : ident; args : arg list; loc : Loc.location }
 | BoxJoin of { left : expr; right : expr list; loc : Loc.location }
 | SetComp of { decls : decl list; cond : expr; loc : Loc.location }
 | Can of { call : expr ; loc : Loc.location } (*This only allows call currently*)
 and lval = 
 | Var of ident
 | Relation of { left : lval; right : lval; loc : Loc.location }
+and arg = Arg of { mult : mult option; expr : expr; loc : Loc.location }
 
 type stmt = Assignment of { lval : lval; rhs : expr; is_compound : bool; loc : Loc.location }
 

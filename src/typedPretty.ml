@@ -7,6 +7,7 @@ let mult_to_string = function
 | Some One -> "One of "
 | Some Set -> "Set of "
 | Some Lone -> "Lone of "
+| Some Some -> "Some of "
 
 let rec typ_to_string = function 
 | TInt {mult} -> mult_to_string mult ^ "Int"
@@ -80,9 +81,10 @@ let rec expr_to_tree = function
 | Binop {op;left;right;ty} -> PBox.tree (Pretty.make_info_node_line "Binop") [binop_to_tree op; expr_to_tree left; expr_to_tree right; ty_to_tree ty]
 | SetComp {decls; cond; ty} -> PBox.tree (Pretty.make_info_node_line "SetComp") [PBox.tree (Pretty.make_info_node_line "Decls") (List.map decl_to_tree decls); expr_to_tree cond; ty_to_tree ty]
 | BoxJoin {left;right;ty} -> PBox.tree (Pretty.make_info_node_line "BoxJoin") [expr_to_tree left; List.map expr_to_tree right |> PBox.tree (Pretty.make_info_node_line "Right"); ty_to_tree ty]
-| Call {action;args;ty} -> PBox.tree (Pretty.make_info_node_line "Call") [ident_to_tree action; PBox.tree (Pretty.make_info_node_line "Args") (List.map expr_to_tree args); ty_to_tree ty]
+| Call {action;args;ty} -> PBox.tree (Pretty.make_info_node_line "Call") [ident_to_tree action; PBox.tree (Pretty.make_info_node_line "Args") (List.map arg_to_tree args); ty_to_tree ty]
 | Can {call} -> PBox.tree (Pretty.make_info_node_line "Can") [expr_to_tree call]
-
+and arg_to_tree = function 
+| Arg{mult;expr} -> PBox.tree (Pretty.make_info_node_line "Arg") [Pretty.make_info_node_line (mult_to_string mult); expr_to_tree expr;]
 
 let rec statement_to_tree = function
 | Assignment {lval;rhs;ty} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; ty_to_tree ty]
