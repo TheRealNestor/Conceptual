@@ -66,5 +66,5 @@ include
   email 
 sync todo.delete(t)
   label.clear(t)
-sync email.receive(u,m)
+sync email.receive(one todo_user, m)
   todo.add(m.content)

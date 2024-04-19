@@ -81,12 +81,12 @@ lval:
 | IDENT { Var(Ident{name = $1; loc = mk_loc $loc}) }
 | lval DOT lval { Relation{left = $1; right = $3; loc = mk_loc $loc} } (*TODO: Does this work? Might have to generalize this a bit more*)
 
-arg: 
-| mult? expr { Arg{mult = $1; expr = $2; loc = mk_loc $loc} }
-
 call: 
-| ACT LPAR separated_list(COMMA, arg) RPAR 
-  { Call{action = Ident{name = $1; loc = mk_loc $loc}; args = $3; loc = mk_loc $loc} }
+| ACT LPAR separated_list(COMMA, expr) RPAR 
+  {
+    let args = List.map (fun arg -> Arg{mult = None; expr = arg; loc = mk_loc $loc}) $3 in 
+    Call{action = Ident{name = $1; loc = mk_loc $loc}; args; loc = mk_loc $loc} }
+
 
 const: 
 | STR_LIT { String{str = $1; loc = mk_loc $loc} }
@@ -260,11 +260,24 @@ app_dep:
   Dependency{name = Ident{name = $1; loc = mk_loc $loc}; generics; loc = mk_loc $loc}
   }
 
-sync_call: 
-| IDENT DOT call { SyncCall{name = Ident{name = $1; loc = mk_loc $loc}; call = $3; loc = mk_loc $loc} }
+
+
+sync_arg: 
+| mult? expr { Arg{mult = $1; expr = $2; loc = mk_loc $loc} }
+
+mult_call: 
+| name=ACT LPAR args=separated_list(COMMA, sync_arg) RPAR { 
+  Call{action = Ident{name; loc = mk_loc $loc}; args; loc = mk_loc $loc} 
+}
+
+fst_sync_call:
+| IDENT DOT mult_call { SyncCall{name = Ident{name= $1; loc = mk_loc $loc}; call = $3; loc = mk_loc $loc} }
+
+sync_call:
+| IDENT DOT call { SyncCall{name = Ident{name= $1; loc = mk_loc $loc}; call = $3; loc = mk_loc $loc} }
 
 sync:
-| SYNC sync_call sync_call* { Sync{cond = $2; body = $3; loc = mk_loc $loc} }
+| SYNC fst_sync_call sync_call+ { Sync{cond = $2; body = $3; loc = mk_loc $loc} }
 
 app: 
 | APP IDENT INCLUDE app_dep+ sync* { App{name = Ident{name = $2; loc = mk_loc $loc}; deps = $4; syncs = $5; loc = mk_loc $loc} }

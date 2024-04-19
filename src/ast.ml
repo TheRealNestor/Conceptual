@@ -90,7 +90,7 @@ type concept = Concept of {
 
 type generic = Generic of { con : ident option; ty : ty; loc : Loc.location }
 type dependency = Dependency of { name : ident; generics: generic list; loc : Loc.location }
-type sync_call = SyncCall of { name : ident; call : expr; loc : Loc.location }
+type sync_call = SyncCall of { name : ident; call : expr; loc : Loc.location } (*could possibly refactor this to not include an expr. This would allow the "call" expr to take exprs instead of args...*)
 type sync = Sync of { cond : sync_call; body : sync_call list; loc : Loc.location }
 type app = App of { name : ident; deps : dependency list; syncs : sync list; loc : Loc.location }
 
