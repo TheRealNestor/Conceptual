@@ -1,7 +1,0 @@
-(library
- (name cg_test)
- (inline_tests (deps (source_tree ../progs)))
- (libraries conceptual)
- (preprocess
-  (pps ppx_expect)))
-

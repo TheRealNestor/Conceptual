@@ -59,6 +59,7 @@ and lval =
 | Var of ident
 | Relation of { left : lval; right : lval; loc : Loc.location }
 and arg = Arg of { mult : mult option; expr : expr; loc : Loc.location }
+(* args as opposed to just expr list such that multiplicity can be added to synchronizations.... *)
 
 type stmt = Assignment of { lval : lval; rhs : expr; is_compound : bool; loc : Loc.location }
 

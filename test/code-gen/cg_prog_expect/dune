@@ -1,0 +1,7 @@
+(library
+ (name prog_serialization)
+ (inline_tests (deps (source_tree ../../progs)))
+ (libraries conceptual)
+ (preprocess
+  (pps ppx_expect)))
+
