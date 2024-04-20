@@ -280,7 +280,6 @@ let typecheck_principle (env : Env.environment) (Ast.OP{principles;_}) =
   ) principles in
   TAst.OP{principles = t_principles; tmps = !(env.call_tmps)}
 
-
 (* Only passed the environment to accumulate errors over multiple concepts at once,
    otherwise we could omit "env" parameter and call Env.make_env to create empty environment *)
 let typecheck_concept env (c : Ast.concept) =

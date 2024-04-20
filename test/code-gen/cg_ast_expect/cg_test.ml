@@ -2652,17 +2652,17 @@ let %expect_test "Todo-Label-Email App Alloy AST" =
     │   └─[36mUnop[0m
     │     ├─[34mAlways[0m
     │     └─[36mQuantifier[0m
-    │       ├─[34mAll[0m
+    │       ├─[34mSome[0m
     │       ├─[36mVars[0m
     │       │ └─[36mVar[0m
-    │       │   ├─[33mm[0m
-    │       │   └─[32memail/Message[0m
+    │       │   ├─[33mtodo_user[0m
+    │       │   └─[32memail/User[0m
     │       └─[36mQuantifier[0m
-    │         ├─[34mSome[0m
+    │         ├─[34mAll[0m
     │         ├─[36mVars[0m
     │         │ └─[36mVar[0m
-    │         │   ├─[33mtodo_user[0m
-    │         │   └─[32memail/User[0m
+    │         │   ├─[33mm[0m
+    │         │   └─[32memail/Message[0m
     │         └─[36mBinop[0m
     │           ├─[34mImplication[0m
     │           ├─[36mCall[0m

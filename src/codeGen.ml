@@ -94,33 +94,39 @@ module Tmp = struct
       TAst.Tmp{decl=Decl{name;ty};mult}
   ) tmps 
 
-  let create_dict_of_decls_by_mult_from_tmps tmps = 
-    let tmp_dict = Hashtbl.create (1 + (List.length tmps * 3) / 2) in (*some arbitrary size of table that is reasonably efficient ~1.3x*)        
-    List.iter (fun (TAst.Tmp{decl;mult}) -> 
-      if not @@ Hashtbl.mem tmp_dict mult then 
-        Hashtbl.add tmp_dict mult [decl]
-      else 
-        let tmp_decls = Hashtbl.find tmp_dict mult in
-        Hashtbl.replace tmp_dict mult (decl :: tmp_decls)  
-    ) tmps;
-    tmp_dict
+  module MultOptionMap = Map.Make(struct
+    type t = TAst.mult option
+    let compare k1 k2 =  match k1, k2 with
+    | None, None -> 0
+    | None, _ -> -1
+    | _, None -> 1
+    | _ -> 0 
+  end)
 
-  let fold_decl_dict_over_expr decl_dict expr = 
+  let create_map_of_decls_by_mult_from_tmps tmps = 
+    let tmp_map = MultOptionMap.empty in
+    List.fold_left (fun tmp_map (TAst.Tmp{decl;mult}) -> 
+      let decls = match MultOptionMap.find_opt mult tmp_map with 
+      | None -> [decl]
+      | Some decls -> decl :: decls
+      in
+      MultOptionMap.add mult decls tmp_map
+    ) tmp_map tmps
+
+  let fold_map_over_expr tmp_map expr = 
     let mult_to_als_qop = function 
     | None -> Als.All
     | _ -> Some
     in
-    Hashtbl.fold (fun (mult) decls expr_so_far -> 
+    MultOptionMap.fold (fun (mult) decls expr_so_far -> 
       let als_decls = List.map (fun (TAst.Decl{name;ty}) -> sym_from name, type_to_als ty) decls in
       Als.Quantifier{
         qop = mult_to_als_qop mult;
         vars = als_decls;
         expr = expr_so_far
       }
-    ) decl_dict expr
+    ) tmp_map expr  
 end
-
-
 
 let prepend_state_symbol ?(left = false) ?(parens=true) (s : Sym.symbol) : Sym.symbol = 
   let apost = if left then "'" else "" in
@@ -175,7 +181,6 @@ let get_sym_from_parameter (TAst.Parameter{ty}) =
   | TCustom{ty;_} -> sym_from ty
   | _ -> failwith "should never get here: get_sym_from_parameter. Semant or parsing broken"
   end
-
 
 (* constructs list of parts in a relation *)
 let rec traverse_relation = function
@@ -467,7 +472,6 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
     ) deps in
 
   let emit_fresh_symbol = fresh_symbol 0 in
-
   (* mangling, do this after... *)
   let als_syncs = List.map (
     fun (TAst.Sync{cond;body;tmps} as sync) ->  
@@ -516,10 +520,10 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
       let (SyncCall{name=Ident{sym=con_sym};_}) = cond in 
     
       let new_tmps = Tmp.update_tmps_with_ns tmps con_sym in
-      let decl_dict = Tmp.create_dict_of_decls_by_mult_from_tmps new_tmps in
+      let decl_map = Tmp.create_map_of_decls_by_mult_from_tmps new_tmps in
       let fact_expr = Als.Unop{
         op = Always;
-        expr = Tmp.fold_decl_dict_over_expr decl_dict als_expression
+        expr = Tmp.fold_map_over_expr decl_map als_expression
       } in 
       let fact_id = emit_fresh_symbol @@ "_sync_" ^ Utility.get_sync_name sync in 
       Als.Fact{fact_id; body = fact_expr}

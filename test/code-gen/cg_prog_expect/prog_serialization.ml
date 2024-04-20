@@ -1125,7 +1125,7 @@ let %expect_test "Serialization of Email-Label App" =
 
     fact _state__sync_email_receive1 {
     	always (
-    		all m : email/Message | { some todo_user : email/User | { email/receive[todo_user, m] => todo/add[m.(email/State.content)] } }
+    		some todo_user : email/User | { all m : email/Message | { email/receive[todo_user, m] => todo/add[m.(email/State.content)] } }
     	)
     } |}]
   
