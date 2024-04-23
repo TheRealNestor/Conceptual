@@ -95,4 +95,4 @@ type sync_call = SyncCall of { name : ident; call : expr; loc : Loc.location } (
 type sync = Sync of { cond : sync_call; body : sync_call list; loc : Loc.location }
 type app = App of { name : ident; deps : dependency list; syncs : sync list; loc : Loc.location }
 
-type program = concept list * app list
+type model = concept list * app list

@@ -14,6 +14,8 @@ install:
 test:
 	dune runtest	
 	
+promo: 
+	dune runtest --auto-promote 
 
 clean:
 	dune clean

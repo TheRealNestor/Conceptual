@@ -97,7 +97,7 @@
 			"patterns": [
 				{
 					"name": "storage.type",
-					"match": "\\b(Int|String)\\b"
+					"match": "\\b(int|string)\\b"
 				}
 			]
 		},

@@ -59,7 +59,7 @@ let negate_compare_op = function
 %left DOT (*dot join*)
 %nonassoc TILDE CARET UNARY_STAR (*relation unary operators*)
 
-%start <Ast.program> program 
+%start <Ast.model> model 
 %%
 
 prim_ty:
@@ -282,6 +282,6 @@ sync:
 app: 
 | APP IDENT INCLUDE app_dep+ sync* { App{name = Ident{name = $2; loc = mk_loc $loc}; deps = $4; syncs = $5; loc = mk_loc $loc} }
 
-program: 
+model: 
 | concept* app* EOF { $1, $2 }
 

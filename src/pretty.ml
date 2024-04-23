@@ -207,7 +207,7 @@ let apps_to_tree (apps : app list) =
   if List.length apps = 0 then PBox.tree (make_info_node_line "Apps") [make_info_node_line "Empty"]
   else PBox.tree (make_info_node_line "Apps") (List.map app_to_tree apps)
 
-let program_to_tree (p : program) =
+let program_to_tree (p : model) =
   let concepts, apps = p in 
   PBox.tree (make_info_node_line "Program") [
     PBox.tree (make_info_node_line "Concepts") (List.map concept_to_tree concepts);

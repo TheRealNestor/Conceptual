@@ -178,7 +178,7 @@ let apps_to_tree (apps : app list) =
   if List.length apps = 0 then PBox.tree (Pretty.make_info_node_line "Apps") [Pretty.make_info_node_line "Empty"]
   else PBox.tree (Pretty.make_info_node_line "Apps") (List.map app_to_tree apps)
 
-let program_to_tree (p : program) =
+let program_to_tree (p : model) =
   let concepts, apps = p in 
 
   PBox.tree (Pretty.make_info_node_line "Program") [

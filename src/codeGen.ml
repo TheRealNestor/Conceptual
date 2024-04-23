@@ -540,13 +540,13 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
   } :: apps
 
 
-let translate_program_to_ir (prog : TAst.program) = 
+let translate_program_to_ir (prog : TAst.model) = 
   let concepts, apps = prog in 
   let env, als_concepts = List.fold_left trans_concept (make_cg_env, []) concepts in
   let als_apps = List.fold_left (trans_app env) [] apps in
   als_concepts @ als_apps
 
-let translate_program (prog : TAst.program) = 
+let translate_program (prog : TAst.model) = 
   let progs = translate_program_to_ir prog in
   if not @@ Sys.file_exists "alloy" then Sys.mkdir "alloy" 0o777;
   List.iter (fun prog -> 

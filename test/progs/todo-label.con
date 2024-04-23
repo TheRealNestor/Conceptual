@@ -38,7 +38,7 @@ principle
 app todo_label 
 include 
   todo 
-  label [todo.Task, String]
+  label [todo.Task, string]
 sync todo.delete(t)
   label.clear(t)
 sync todo.add(t)

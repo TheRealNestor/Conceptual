@@ -1,4 +1,4 @@
-let compile_program_to_ast (filepath : string) : Ast.program option = 
+let compile_program_to_ast (filepath : string) : Ast.model option = 
   let file_in = try Some(open_in filepath) with Sys_error _ -> None in
   if Option.is_none file_in then None 
   else let file_in = Option.get file_in in
@@ -7,7 +7,7 @@ let compile_program_to_ast (filepath : string) : Ast.program option =
     let () = Lexing.set_filename lex_buf filepath in
     try
       let lexer = TokenCache.next_token Lexer.lex in 
-      let prog = Parser.program lexer lex_buf in 
+      let prog = Parser.model lexer lex_buf in 
       (* Uncomment if you want to print the AST *)
       (* pretty_print_program prog; *)
       Some prog

@@ -443,7 +443,7 @@ let typecheck_app ((env : Env.environment), (apps_so_far), (new_concepts)) (Ast.
 let typecheck_apps env apps = 
   List.fold_left (typecheck_app) (env, [], []) apps
 
-let typecheck_prog (filepath : string) (prog : Ast.program) : Errors.error list * TAst.program =
+let typecheck_prog (filepath : string) (prog : Ast.model) : Errors.error list * TAst.model =
   let env = Env.make_env in
   let filedir = Filename.dirname filepath in
   let concepts, apps = prog in 

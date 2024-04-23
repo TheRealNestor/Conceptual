@@ -15,7 +15,7 @@ actions
     when u in i.(upvotes+downvotes)
       i.upvotes -= u 
       i.downvotes -= u
-  count(i : Item) : Int
+  count(i : Item) : int
     #i.upvotes - #i.downvotes
 principle 
   upvote(i,u) or downvote(i,u) then can unvote(i,u),

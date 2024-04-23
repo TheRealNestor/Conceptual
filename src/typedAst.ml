@@ -70,4 +70,4 @@ type sync_call = SyncCall of { name : ident; call : expr; }
 type sync = Sync of { cond : sync_call; body : sync_call list; tmps : tmp list; } (*Tmps simplify code generation, new temporary variables*)
 type app = App of { name : ident; deps : dependency list; syncs : sync list; }
 
-type program = concept list * app list
+type model = concept list * app list
