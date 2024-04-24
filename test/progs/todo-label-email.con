@@ -1,6 +1,5 @@
 concept email
-purpose 
-  communicate with private messages 
+purpose "communicate with private messages"
 state
   inbox: User -> set Message
   from, to: Message -> User
@@ -23,9 +22,8 @@ principle
   send(b,t,m,c); receive(t,m); m in t.inbox and m.content = c
 
 concept todo [Task]
-purpose keep track of tasks
-state 
-  done, pending: set Task
+purpose "keep track of tasks"
+state done, pending: set Task
 actions
   add(t : Task)
     when t not in done+pending
@@ -43,9 +41,8 @@ principle
   complete(t) then t in done until delete(t)
 
 concept label [Item]
-purpose organize items into overlapping categories
-state
-  labels: Item -> set Label 
+purpose "organize items into overlapping categories"
+state labels: Item -> set Label 
 actions 
   affix(i: Item, l : Label)
     i.labels += l

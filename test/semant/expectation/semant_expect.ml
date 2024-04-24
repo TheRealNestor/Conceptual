@@ -47,7 +47,7 @@ let %expect_test "Reservation Concept" =
     │   │   └─[36mParameter[0m
     │   │     └─[32mResource[0m
     │   ├─[36mPurpose[0m
-    │   │ └─ manage efficient use of resources
+    │   │ └─manage efficient use of resources
     │   ├─[36mStates[0m
     │   │ ├─[36mState[0m
     │   │ │ ├─[36mParameter[0m
@@ -362,7 +362,7 @@ let %expect_test "Trash Concept" =
     │   │   └─[36mParameter[0m
     │   │     └─[32mItem[0m
     │   ├─[36mPurpose[0m
-    │   │ └─  to allow undoing of deletions
+    │   │ └─to allow undoing of deletions
     │   ├─[36mStates[0m
     │   │ ├─[36mState[0m
     │   │ │ ├─[36mParameter[0m
@@ -633,7 +633,7 @@ let %expect_test "Email Concept" =
     │   │ └─[36mParameterList[0m
     │   │   └─[36mEmpty[0m
     │   ├─[36mPurpose[0m
-    │   │ └─ communicate with private messages
+    │   │ └─communicate with private messages
     │   ├─[36mStates[0m
     │   │ ├─[36mState[0m
     │   │ │ ├─[36mParameter[0m
@@ -1048,7 +1048,7 @@ let %expect_test "Label Concept" =
     │   │   └─[36mParameter[0m
     │   │     └─[32mItem[0m
     │   ├─[36mPurpose[0m
-    │   │ └─ organize items into overlapping categories
+    │   │ └─organize items into overlapping categories
     │   ├─[36mStates[0m
     │   │ └─[36mState[0m
     │   │   ├─[36mParameter[0m
@@ -1327,7 +1327,7 @@ let %expect_test "Style Concept" =
     │   │   └─[36mParameter[0m
     │   │     └─[32mFormat[0m
     │   ├─[36mPurpose[0m
-    │   │ └─   easing consistent formatting of elements
+    │   │ └─easing consistent formatting of elements
     │   ├─[36mStates[0m
     │   │ ├─[36mState[0m
     │   │ │ ├─[36mParameter[0m
@@ -1553,7 +1553,7 @@ let %expect_test "Todo Concept" =
     │   │ └─[36mParameterList[0m
     │   │   └─[36mEmpty[0m
     │   ├─[36mPurpose[0m
-    │   │ └─ keep track of tasks
+    │   │ └─keep track of tasks
     │   ├─[36mStates[0m
     │   │ ├─[36mState[0m
     │   │ │ ├─[36mParameter[0m
@@ -1807,7 +1807,7 @@ let %expect_test "Upvote Concept" =
     │   │   └─[36mParameter[0m
     │   │     └─[32mUser[0m
     │   ├─[36mPurpose[0m
-    │   │ └─ track relative popularity of items
+    │   │ └─gauge user sentiment of items
     │   ├─[36mStates[0m
     │   │ ├─[36mState[0m
     │   │ │ ├─[36mParameter[0m
@@ -2278,7 +2278,7 @@ let %expect_test "Todo-Label App" =
     │ │ │ └─[36mParameterList[0m
     │ │ │   └─[36mEmpty[0m
     │ │ ├─[36mPurpose[0m
-    │ │ │ └─ keep track of tasks
+    │ │ │ └─keep track of tasks
     │ │ ├─[36mStates[0m
     │ │ │ ├─[36mState[0m
     │ │ │ │ ├─[36mParameter[0m
@@ -2523,7 +2523,7 @@ let %expect_test "Todo-Label App" =
     │   │   └─[36mParameter[0m
     │   │     └─[32mLabel[0m
     │   ├─[36mPurpose[0m
-    │   │ └─ organize items into overlapping categories
+    │   │ └─organize items into overlapping categories
     │   ├─[36mStates[0m
     │   │ └─[36mState[0m
     │   │   ├─[36mParameter[0m
@@ -2932,7 +2932,7 @@ let %expect_test "Todo-Label-Email App" =
     │ │ │   └─[36mParameter[0m
     │ │ │     └─[32mItem[0m
     │ │ ├─[36mPurpose[0m
-    │ │ │ └─ organize items into overlapping categories
+    │ │ │ └─organize items into overlapping categories
     │ │ ├─[36mStates[0m
     │ │ │ └─[36mState[0m
     │ │ │   ├─[36mParameter[0m
@@ -3200,7 +3200,7 @@ let %expect_test "Todo-Label-Email App" =
     │ │ │   └─[36mParameter[0m
     │ │ │     └─[32mTask[0m
     │ │ ├─[36mPurpose[0m
-    │ │ │ └─ keep track of tasks
+    │ │ │ └─keep track of tasks
     │ │ ├─[36mStates[0m
     │ │ │ ├─[36mState[0m
     │ │ │ │ ├─[36mParameter[0m
@@ -3442,7 +3442,7 @@ let %expect_test "Todo-Label-Email App" =
     │   │ └─[36mParameterList[0m
     │   │   └─[36mEmpty[0m
     │   ├─[36mPurpose[0m
-    │   │ └─   communicate with private messages
+    │   │ └─communicate with private messages
     │   ├─[36mStates[0m
     │   │ ├─[36mState[0m
     │   │ │ ├─[36mParameter[0m

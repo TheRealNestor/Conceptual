@@ -8,8 +8,6 @@ let compile_program_to_ast (filepath : string) : Ast.model option =
     try
       let lexer = TokenCache.next_token Lexer.lex in 
       let prog = Parser.model lexer lex_buf in 
-      (* Uncomment if you want to print the AST *)
-      (* pretty_print_program prog; *)
       Some prog
     with  
     | Parser.Error as e -> (*Generic exception thrown by menhir*)

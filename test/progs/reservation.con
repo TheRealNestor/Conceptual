@@ -1,5 +1,5 @@
 concept reservation [User, Resource] 
-purpose manage efficient use of resources
+purpose "manage efficient use of resources"
 state 
   available: set Resource 
   reservations: User -> Resource

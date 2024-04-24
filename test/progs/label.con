@@ -1,5 +1,5 @@
 concept label [Item]
-purpose organize items into overlapping categories
+purpose "organize items into overlapping categories"
 state labels: Item -> set Label 
 actions 
   affix(i : Item, l : Label)

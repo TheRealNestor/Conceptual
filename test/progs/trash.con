@@ -1,8 +1,6 @@
 concept trash [Item]
-purpose
-  to allow undoing of deletions
-state
-  accessible, trashed : set Item
+purpose "to allow undoing of deletions"
+state accessible, trashed : set Item
 actions
   create(x : Item)
     when x not in accessible+trashed

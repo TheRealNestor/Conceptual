@@ -1,7 +1,6 @@
 concept upvote [Item, User]
-purpose track relative popularity of items
-state
-  upvotes, downvotes : Item -> set User
+purpose "gauge user sentiment of items"
+state upvotes, downvotes : Item -> set User
 actions 
   upvote(i : Item, u : User)
     when u not in i.upvotes

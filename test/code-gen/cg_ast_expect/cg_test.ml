@@ -24,7 +24,7 @@ let %expect_test "Reservation Concept Alloy AST" =
     │   ├─[33mUser[0m
     │   └─[33mResource[0m
     ├─[36mPurpose[0m
-    │ └─[36m manage efficient use of resources[0m
+    │ └─[36mmanage efficient use of resources[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -234,7 +234,7 @@ let %expect_test "Trash Concept Alloy AST" =
     │ └─[36mParameters[0m
     │   └─[33mItem[0m
     ├─[36mPurpose[0m
-    │ └─[36m  to allow undoing of deletions[0m
+    │ └─[36mto allow undoing of deletions[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -429,7 +429,7 @@ let %expect_test "Email Concept Alloy AST" =
     │ ├─[33memail[0m
     │ └─[36mNo Parameters[0m
     ├─[36mPurpose[0m
-    │ └─[36m communicate with private messages [0m
+    │ └─[36mcommunicate with private messages[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -703,7 +703,7 @@ let %expect_test "Label Concept Alloy AST" =
     │ └─[36mParameters[0m
     │   └─[33mItem[0m
     ├─[36mPurpose[0m
-    │ └─[36m organize items into overlapping categories[0m
+    │ └─[36morganize items into overlapping categories[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -891,7 +891,7 @@ let %expect_test "Style Concept Alloy AST" =
     │   ├─[33mElement[0m
     │   └─[33mFormat[0m
     ├─[36mPurpose[0m
-    │ └─[36m   easing consistent formatting of elements [0m
+    │ └─[36measing consistent formatting of elements[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -1077,7 +1077,7 @@ let %expect_test "Todo Concept Alloy AST" =
     │ ├─[33mtodo[0m
     │ └─[36mNo Parameters[0m
     ├─[36mPurpose[0m
-    │ └─[36m keep track of tasks[0m
+    │ └─[36mkeep track of tasks[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -1252,7 +1252,7 @@ let %expect_test "Upvote Concept Alloy AST" =
     │   ├─[33mItem[0m
     │   └─[33mUser[0m
     ├─[36mPurpose[0m
-    │ └─[36m track relative popularity of items[0m
+    │ └─[36mgauge user sentiment of items[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -1504,7 +1504,7 @@ let %expect_test "Todo-Label App Alloy AST" =
     │   ├─[33mItem[0m
     │   └─[33mLabel[0m
     ├─[36mPurpose[0m
-    │ └─[36m organize items into overlapping categories[0m
+    │ └─[36morganize items into overlapping categories[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -1686,7 +1686,7 @@ let %expect_test "Todo-Label App Alloy AST" =
     │ ├─[33mtodo[0m
     │ └─[36mNo Parameters[0m
     ├─[36mPurpose[0m
-    │ └─[36m keep track of tasks[0m
+    │ └─[36mkeep track of tasks[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -1986,7 +1986,7 @@ let %expect_test "Todo-Label-Email App Alloy AST" =
     │ ├─[33memail[0m
     │ └─[36mNo Parameters[0m
     ├─[36mPurpose[0m
-    │ └─[36m   communicate with private messages [0m
+    │ └─[36mcommunicate with private messages[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -2256,7 +2256,7 @@ let %expect_test "Todo-Label-Email App Alloy AST" =
     │ └─[36mParameters[0m
     │   └─[33mTask[0m
     ├─[36mPurpose[0m
-    │ └─[36m keep track of tasks[0m
+    │ └─[36mkeep track of tasks[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m
@@ -2426,7 +2426,7 @@ let %expect_test "Todo-Label-Email App Alloy AST" =
     │ └─[36mParameters[0m
     │   └─[33mItem[0m
     ├─[36mPurpose[0m
-    │ └─[36m organize items into overlapping categories[0m
+    │ └─[36morganize items into overlapping categories[0m
     ├─[36mDependencies[0m
     ├─[36mSignatures[0m
     │ ├─[36mSignature[0m

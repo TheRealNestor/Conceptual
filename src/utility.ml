@@ -21,7 +21,7 @@ let token_to_string = function
   | STATE -> "STATE"
   | ACTIONS -> "ACTIONS"
   | OP -> "OP"
-  | PURPOSE s -> Printf.sprintf "PURPOSE(%s)" s
+  | PURPOSE -> "PURPOSE"
   | IDENT s -> Printf.sprintf "IDENT(%s)" s
   | LTE -> "LTE"
   | GTE -> "GTE"

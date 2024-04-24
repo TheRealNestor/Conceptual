@@ -1,5 +1,5 @@
 concept test
-purpose something
+purpose "something"
 state
 actions
   a()

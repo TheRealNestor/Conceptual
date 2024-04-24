@@ -35,11 +35,11 @@ let negate_compare_op = function
 %token INT STR (*Primitive types*)
 %token ARROW SET ONE IN LONE SOME EMPTY(* Set-related tokens *)
 %token CONST 
-%token CONCEPT STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
+%token CONCEPT PURPOSE STATE ACTIONS OP (* Concept-related tokens - PURPOSE *)
 %token APP INCLUDE SYNC (*Composition related tokens*)
 
 (*ACT: Token to more easily distinguish statements and action_signatures (both begins with lval)*)
-%token <string> PURPOSE IDENT ACT STR_LIT
+%token <string> IDENT ACT STR_LIT
 %token <int64> INT_LIT
 
 // Associativity and precedence, lowest precedence first....
@@ -168,7 +168,7 @@ c_sig:
   }
 
 c_purpose: 
-| PURPOSE { Purpose{doc_str = $1; loc = mk_loc $loc} }
+| PURPOSE STR_LIT { Purpose{doc_str = $2; loc = mk_loc $loc} }
 
 // This corresponds to a single "line". Delimited of course by  ": typ "  or the expression 
 state: 

@@ -458,4 +458,3 @@ let typecheck_prog (filepath : string) (prog : Ast.model) : Errors.error list * 
   in 
   let t_prog = (t_cons, t_apps) in
   !(app_env.errors), t_prog
-

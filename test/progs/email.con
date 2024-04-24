@@ -1,5 +1,5 @@
 concept email
-purpose communicate with private messages 
+purpose "communicate with private messages" 
 state
   inbox: User -> set Message
   from, to: Message -> User

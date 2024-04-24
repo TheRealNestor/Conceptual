@@ -1,7 +1,6 @@
 concept label [Item, Label]
-purpose organize items into overlapping categories
-state
-  labels: Item -> set Label 
+purpose "organize items into overlapping categories"
+state labels: Item -> set Label 
 actions 
   affix(i: Item, l : Label)
     i.labels += l
@@ -16,9 +15,8 @@ principle
   no affix(i,l) or detach(i,l) then i not in find(l)
 
 concept todo 
-purpose keep track of tasks
-state 
-  done, pending: set Task
+purpose "keep track of tasks"
+state done, pending: set Task
 actions
   add(t : Task)
     when t not in done+pending

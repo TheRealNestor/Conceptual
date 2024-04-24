@@ -19,7 +19,7 @@ let %expect_test "Serialization of Reservation Concept" =
   [%expect {|
     module reservation[User, Resource]
 
-    /* PURPOSE:	 manage efficient use of resources */
+    /* PURPOSE:	manage efficient use of resources */
     /* LANGUAGE:	Alloy6 */
 
 
@@ -113,7 +113,7 @@ let %expect_test "Serialization of Trash Concept" =
   [%expect {|
     module trash[Item]
 
-    /* PURPOSE:	  to allow undoing of deletions */
+    /* PURPOSE:	to allow undoing of deletions */
     /* LANGUAGE:	Alloy6 */
 
 
@@ -212,7 +212,7 @@ let %expect_test "Serialization of Email Concept" =
   [%expect {|
     module email
 
-    /* PURPOSE:	 communicate with private messages  */
+    /* PURPOSE:	communicate with private messages */
     /* LANGUAGE:	Alloy6 */
 
     sig Message {}
@@ -306,7 +306,7 @@ let %expect_test "Serialization of Label Concept" =
   [%expect {|
     module label[Item]
 
-    /* PURPOSE:	 organize items into overlapping categories */
+    /* PURPOSE:	organize items into overlapping categories */
     /* LANGUAGE:	Alloy6 */
 
     sig Label {}
@@ -390,7 +390,7 @@ let %expect_test "Serialization of Style Concept" =
   [%expect {|
     module style[Element, Format]
 
-    /* PURPOSE:	   easing consistent formatting of elements  */
+    /* PURPOSE:	easing consistent formatting of elements */
     /* LANGUAGE:	Alloy6 */
 
     sig Style {}
@@ -472,7 +472,7 @@ let %expect_test "Serialization of Todo Concept" =
   [%expect {|
     module todo
 
-    /* PURPOSE:	 keep track of tasks */
+    /* PURPOSE:	keep track of tasks */
     /* LANGUAGE:	Alloy6 */
 
     sig Task {}
@@ -559,7 +559,7 @@ let %expect_test "Serialization of Upvote Concept" =
   [%expect {|
     module upvote[Item, User]
 
-    /* PURPOSE:	 track relative popularity of items */
+    /* PURPOSE:	gauge user sentiment of items */
     /* LANGUAGE:	Alloy6 */
 
 
@@ -659,7 +659,7 @@ let %expect_test "Serialization of Todo-Label App" =
   [%expect {|
     module label[Item, Label]
 
-    /* PURPOSE:	 organize items into overlapping categories */
+    /* PURPOSE:	organize items into overlapping categories */
     /* LANGUAGE:	Alloy6 */
 
 
@@ -737,7 +737,7 @@ let %expect_test "Serialization of Todo-Label App" =
     check _principle1 for 3
     module todo
 
-    /* PURPOSE:	 keep track of tasks */
+    /* PURPOSE:	keep track of tasks */
     /* LANGUAGE:	Alloy6 */
 
     sig Task {}
@@ -861,7 +861,7 @@ let %expect_test "Serialization of Email-Label App" =
   [%expect {|
     module email
 
-    /* PURPOSE:	   communicate with private messages  */
+    /* PURPOSE:	communicate with private messages */
     /* LANGUAGE:	Alloy6 */
 
     sig Message {}
@@ -950,7 +950,7 @@ let %expect_test "Serialization of Email-Label App" =
     check _principle0 for 3
     module todo[Task]
 
-    /* PURPOSE:	 keep track of tasks */
+    /* PURPOSE:	keep track of tasks */
     /* LANGUAGE:	Alloy6 */
 
 
@@ -1032,7 +1032,7 @@ let %expect_test "Serialization of Email-Label App" =
     check _principle1 for 3
     module label[Item]
 
-    /* PURPOSE:	 organize items into overlapping categories */
+    /* PURPOSE:	organize items into overlapping categories */
     /* LANGUAGE:	Alloy6 */
 
 

@@ -104,7 +104,8 @@ rule lex = parse
 | "then" | ';' { THEN } 
 | "no" { NO }
 | "concept" { CONCEPT }
-| "purpose" { Buffer.clear string_buf; purpose_str lexbuf; PURPOSE (Buffer.contents string_buf) } (* Embed the string into the token *)
+| "purpose" { PURPOSE } 
+| "state" { STATE }
 | "actions" { add_token_to_cache ACTIONS; ACTIONS }
 | "principle" { add_token_to_cache OP; OP }
 | "app" { APP }
@@ -121,14 +122,6 @@ rule lex = parse
   INT_LIT(i64_val)  
  }
 
-and purpose_str = parse 
-| "state" { add_token_to_cache STATE; () } 
-| '\n' { Lexing.new_line lexbuf; purpose_str lexbuf } (* increment l_num when incountering newline in *)
-| '\\' (backslash_escapes as c) { Buffer.add_char string_buf @@ char_for_backslash c; purpose_str lexbuf } (* special escape characters *)
-| '\\' (_ as c) { raise @@ Errors.LexerError(InvalidEscapeCharacter{loc = create_location lexbuf; input = String.make 1 c}) } (* invalid escape character *)
-| eof { raise @@ Errors.LexerError(NoState) }
-| _ as c {Buffer.add_char string_buf c; purpose_str lexbuf } (* keep reading string, this will also read newline characters *)
-
 and string = parse   
 | '"' { () } (* end of string *)
 | '\n' { Lexing.new_line lexbuf; string lexbuf } 
@@ -136,7 +129,6 @@ and string = parse
 | '\\' (_ as c) { raise @@ Errors.LexerError(InvalidEscapeCharacter{loc = create_location lexbuf; input = String.make 1 c}) } (* invalid escape character *)
 | eof { raise @@ Errors.LexerError(UnterminatedString{loc = create_location lexbuf}) }
 | _ as c { Buffer.add_char string_buf c; string lexbuf } (* keep reading string, this will also read newline characters *)
-
 
 (* Nesting not applicable for single-line comments*)
 and single_comment = parse
@@ -148,7 +140,7 @@ and multi_comment nesting_level = parse (* and here so we can do mutual recursio
 | "/*" { multi_comment (nesting_level + 1) lexbuf } (* Nested multi_comment *)
 | '\n' { Lexing.new_line lexbuf; multi_comment nesting_level lexbuf } (* increment l_num when incountering newline in *)
 | "*/" { if nesting_level = 0 then lex lexbuf
-          else multi_comment (nesting_level - 1) lexbuf 
+         else multi_comment (nesting_level - 1) lexbuf 
        }
 | eof { lex lexbuf } (* End of multi comment *)
 | _ { multi_comment nesting_level lexbuf } (* Keep reading multi_comments *)
