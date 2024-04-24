@@ -33,6 +33,7 @@ run:
 
 #Ensure that the grammar rule is always run
 # https://github.com/Lelio-Brun/Obelisk?tab=readme-ov-file
+# Requires obelisk to be installed
 .PHONY: grammar
 grammar:
 	rm -f grammar/*
