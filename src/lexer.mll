@@ -44,6 +44,13 @@
     let mangle_ident ident = 
       if Hashtbl.mem alloy_keywords ident then "_" ^ ident
       else ident
+
+    let conceptual_keywords = Hashtbl.create 64
+    let () = List.iter (fun x -> Hashtbl.add conceptual_keywords x ()) 
+      ["and"; "or"; "when"; "can"; "until"; "then"; "no"; "is"; "empty"; "none"; "in"; 
+      "not"; "set"; "one"; "lone"; "some"; "const"; "string"; "int"; "concept"; "purpose"; "state";
+       "actions"; "principle"; "app"; "include"; "sync"
+      ]
 }
 
 let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
@@ -112,7 +119,11 @@ rule lex = parse
 | "include" { INCLUDE }
 | "sync" { SYNC }
 | ident as i { IDENT (mangle_ident i) }
-| ident as i '(' { add_token_to_cache LPAR; ACT (mangle_ident i) } 
+| ident as i '(' { 
+  if Hashtbl.mem conceptual_keywords i then 
+    raise @@ Errors.LexerError(ReservedName{loc = create_location lexbuf; name = i})
+  else
+    add_token_to_cache LPAR; ACT (mangle_ident i) } 
 | digits as i_lit { 
   (* Wrap in big int to do arithmetic/overflow computation *)
   let num = Z.big_int_of_string i_lit in 

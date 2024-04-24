@@ -309,7 +309,7 @@ let %expect_test "Trash Concept Alloy AST" =
     │           └─[36mBinop[0m
     │             ├─[34mImplication[0m
     │             ├─[36mCall[0m
-    │             │ ├─[33mempty[0m
+    │             │ ├─[33mclear[0m
     │             │ └─[36mArgs[0m
     │             └─[36mUnop[0m
     │               ├─[34mAfter[0m
@@ -406,7 +406,7 @@ let %expect_test "Trash Concept Alloy AST" =
       │       ├─[33m(State.accessible)[0m
       │       └─[33mx[0m
       └─[36mPredicate[0m
-        ├─[33mempty[0m
+        ├─[33mclear[0m
         ├─[36mCondition[0m
         │ └─[36mBinop[0m
         │   ├─[34mNeq[0m

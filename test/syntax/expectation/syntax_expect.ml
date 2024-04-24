@@ -370,7 +370,7 @@ let %expect_test "Trash Concept" =
     │   │ │         └─[36mLval[0m
     │   │ │           └─[36mVar([0m[33mx[0m[36m)[0m
     │   │ └─[36mAction[0m
-    │   │   ├─[36mName: [0m[33mempty[0m
+    │   │   ├─[36mName: [0m[33mclear[0m
     │   │   ├─[36mReturn Type: [0m[36mNone[0m
     │   │   ├─[36mDeclList[0m
     │   │   │ └─[36mEmpty[0m
@@ -421,7 +421,7 @@ let %expect_test "Trash Concept" =
     │         ├─[34mThen[0m
     │         └─[36mBinOp[0m
     │           ├─[36mCall[0m
-    │           │ ├─[33mempty[0m
+    │           │ ├─[33mclear[0m
     │           │ └─[36mArguments[0m
     │           ├─[34mThen[0m
     │           └─[36mBinOp[0m

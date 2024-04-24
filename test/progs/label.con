@@ -1,3 +1,4 @@
+
 concept label [Item]
 purpose "organize items into overlapping categories"
 state labels: Item -> set Label 
@@ -13,5 +14,8 @@ actions
 principle
   affix(i,l) then i in find(l) until detach(i,l) or clear(i),
   no affix(i,l) or detach(i,l) then i not in find(l)
+
+
+
 
 

@@ -13,11 +13,11 @@ actions
     when x in trashed
       trashed -= x
       accessible += x
-  empty()
+  clear()
     when trashed != empty
       trashed := {}
 principle 
   delete(x); restore(x); x in accessible,
-  delete(x); empty(); x not in accessible+trashed
+  delete(x); clear(); x not in accessible+trashed
 
 

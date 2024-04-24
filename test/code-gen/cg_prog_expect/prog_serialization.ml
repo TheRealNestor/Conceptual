@@ -140,13 +140,13 @@ let %expect_test "Serialization of Trash Concept" =
     	(State.accessible') = (State.accessible) + x
     }
 
-    pred empty[] {
+    pred clear[] {
     	(State.trashed) != none
     	(State.trashed') = none
     	(State.accessible') = (State.accessible)
     }
 
-    pred _can_empty [] { (State.trashed) != none }
+    pred _can_clear [] { (State.trashed) != none }
     pred _can_restore [x : Item] { x in (State.trashed) }
     pred _can_delete [x : Item] { x in (State.accessible) and not x in (State.trashed) }
     pred _can_create [x : Item] { not x in (State.accessible) + (State.trashed) }
@@ -168,20 +168,20 @@ let %expect_test "Serialization of Trash Concept" =
     		some x : Item | create[x] or
     		some x : Item | delete[x] or
     		some x : Item | restore[x] or
-    		empty[]
+    		clear[]
     	)
     }
 
-    enum Event { alloy_stutter, create, delete, restore, empty }
+    enum Event { alloy_stutter, create, delete, restore, clear }
 
     fun _alloy_stutter : Event { { e : alloy_stutter | alloy_stutter } }
     fun _create : Event -> Item { create -> { x : Item | create[x] } }
     fun _delete : Event -> Item { delete -> { x : Item | delete[x] } }
     fun _restore : Event -> Item { restore -> { x : Item | restore[x] } }
-    fun _empty : Event { { e : empty | empty } }
+    fun _clear : Event { { e : clear | clear } }
 
     fun events : set Event {
-    	(_restore + _delete + _create).Item + (_empty + _alloy_stutter)
+    	(_restore + _delete + _create).Item + (_clear + _alloy_stutter)
     }
     -------------------------------------------
 
@@ -199,7 +199,7 @@ let %expect_test "Serialization of Trash Concept" =
     assert _principle1 {
     	all x : Item | { always (
     		delete[x] => after (
-    			empty[] => after (
+    			clear[] => after (
     				not x in (State.accessible) + (State.trashed)
     			)
     		)
