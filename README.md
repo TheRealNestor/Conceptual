@@ -29,7 +29,7 @@ To execute the compiler, use the following command:
 ```bash 
 make run <input_file>
 ```
-where <input_file> is the path to the Conceptual DSL code to compile. 
+where `<input_file>` is the path to the Conceptual DSL code to compile. 
 
 ## Language Support
 Language support for integrated development enviroments (IDEs) has not been explored extensively or made public in these ecosystems. However, some preliminary work was done to establish language support for Visual Studio Code. The support is lightweight as no external language server is used, although many quality-of-life features are omitted as a result. 
