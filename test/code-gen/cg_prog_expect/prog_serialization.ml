@@ -639,7 +639,7 @@ let %expect_test "Serialization of Upvote Concept" =
     assert _principle1 {
     	all i : Item, u : User | { always (
     		upvote[i, u] => after (
-    			not _can_upvote[i, u]
+    			(unvote[i, u] or downvote[i, u]) releases not _can_upvote[i, u]
     		)
     	) }
     }
@@ -648,7 +648,7 @@ let %expect_test "Serialization of Upvote Concept" =
     assert _principle2 {
     	all i : Item, u : User | { always (
     		downvote[i, u] => after (
-    			not _can_downvote[i, u]
+    			(unvote[i, u] or upvote[i, u]) releases not _can_downvote[i, u]
     		)
     	) }
     }
