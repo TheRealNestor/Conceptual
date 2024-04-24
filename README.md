@@ -1,4 +1,4 @@
-# Conceptual DSL to Alloy Compiler
+# Conceptual DSL
 
 This is a small project implementing tool support for *Conceptual*, a custom domain specific language (DSL) for modelling and translating *concepts*  to [Alloy](https://alloytools.org/documentation.html), a formal modeling language. The notion of concepts is based on research by [Daniel Jackson (2021)](https://essenceofsoftware.com/). The DSL reflects ideas of the developer and may or may not completely align with Professor Daniel Jackson's intended language design.  
 
