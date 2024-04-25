@@ -57,7 +57,7 @@ let negate_compare_op = function
 %left ARROW 
 %left LBRACK (*box join*)
 %left DOT (*dot join*)
-%nonassoc TILDE CARET UNARY_STAR (*relation unary operators*)
+%nonassoc TILDE CARET (*relation unary operators*)
 
 %start <Ast.model> model 
 %%
@@ -107,7 +107,6 @@ expr:
   | Some _ -> Binop{left = $1; op = negate_compare_op $3; right = $4; loc = mk_loc $loc}
   }
 | unop expr { Unop{op = $1; operand = $2; loc = mk_loc $loc} }
-| STAR expr %prec UNARY_STAR { Unop {op = Star{loc = mk_loc $loc}; operand = $2; loc = mk_loc $loc} } (*Include explicitly here to overwrite precedence of star. Cannot assign in inlined nonterminals? *)
 | lval %prec DOT { Lval($1) }
 | expr LBRACK separated_nonempty_list(COMMA, expr) RBRACK { BoxJoin{left = $1; right = $3; loc = mk_loc $loc} }
 | LBRACE flatten(separated_nonempty_list(COMMA, decl)) PIPE expr RBRACE { SetComp{decls = $2; cond = $4; loc = mk_loc $loc} }
@@ -122,7 +121,7 @@ expr:
 | NOT { Not{loc = mk_loc $loc} }
 | TILDE { Tilde{loc = mk_loc $loc} }
 | CARET { Caret{loc = mk_loc $loc} }
-// | STAR %prec CARET { Star{loc = mk_loc $loc} }
+| STAR CARET { Star{loc = mk_loc $loc} }
 | CARD { Card{loc = mk_loc $loc} }
 | NO { No{loc = mk_loc $loc} }
 
