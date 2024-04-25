@@ -8,7 +8,6 @@ module TPretty = TypedPretty
 
 type error = 
 | InvalidEscapeCharacter of {loc : Loc.location; input : string}
-| NoState 
 | DuplicateDeclaration of {loc : Loc.location; name : TAst.ident; ns : string}
 | TypeMismatch of {expected : TAst.ty; actual : TAst.ty; loc : Loc.location}
 | Undeclared of {loc : Loc.location; name : TAst.ident}
@@ -44,7 +43,6 @@ let string_of_t_ident (TAst.Ident{sym}) = Symbol.name sym
 let print_error err =
   match err with
   | InvalidEscapeCharacter {loc; input} -> Printf.printf "InvalidEscapeCharacter. Illegal escape character %s \t" input; Loc.print_location loc;
-  | NoState -> Printf.printf "NoState. A concept is missing state information.\n"
   | DuplicateDeclaration {loc; name; ns} -> Printf.printf "DuplicateDeclaration. The name %s is already exists in the %s namespace. \t" (string_of_t_ident name) ns; Loc.print_location loc;
   | TypeMismatch {expected; actual; loc} -> Printf.printf "TypeMismatch. Expected %s but got %s \t" (TPretty.typ_to_string expected) (TPretty.typ_to_string actual); Loc.print_location loc;
   | Undeclared {loc; name} -> Printf.printf "Undeclared. The name %s is not declared \t" (string_of_t_ident name); Loc.print_location loc;
