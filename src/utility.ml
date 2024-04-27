@@ -118,12 +118,29 @@ let get_mult = function
 | TAst.TInt {mult} | TString {mult} | TCustom {mult;_} -> mult
 | _ -> None
 
+
+let type_to_list_of_types ty = 
+  let rec dfs_map_search acc = function 
+    | TAst.TMap{left;right} -> 
+      let left_history, right_history = dfs_map_search acc left, dfs_map_search acc right in
+      left_history @ right_history
+    | ty -> acc @ [get_base_type ty]
+  in dfs_map_search [] ty
+
 (* create a function that checks that a given ty is included somewhere in a TMap{left;right} *)
 let type_is_in_relation ty rel = 
-  let rec dfs = function
-    | TAst.TMap{left;right} -> dfs left || dfs right
-    | t -> same_base_type t ty
-    in dfs rel
+  (* rewrite this function,
+     it shoudl   *)
+  let ty_list = type_to_list_of_types ty in
+  let rel_list = type_to_list_of_types rel in
+
+  (* check if ty_list is a part of rel_list *)
+  let rec is_sublist = function
+    | [], _ -> true
+    | _, [] -> false
+    | x::xs, y::ys when x = y -> is_sublist (xs, ys)
+    | x::xs, _::ys -> is_sublist (x::xs, ys)
+  in is_sublist (ty_list, rel_list)  
 
 let is_lval = function
 | TAst.Lval _ -> true
@@ -201,13 +218,6 @@ let get_lval_or_expr_location = function
 | Ast.Lval l -> get_lval_location l
 | _ as e -> get_expr_location e
 
-let type_to_list_of_types ty = 
-  let rec dfs_map_search acc = function 
-    | TAst.TMap{left;right} -> 
-      let left_history, right_history = dfs_map_search acc left, dfs_map_search acc right in
-      left_history @ right_history
-    | ty -> acc @ [ty]
-  in dfs_map_search [] ty
 
 (* Passing expression only to get its location information, not needed otherwise... *)
 let construct_join_type env expr left_ty right_ty =

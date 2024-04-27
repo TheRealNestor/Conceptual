@@ -37,7 +37,7 @@ and lval =
 | Relation of { left : lval; right : lval; ty : ty }
 and arg = Arg of { mult : mult option; expr : expr }
 
-type stmt = Assignment of { lval : lval; rhs : expr ; ty : ty } 
+type stmt = Assignment of { lval : lval; rhs : expr ; ty : ty; is_compound : bool;} 
 
 type action_body = 
 | Mutators of { stmts : stmt list }

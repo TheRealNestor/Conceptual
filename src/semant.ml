@@ -94,6 +94,7 @@ let rec infertype_expr (env : Env.environment) (expr : Ast.expr) : TAst.expr * T
     in
     let t_cond = typecheck_expr env cond (TAst.TBool) in 
     SetComp{decls = List.rev t_decls; cond = t_cond; ty}, ty
+
   | BoxJoin{left;right;_} -> 
     let t_left, left_ty = infertype_expr env left in
     let t_exprs, t_ty = List.fold_left (
@@ -214,7 +215,7 @@ let typecheck_stmt env = function
   | _ -> ()
   end;
   (* Finally, return the assignment but with the type of the variable being mutated *)
-  TAst.Assignment{lval;rhs;ty=Utility.get_lval_type lval}
+  TAst.Assignment{lval;rhs;ty=Utility.get_lval_type lval; is_compound}
 
 let add_param_to_env (env, param_so_far) (Ast.Parameter{ty;_}) = 
   let ty = Utility.convert_type ty in

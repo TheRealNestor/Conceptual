@@ -9,6 +9,7 @@ type cg_env = {
   custom_types : Sym.symbol list; (*Keep track of custom types, these are for the signatures*)
   state_vars : variable list; (* actually declared variable in state component of concept*)
   distributive_joins : Symbol.symbol list; (* symbols that appear on the left hand side if it is a joint (minus last one) *)
+  distribute: bool; (*flag to manually prevent distribution of vars*)
   assignment_type : TAst.ty; (* type of the assignment in typed AST, used with distributive join to add things if it does not match*)
   is_left : bool; (* number of statements in the action, used for code generation*)
   lhs_sym : Sym.symbol; (* Keep track of the variable that is being modified...*)
@@ -23,6 +24,7 @@ let make_cg_env = {
   is_left = false;
   lhs_sym = Sym.symbol "lhs"; (* This is reassigned before it is used*)
   con_dict = Sym.Table.empty;
+  distribute = true;
 }
 
 let sym_from (TAst.Ident {sym}) = sym
@@ -149,12 +151,14 @@ let fst_char_of_typ ty =
 in
 first_letter_of_sym @@ fst_char_of_typ' ty
 
-let rec symbol_from_type = function 
+
+let rec symbol_from_type ?(with_last = false)= function 
 | TAst.TCustom{ty= Ident{sym}; _} -> sym
 | TString _ -> Sym.symbol "String"
 | TInt _ -> Sym.symbol "Int"
 | TMap _ as t -> 
-  let types = List.tl @@ Utility.type_to_list_of_types t in 
+  let types = Utility.type_to_list_of_types t in 
+  let types = if with_last then types else List.tl types in
   (* construct the symbol of all types in types, delimit with " -> " *)
   let str = List.fold_left (
     fun str ty -> 
@@ -199,14 +203,14 @@ let get_dist_join_str ?(with_arrow = true) env =
         str
     ) "" env.distributive_joins
 
-
 let rec lval_to_als env = function 
 | TAst.Var {name;ty} -> 
   let state_syms = List.map (fun var -> var.id) env.state_vars in
   if List.mem (sym_from name) state_syms then 
     Als.VarRef(prepend_state_symbol ~left:env.is_left (sym_from name))
-  (* check that type of lval matches the assignment to figure out whether to distributively add join args  *)
-  else if List.length env.distributive_joins <> 0 && Utility.same_base_type ty env.assignment_type |> not then (
+  else if List.length env.distributive_joins <> 0 && 
+          Utility.same_base_type ty env.assignment_type |> not &&
+          env.distribute then (
     let str = get_dist_join_str env ^ (Sym.name @@ sym_from name) in
     VarRef(Sym.symbol str)
   )
@@ -223,25 +227,28 @@ let rec trans_expr env expr =
     else lit 
   in
   begin match expr with
-  | TAst.EmptySet _ -> 
+  | TAst.EmptySet{ty} -> 
     if List.length env.distributive_joins <> 0 then 
       (*e.g. i.labels = {} 
     should be translated to: (State.labels') = (State.labels') - i->Label *)
       let right = Als.Binop{op = Bop Product; 
         left = Lval(VarRef(Sym.symbol @@ (get_dist_join_str env ~with_arrow:false))); 
         right = Lval(VarRef(symbol_from_type env.assignment_type))
-    } in
-    let e = Als.Binop{op=Bop Minus; left = Lval(VarRef(prepend_state_symbol @@ env.lhs_sym)); right} in 
-    Als.Parenthesis e
-  else
-    None
+      } in
+      let e = Als.Binop{op=Bop Minus; left = Lval(VarRef(prepend_state_symbol @@ env.lhs_sym)); right} in 
+      Als.Parenthesis e
+    else if Utility.is_relation ty then (*None expression does not work generally in Alloy? Stuff like "S + none" does not work. Writing None in a different way.*)
+      let right = Als.Parenthesis(Lval(VarRef(symbol_from_type ~with_last:true ty))) in 
+      Als.Parenthesis(Binop{op = Bop Minus; left = Lval(VarRef(prepend_state_symbol @@ env.lhs_sym)); right})
+    else
+      None
   | String {str} -> _mk_lit (StrLit(str))
   | Integer{int} -> _mk_lit (IntLit(int))
   | Unop{op;operand;_} -> begin match op with 
     | TAst.No -> Unop{op = unop_to_als op; expr = Unop{op = Not; expr = _tr operand}}
     | _ -> Unop{op = unop_to_als op; expr = _tr operand}
     end
-  | Binop{op;left;right;_} -> 
+  | Binop{op;left;right;ty} -> 
     let is_int = Utility.same_base_type (Utility.get_expr_type left) (TInt{mult=None}) in
     begin match op with
       | TAst.Plus | Minus -> (*These operators are overloaded, must be translated differently for integers and standard types*)
@@ -250,9 +257,18 @@ let rec trans_expr env expr =
           else binop_to_als op
         in
         Binop{left = _tr left; right = _tr right; op;}
+      | TAst.Product ->
+        let t = trans_expr {env with distribute = false} in 
+        let expr = Als.Binop{left = t left; right = t right; op = binop_to_als op} in 
+        (* add distribute join manually *)
+        if List.length env.distributive_joins <> 0 && Utility.same_base_type ty env.assignment_type |> not then 
+          let str = get_dist_join_str ~with_arrow:false env in
+          Als.Binop{left = Lval(VarRef(Sym.symbol str)); right = expr; op = Bop Product}
+        else 
+          expr
       | In | NotIn -> 
         let left_ty, right_ty = Utility.get_expr_type left, Utility.get_expr_type right in
-        if  Utility.is_relation right_ty then 
+        if  Utility.is_relation right_ty && not @@ Utility.same_base_type left_ty right_ty then 
           let type_list = Utility.type_to_list_of_types right_ty in 
           let fresh_sym = fresh_symbol ~mangle:true 0 in
           (* For the set inclusion, check if left type is in any of the types in the relation on the right side:
@@ -274,7 +290,8 @@ let rec trans_expr env expr =
           let product_in_state_variable = Als.Binop{left = als_product; right = _tr right; op = Bop In} in
           let als_union = List.fold_left (
             fun expr (sym) -> Als.Binop{left = expr; right = Als.Lval(VarRef(sym)); op = Bop Plus}
-          ) (Als.Lval(VarRef(List.hd quant_vars_left_type))) (List.tl quant_vars_left_type) in
+          ) (Als.Lval(VarRef(List.hd quant_vars_left_type))) (List.tl quant_vars_left_type) 
+          in
           let left_in_union = Als.Binop{left = _tr left; right = als_union; op = Bop In} in
           let qop = if op = In then Als.All else Als.No in
           let als_expr = Als.Binop{left = left_in_union; right = product_in_state_variable; op = Bop And} in
@@ -305,7 +322,7 @@ let rec trans_expr env expr =
 end
 
 let trans_stmt env = function 
-| TAst.Assignment{lval; rhs; ty }  -> 
+| TAst.Assignment{lval; rhs; ty; is_compound}  -> 
   (* This finds the rightmost lval on the left side. This is the state variable that is modified. Return this, alongside the als.assignment *)
   let lval_syms_reversed = List.rev @@ traverse_relation lval in
   let lval_sym = List.hd lval_syms_reversed in
@@ -313,15 +330,16 @@ let trans_stmt env = function
   let env = {env with assignment_type = ty;lhs_sym = lval_sym} in 
   let env = if List.length lval_syms_without_last = 0 then env else {env with distributive_joins = lval_syms_without_last} in   
 
-  (* If there is no relation on the RHS, it is a pure assignment of a relation. To translate these, we must explicitly empty the relation first before adding the new set
+  (* Pure assignments are special. To translate these, we must explicitly empty the relation first before adding the new set
      There is no exclusivity in Alloy, even with one/lone keywords... *)
-  let rhs = if not @@ Utility.relation_in_expr rhs && Utility.is_relation ty && not @@ Utility.is_empty_set_expr rhs then
+  let rhs = if not (is_compound || Utility.is_empty_set_expr rhs) then 
     TAst.Binop{
       op = TAst.Plus;
       left = TAst.EmptySet{ty};
       right = rhs;
       ty;
-    } else rhs in
+    } 
+  else rhs in
   let right = trans_expr env rhs in (*Do this before setting environment to left, which adds apostrophies *)
   lval_sym, Als.Assignment{left = lval_to_als {env with is_left = true} lval; right}
 

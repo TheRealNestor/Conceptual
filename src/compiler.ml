@@ -4,7 +4,7 @@ let compile_program filepath =
       | None -> raise (Failure "Failed to lex or parse program")
     in
     let semant_errors, typed_prog = Semant.typecheck_prog filepath prog in
-    (* TypedPretty.program_to_tree typed_prog |> PrintBox_text.to_string |> print_endline; *)
+    TypedPretty.program_to_tree typed_prog |> PrintBox_text.to_string |> print_endline;
     if semant_errors = [] then 
       CodeGen.translate_program typed_prog 
     else 
