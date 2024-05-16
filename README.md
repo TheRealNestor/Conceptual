@@ -8,7 +8,7 @@ Conceptual DSL allows users to model concepts within a specific domain, providin
 Example usage of  *Conceptual* can be found in the `test/progs` directory. Please refer to this directory to understand the language's syntax. 
 
 ## Disclaimer
-This project is experimental and research-grade. As it was quickly put together, it comes with no guarantees and is not intended to be used in any production-style environment. 
+This project is experimental and research-grade. As the tool was put together quickly and ad-hocly, it comes with no guarantees and is not intended to be used in any production-style environment. 
 
 ## Installation
 To install ConceptDSL and its dependencies, ensure you have [OPAM](https://opam.ocaml.org/) installed and execute the following commands:
