@@ -1,8 +1,8 @@
 opam-version: "2.0"
 synopsis: "Concept-DSL and compiler to Alloy"
 version: "0.1"
-maintainer: "nikolajkjakobsen@gmail.com"
-authors: ["Nikolaj Kühne Jakobsen"]
+maintainer: "TheRealNestor (Nestor)"
+authors: ["TheRealNestor (Nestor)"]
 # license: "MIT"
 homepage: "https://github.com/TheRealNestor/ConceptDSL"
 bug-reports: "https://github.com/TheRealNestor/ConceptDSL/issues"
