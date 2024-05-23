@@ -828,31 +828,41 @@ let %expect_test "Serialization of Todo-Label App" =
 
     fact _state__sync_todo_delete0 {
     	always (
-    		all t : todo/Task | { todo/delete[t] => label/clear[t] }
+    		all t : todo/Task | { todo/delete[t] => after (
+    			label/clear[t]
+    		) }
     	)
     }
 
     fact _state__sync_todo_add1 {
     	always (
-    		all t : todo/Task | { todo/add[t] => label/affix[t, "pending"] }
+    		all t : todo/Task | { todo/add[t] => after (
+    			label/affix[t, "pending"]
+    		) }
     	)
     }
 
     fact _state__sync_todo_complete2 {
     	always (
-    		all t : todo/Task | { todo/complete[t] => label/detach[t, "pending"] }
+    		all t : todo/Task | { todo/complete[t] => after (
+    			label/detach[t, "pending"]
+    		) }
     	)
     }
 
     fact _state__sync_label_detach3 {
     	always (
-    		all t : todo/Task | { label/detach[t, "pending"] => todo/complete[t] }
+    		all t : todo/Task | { label/detach[t, "pending"] => after (
+    			todo/complete[t]
+    		) }
     	)
     }
 
     fact _state__sync_label_affix4 {
     	always (
-    		all t : todo/Task | { label/affix[t, "pending"] => todo/add[t] }
+    		all t : todo/Task | { label/affix[t, "pending"] => after (
+    			todo/add[t]
+    		) }
     	)
     } |}]
 
@@ -1119,13 +1129,17 @@ let %expect_test "Serialization of Email-Label App" =
 
     fact _state__sync_todo_delete0 {
     	always (
-    		all t : email/Content | { todo/delete[t] => label/clear[t] }
+    		all t : email/Content | { todo/delete[t] => after (
+    			label/clear[t]
+    		) }
     	)
     }
 
     fact _state__sync_email_receive1 {
     	always (
-    		some todo_user : email/User | { all m : email/Message | { email/receive[todo_user, m] => todo/add[m.(email/State.content)] } }
+    		some todo_user : email/User | { all m : email/Message | { email/receive[todo_user, m] => after (
+    			todo/add[m.(email/State.content)]
+    		) } }
     	)
     } |}]
   

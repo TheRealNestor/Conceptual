@@ -522,15 +522,16 @@ let trans_app env apps (TAst.App{name;deps;syncs}) =
         in
       let als_expression = Als.Binop{
         left = _tr_sync cond;
-        right = if List.length body = 0 then Braces(None)
-          else List.fold_left (
-            fun expr_so_far expr ->
-              Als.Binop{
-                left = expr_so_far;
-                right = _tr_sync expr;
-                op = Bop And
-              }
-          ) (_tr_sync @@ List.hd body) (List.tl body);
+        right = Unop{op = After; expr = if List.length body = 0 then Braces(None)
+                                        else List.fold_left (
+                                          fun expr_so_far expr ->
+                                            Als.Binop{
+                                              left = expr_so_far;
+                                              right = _tr_sync expr;
+                                              op = Bop And
+                                            }
+                                        ) (_tr_sync @@ List.hd body) (List.tl body);
+        };
         op = Bop Implication
       } in 
         

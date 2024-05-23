@@ -1915,10 +1915,12 @@ let %expect_test "Todo-Label App Alloy AST" =
     │ │       │ ├─[33mtodo/delete[0m
     │ │       │ └─[36mArgs[0m
     │ │       │   └─[33mt[0m
-    │ │       └─[36mCall[0m
-    │ │         ├─[33mlabel/clear[0m
-    │ │         └─[36mArgs[0m
-    │ │           └─[33mt[0m
+    │ │       └─[36mUnop[0m
+    │ │         ├─[34mAfter[0m
+    │ │         └─[36mCall[0m
+    │ │           ├─[33mlabel/clear[0m
+    │ │           └─[36mArgs[0m
+    │ │             └─[33mt[0m
     │ ├─[36mFact[0m
     │ │ ├─[33m_sync_todo_add1[0m
     │ │ └─[36mUnop[0m
@@ -1935,11 +1937,13 @@ let %expect_test "Todo-Label App Alloy AST" =
     │ │       │ ├─[33mtodo/add[0m
     │ │       │ └─[36mArgs[0m
     │ │       │   └─[33mt[0m
-    │ │       └─[36mCall[0m
-    │ │         ├─[33mlabel/affix[0m
-    │ │         └─[36mArgs[0m
-    │ │           ├─[33mt[0m
-    │ │           └─[36mpending[0m
+    │ │       └─[36mUnop[0m
+    │ │         ├─[34mAfter[0m
+    │ │         └─[36mCall[0m
+    │ │           ├─[33mlabel/affix[0m
+    │ │           └─[36mArgs[0m
+    │ │             ├─[33mt[0m
+    │ │             └─[36mpending[0m
     │ ├─[36mFact[0m
     │ │ ├─[33m_sync_todo_complete2[0m
     │ │ └─[36mUnop[0m
@@ -1956,11 +1960,13 @@ let %expect_test "Todo-Label App Alloy AST" =
     │ │       │ ├─[33mtodo/complete[0m
     │ │       │ └─[36mArgs[0m
     │ │       │   └─[33mt[0m
-    │ │       └─[36mCall[0m
-    │ │         ├─[33mlabel/detach[0m
-    │ │         └─[36mArgs[0m
-    │ │           ├─[33mt[0m
-    │ │           └─[36mpending[0m
+    │ │       └─[36mUnop[0m
+    │ │         ├─[34mAfter[0m
+    │ │         └─[36mCall[0m
+    │ │           ├─[33mlabel/detach[0m
+    │ │           └─[36mArgs[0m
+    │ │             ├─[33mt[0m
+    │ │             └─[36mpending[0m
     │ ├─[36mFact[0m
     │ │ ├─[33m_sync_label_detach3[0m
     │ │ └─[36mUnop[0m
@@ -1978,10 +1984,12 @@ let %expect_test "Todo-Label App Alloy AST" =
     │ │       │ └─[36mArgs[0m
     │ │       │   ├─[33mt[0m
     │ │       │   └─[36mpending[0m
-    │ │       └─[36mCall[0m
-    │ │         ├─[33mtodo/complete[0m
-    │ │         └─[36mArgs[0m
-    │ │           └─[33mt[0m
+    │ │       └─[36mUnop[0m
+    │ │         ├─[34mAfter[0m
+    │ │         └─[36mCall[0m
+    │ │           ├─[33mtodo/complete[0m
+    │ │           └─[36mArgs[0m
+    │ │             └─[33mt[0m
     │ └─[36mFact[0m
     │   ├─[33m_sync_label_affix4[0m
     │   └─[36mUnop[0m
@@ -1999,10 +2007,12 @@ let %expect_test "Todo-Label App Alloy AST" =
     │         │ └─[36mArgs[0m
     │         │   ├─[33mt[0m
     │         │   └─[36mpending[0m
-    │         └─[36mCall[0m
-    │           ├─[33mtodo/add[0m
-    │           └─[36mArgs[0m
-    │             └─[33mt[0m
+    │         └─[36mUnop[0m
+    │           ├─[34mAfter[0m
+    │           └─[36mCall[0m
+    │             ├─[33mtodo/add[0m
+    │             └─[36mArgs[0m
+    │               └─[33mt[0m
     ├─[36mAssertions[0m
     └─[36mPredicates and Functions[0m |}]
   
@@ -2671,10 +2681,12 @@ let %expect_test "Todo-Label-Email App Alloy AST" =
     │ │       │ ├─[33mtodo/delete[0m
     │ │       │ └─[36mArgs[0m
     │ │       │   └─[33mt[0m
-    │ │       └─[36mCall[0m
-    │ │         ├─[33mlabel/clear[0m
-    │ │         └─[36mArgs[0m
-    │ │           └─[33mt[0m
+    │ │       └─[36mUnop[0m
+    │ │         ├─[34mAfter[0m
+    │ │         └─[36mCall[0m
+    │ │           ├─[33mlabel/clear[0m
+    │ │           └─[36mArgs[0m
+    │ │             └─[33mt[0m
     │ └─[36mFact[0m
     │   ├─[33m_sync_email_receive1[0m
     │   └─[36mUnop[0m
@@ -2698,12 +2710,14 @@ let %expect_test "Todo-Label-Email App Alloy AST" =
     │           │ └─[36mArgs[0m
     │           │   ├─[33mtodo_user[0m
     │           │   └─[33mm[0m
-    │           └─[36mCall[0m
-    │             ├─[33mtodo/add[0m
-    │             └─[36mArgs[0m
-    │               └─[36mBinop[0m
-    │                 ├─[34mJoin[0m
-    │                 ├─[33mm[0m
-    │                 └─[33m(email/State.content)[0m
+    │           └─[36mUnop[0m
+    │             ├─[34mAfter[0m
+    │             └─[36mCall[0m
+    │               ├─[33mtodo/add[0m
+    │               └─[36mArgs[0m
+    │                 └─[36mBinop[0m
+    │                   ├─[34mJoin[0m
+    │                   ├─[33mm[0m
+    │                   └─[33m(email/State.content)[0m
     ├─[36mAssertions[0m
     └─[36mPredicates and Functions[0m |}]

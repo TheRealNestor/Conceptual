@@ -1,0 +1,84 @@
+// Currently not in the test suite (not much new functionality to test)
+
+concept email
+purpose "communicate with private messages" 
+state
+  inbox: User -> set Message
+  from, to: Message -> User
+  content: Message -> Content
+actions
+  send(by, for : User, m : Message, c : Content)
+    when m not in for.inbox 
+      m.content := c
+      m.from := by
+      m.to := for
+  receive(by : User, m : Message)
+    when m not in by.inbox and m.to = by
+      by.inbox += m 
+  delete(u : User, m : Message)  
+    when m in u.inbox 
+      u.inbox -= m
+      m.from, m.to, m.content := {}
+principle 
+  send(f,t,m,c); receive(t,m); m in t.inbox and m.content = c
+
+concept label [Item, Label]
+purpose "organize items into overlapping categories"
+state labels: Item -> set Label 
+actions 
+  affix(i : Item, l : Label)
+    i.labels += l
+  detach(i : Item, l : Label)
+    i.labels -= l
+  find(l : Label) : Item 
+    l.~labels
+  clear(i : Item)
+    i.labels := {}
+principle
+  affix(i,l) then i in find(l) until detach(i,l) or clear(i),
+  no affix(i,l) or detach(i,l) then i not in find(l)
+
+concept trash [Item]
+purpose "to allow undoing of deletions"
+state accessible, trashed : set Item
+actions
+  create(x : Item)
+    when x not in accessible+trashed
+      accessible += x
+  delete(x : Item)
+    when x in accessible and x not in trashed
+      accessible -= x
+      trashed += x
+  restore(x : Item)
+    when x in trashed
+      trashed -= x
+      accessible += x
+  clear()
+    when trashed != empty
+      trashed := {}
+principle 
+  delete(x); restore(x); x in accessible,
+  delete(x); clear(); x not in accessible+trashed
+
+
+app trash_label_email_app
+include
+  email 
+  trash [email.Message]
+  label [email.Message, string]
+sync label.affix(e, "deleted")
+  trash.delete(e)
+sync label.detach(e, "deleted")
+  trash.restore(e)
+sync trash.delete(e)
+  label.affix(e, "deleted")
+sync trash.restore(e)
+  label.detach(e, "deleted")
+
+
+
+
+  
+
+
+
