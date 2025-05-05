@@ -87,7 +87,7 @@ and arg_to_tree = function
 | Arg{mult;expr} -> PBox.tree (Pretty.make_info_node_line "Arg") [Pretty.make_info_node_line (mult_to_string mult); expr_to_tree expr;]
 
 let rec statement_to_tree = function
-| Assignment {lval;rhs;ty} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; ty_to_tree ty]
+| Assignment {lval;rhs;ty;_} -> PBox.tree (Pretty.make_info_node_line "Assignment") [lval_to_tree lval; expr_to_tree rhs; ty_to_tree ty]
 and statement_seq_to_forest stmts = 
   if List.length stmts = 0 then [Pretty.make_info_node_line "Empty"]
   else List.map statement_to_tree stmts

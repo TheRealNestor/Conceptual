@@ -14,7 +14,7 @@ type ty =
 
 type parameter = Parameter of { ty : ty } (*This is for the concept signature *)
 type decl = Decl of { name : ident; ty : ty; } (*State declarations, action signatures*)
-type tmp = Tmp of { decl : decl; mult : mult option}
+type tmp = Tmp of { decl : decl; mult : mult option} (* Dynamically declared vars for operational principle and synchronizations*)
   
 type binop = Plus | Minus | Land | Lor | Eq | Neq | Lt | Lte | Gt | Gte 
 | In | NotIn | Intersection | Join | Product | Times | Div | Mod | Then | Until
@@ -54,7 +54,7 @@ type concept_states = States of { states : state list; }
 type action_sig = ActionSignature of { name : ident; out : ty option ; params : decl list; }
 type action = Action of { signature : action_sig; cond : firing_cond option; body : action_body; }
 type concept_actions = Actions of { actions : action list; }
-type operational_principle = OP of { principles : expr list; tmps : tmp list; } (*tmps are for code generation, new temporary veriables *)
+type operational_principle = OP of { principles : expr list; tmps : tmp list list; } (*temporary veriables, each principle can have multiple tmps *)
 
 type concept = Concept of {
   signature : concept_sig;

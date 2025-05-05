@@ -275,11 +275,20 @@ let typecheck_action env (Ast.Action{signature;cond;body;loc}) =
 
 let typecheck_principle (env : Env.environment) (Ast.OP{principles;_}) = 
   let env = {env with in_op = true} in
-  let t_principles = List.map (fun (expr) ->
-    env.call_tmps := [];
-    typecheck_expr env expr TBool
-  ) principles in
-  TAst.OP{principles = t_principles; tmps = !(env.call_tmps)}
+  let t_principles, tmps = List.fold_left (
+    fun (t_principles_so_far, tmps_so_far) (expr) -> 
+      let env = {env with call_tmps = ref []} in
+      let t_expr = typecheck_expr env expr TBool in
+      let tmps = !(env.call_tmps) in
+      t_expr :: t_principles_so_far, tmps :: tmps_so_far
+  ) ([], []) principles in
+  
+
+  TAst.OP{
+    principles = List.rev t_principles;
+    tmps = List.rev tmps;
+  }
+
 
 (* Only passed the environment to accumulate errors over multiple concepts at once,
    otherwise we could omit "env" parameter and call Env.make_env to create empty environment *)

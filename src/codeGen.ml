@@ -453,19 +453,19 @@ let trans_actions env actions =
 
 let trans_principle env (TAst.OP{principles; tmps}) = 
   let emit = fresh_symbol 0 in
-  List.map (fun expr -> 
+  List.map2 (fun tmps expr -> 
     Als.Assertion{
       assert_id = emit "_principle";
-      body = Quantifier{
+      body = Quantifier {
         qop = All;
         vars = List.map (fun (TAst.Tmp{decl=TAst.Decl{name;ty};_}) -> sym_from name, type_to_als ty) tmps;
-        expr = Unop{
+        expr = Unop {
           op = Always;
           expr = trans_expr env expr
         }
-      }
-    }
-  ) principles 
+        }
+    }) tmps principles
+
 
 let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{doc_str};states=States{states};actions = Actions{actions}; op} as c) = 
   let module_header, env = trans_concept_signature signature in
@@ -475,9 +475,11 @@ let trans_concept (env_so_far, progs) (TAst.Concept{signature; purpose=Purpose{d
   let sigs = Als.SigDecl{sig_id = Sym.symbol "State"; fields = als_states; mult = One} :: primitive_sigs in
   let env, preds_and_funcs = trans_actions cg_env actions in  
   let state_syms = List.map (fun var -> var.id) env.state_vars in 
-  let assertions = trans_principle env op in  
+    let assertions = trans_principle env op in  
   {env_so_far with con_dict = Sym.Table.add (Utility.get_concept_sym c) state_syms env_so_far.con_dict}, 
   Als.Program{module_header; facts; deps = []; purpose = Some doc_str; sigs; preds_and_funcs; assertions} :: progs
+
+
 
 let trans_app env apps (TAst.App{name;deps;syncs}) =
   let als_header = Als.Module{name = sym_from name; parameters = None;} in

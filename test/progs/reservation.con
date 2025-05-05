@@ -20,10 +20,10 @@ actions
       available += r
   use(u: User, r : Resource)
     when r in u.reservations 
-      // u.reservations -= r
+      // u.reservations -= r    <--- for some interpretations...
 principle
-  reserve(u,r) then can use(u,r) until cancel(u,r)  
-
+  reserve(u,r) then can use(u,r) until cancel(u,r),
+  reserve(u,r) then can not reserve(u2, r) until cancel(u,r)
 
   
 

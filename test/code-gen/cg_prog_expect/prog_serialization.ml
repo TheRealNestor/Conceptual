@@ -106,7 +106,16 @@ let %expect_test "Serialization of Reservation Concept" =
     		)
     	) }
     }
-    check _principle0 for 3 |}]
+    check _principle0 for 3
+
+    assert _principle1 {
+    	all r : Resource, u, u2 : User | { always (
+    		reserve[u, r] => after (
+    			cancel[u, r] releases not _can_reserve[u2, r]
+    		)
+    	) }
+    }
+    check _principle1 for 3 |}]
 
 let %expect_test "Serialization of Trash Concept" = 
   !>> "trash";
