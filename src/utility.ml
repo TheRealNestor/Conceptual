@@ -219,6 +219,9 @@ let get_lval_or_expr_location = function
 | _ as e -> get_expr_location e
 
 
+(* Infertype relation *)
+
+
 (* Passing expression only to get its location information, not needed otherwise... *)
 let construct_join_type env expr left_ty right_ty =
     (*For maps we want a list of all tapes, makes it easier to construct resulting type
@@ -295,6 +298,7 @@ let rec get_lval_name = function
 | Relation {right;_} -> get_lval_name right
 
 (* This checks whether a relation "lval" is contained insisde a join expressoin *)
+(* relation type is given when to lhs of assignment statements, and will be propagated in the case of compound assignments *)
 (* This handles cases such as u.reservations = u.reservations + r  *)
 let check_for_relation_in_join lval = function
 | TAst.Binop {left;right;op=TAst.Join; _} as e -> 

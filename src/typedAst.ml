@@ -7,10 +7,12 @@ type ty =
 | TString of { mult : mult option }
 | TBool 
 | TInt of { mult : mult option }
-| TCustom of { ty : ident; mult : mult option; ns : ident option} (* custom type *)
+| TCustom of { ty : ident; mult : mult option; ns : ident option } (* custom type *)
 | TMap of { left : ty; right : ty } (* map from type to type. Each of these types can of course also be a map. "to" is reserved in ocaml. *)
 | NullSet of { ty : ty option } (* For empty sets currently *)
 | ErrorType 
+
+type concept_type = Type of { concept : ident; ty : ty } (* TODO: this should be used instead of ty everywhere?*)
 
 type parameter = Parameter of { ty : ty } (*This is for the concept signature *)
 type decl = Decl of { name : ident; ty : ty; } (*State declarations, action signatures*)

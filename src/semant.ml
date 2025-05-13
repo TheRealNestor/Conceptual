@@ -5,6 +5,10 @@ module Loc = Location
 let convert_ident (Ast.Ident{name;_}) = TAst.Ident{sym = Sym.symbol name;}
 let sym_from_ident (TAst.Ident{sym}) = sym
 
+(* TODO: util function for creating type with current concept embedded *)
+(* let type_extension (env : Env.environment) (ty : TAst.ty) =  *)
+
+
 let add_decl_to_env ?(insert_error = true) ?(const = false) env (Ast.Decl{name;ty;loc}) =
   let Ident{sym} as name = convert_ident name in
   let ty = Utility.convert_type ty in
@@ -58,7 +62,10 @@ let rec infertype_expr (env : Env.environment) (expr : Ast.expr) : TAst.expr * T
       | Lor _ | Land _  -> 
         if not @@ Utility.is_boolean left_ty then Env.insert_error env (TypeMismatch{actual = left_ty; expected = TBool; loc});
         TBool
-      | Join _ -> Utility.construct_join_type env expr left_ty right_ty
+      | Join _ -> 
+        (* TODO: Special case for sync where right expression is unique to a concept (variable), 
+        based on the left expression we need to be able to determine the concept to look for the right hand variable... *)
+        Utility.construct_join_type env expr left_ty right_ty
       | Eq _ | Neq _ -> TBool
       | In _ | NotIn _ -> 
         if not (Utility.type_is_in_relation left_ty right_ty) then
@@ -161,6 +168,12 @@ let rec infertype_expr (env : Env.environment) (expr : Ast.expr) : TAst.expr * T
     ;
     Can{call = t_call;}, TBool
   end
+
+
+(* TODO: Should also sometimes check the con_dict in the case of apps for internal variables?
+
+  This can be avhieved via the environment. Specifically, ...
+*)
 and infertype_lval env lval = match lval with  
   | Var i -> 
     let Ident{sym} as name = convert_ident i in
@@ -168,6 +181,7 @@ and infertype_lval env lval = match lval with
     let ty = 
     match ty_opt with 
       | None -> Env.insert_error env (Undeclared{name; loc = Utility.get_lval_location lval}); TAst.ErrorType
+        (* TODO: Should be another pattern match here? In Con_dict for apps? *)
       | Some Act(a) -> Env.insert_error env (ActionAsLval{name; loc = Utility.get_lval_location lval}); Utility.get_ret_type a 
       | Some Var(ty,_) -> ty    
     in
@@ -178,6 +192,20 @@ and infertype_lval env lval = match lval with
     let right, right_ty = infertype_lval env right in
     let ty = Utility.construct_join_type env (Lval(l)) left_ty right_ty in 
     Relation{left;right;ty}, ty
+
+    (* TODO: Which should have precedence: Regular Join ... or the standard lib action of searching con dict? 
+    
+    Doing the former makes it tricky to evaluate the second one, since standalone lval variables are not aware of which concept they belong to.
+    So even if we use env.in_sync to determine when it should check for this, 
+    it cannot determine which concept it should check for this variable in the con_dict
+
+    For this reason, I think the latter should have precedence.
+    
+    However, in the case of type clashes (e.g. multiple concepts have a type of the same name), how can we determine which one to use?
+    --- Is it bad to have type annotations of the form "concept.type"?
+    If I add such a type extension, do I still face the same problem? 
+    In this case, I would still struggle to be able to determine when to actually read the type from the left side? 
+    *)
 
 and typecheck_expr env (expr : Ast.expr) (ty : TAst.ty) = 
   let texpr, texprty = infertype_expr env expr in
@@ -337,6 +365,7 @@ let include_concepts ((env : Env.environment), (new_concepts)) (Ast.Dependency{n
   match con_opt with
   | Some _ -> env, new_concepts (* concept already in environment, no new concepts to add *)
   | None -> (* try to compile the file if available *)
+    (* TODO: improve inclusion robustness *)
     let filepath = Filename.concat env.dir path in
     if not @@ Sys.file_exists filepath then (Env.insert_error env (FileNotFound{input=filepath; loc}); env, new_concepts) else 
     let prog_opt = AstCompiler.compile_program_to_ast filepath in 
@@ -356,7 +385,21 @@ let include_concepts ((env : Env.environment), (new_concepts)) (Ast.Dependency{n
         in
         env.errors := !(tmp_env.errors) @ !(env.errors);
         let con_dict = Sym.Table.add sym (tmp_env, con_generics) env.con_dict in
-        {env with con_dict = con_dict}, c :: new_concepts
+
+        (* Should merge here instaed of assign the con dict *)
+        let merged_con_dict = Sym.Table.fold (fun k v acc ->
+          match Sym.Table.find_opt k acc with
+          | None -> Sym.Table.add k v acc
+          | Some _ -> acc
+        ) con_dict env.con_dict in
+
+        {env with con_dict = merged_con_dict}, c :: new_concepts
+
+
+        
+        (* {env with con_dict = con_dict}, c :: new_concepts *)
+
+        (* This might actually overwrite the entire con_dict which we do not want.... TODO: *)
 
 let typecheck_dependency ((env : Env.environment), deps) (Ast.Dependency{name=Ident{name;_};generics;loc}) = 
   let concept_name = Filename.basename name |> Filename.remove_extension in

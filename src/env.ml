@@ -19,6 +19,9 @@ type environment = {env_objects : env_object Sym.Table.t; (*Keep track of named 
                     trigger_sync : bool; (* Whether the current context is in a trigger sync. Trigger synchronizations can introduce new variables *)
                     left_lval : TAst.lval option; (* The left hand side of the current assignment *)
                     dir : string; (* The directory of the current file that is run *)
+                    
+                    (* current_con : TAst.ident; (* The current concept that is being analyzed. Useful for creating concept types ("concept.type") in a handy way *)
+                     *)
                     }
    
 (* create an initial environment with the given functions defined *)
@@ -36,7 +39,11 @@ let make_env =
   trigger_sync = false;
   left_lval = None; 
   dir ="";
-}
+  
+  (* current_con = TAst.Ident{sym = (Sym.symbol "@@@*!`\")")}; (* This is a dummy concept name that cannot be parsed as actual input, it will be replaced with the actual concept name when the concept is created *)
+   *)
+  }
+
 
 
 let insert env sym obj =
